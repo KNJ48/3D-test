@@ -89,7 +89,6 @@ const camera = new THREE.PerspectiveCamera(
 );
 
 const SPAWN = new THREE.Vector3(0, PLAYER_HEIGHT, 12);
-
 camera.position.copy(SPAWN);
 camera.rotation.order = "YXZ";
 
@@ -102,15 +101,16 @@ const renderer = new THREE.WebGLRenderer({
 
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1;
-
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 document.body.appendChild(renderer.domElement);
+
+// カーソルは初期状態では表示
+renderer.domElement.style.cursor = "auto";
 
 // ==================================================
 // TEXTURES
@@ -118,14 +118,12 @@ document.body.appendChild(renderer.domElement);
 const loader = new THREE.TextureLoader();
 
 const groundTexture = loader.load("/textures/ground.jpg");
-
 groundTexture.colorSpace = THREE.SRGBColorSpace;
 groundTexture.wrapS = THREE.RepeatWrapping;
 groundTexture.wrapT = THREE.RepeatWrapping;
 groundTexture.repeat.set(400, 400);
 
 const wallTexture = loader.load("/textures/wall.jpg");
-
 wallTexture.colorSpace = THREE.SRGBColorSpace;
 wallTexture.wrapS = THREE.RepeatWrapping;
 wallTexture.wrapT = THREE.RepeatWrapping;
@@ -142,10 +140,7 @@ scene.add(
   )
 );
 
-const sun = new THREE.DirectionalLight(
-  0xfff3d6,
-  3
-);
+const sun = new THREE.DirectionalLight(0xfff3d6, 3);
 
 sun.position.set(-150, 1200, 120);
 sun.castShadow = true;
@@ -188,24 +183,21 @@ const anchorTargets = [];
 // ==================================================
 // MATERIALS
 // ==================================================
-const trainingMaterial =
-  new THREE.MeshStandardMaterial({
-    map: wallTexture,
-    roughness: 0.8
-  });
+const trainingMaterial = new THREE.MeshStandardMaterial({
+  map: wallTexture,
+  roughness: 0.8
+});
 
-const outerWallMaterial =
-  new THREE.MeshStandardMaterial({
-    map: wallTexture,
-    color: 0xb0a58f,
-    roughness: 0.95
-  });
+const outerWallMaterial = new THREE.MeshStandardMaterial({
+  map: wallTexture,
+  color: 0xb0a58f,
+  roughness: 0.95
+});
 
-const roadMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0x625b51,
-    roughness: 1
-  });
+const roadMaterial = new THREE.MeshStandardMaterial({
+  color: 0x625b51,
+  roughness: 1
+});
 
 const cityMaterials = [
   new THREE.MeshStandardMaterial({
@@ -222,11 +214,10 @@ const cityMaterials = [
   })
 ];
 
-const roofMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0x71372f,
-    roughness: 0.9
-  });
+const roofMaterial = new THREE.MeshStandardMaterial({
+  color: 0x71372f,
+  roughness: 0.9
+});
 
 // ==================================================
 // ADD WORLD OBJECT
@@ -299,12 +290,7 @@ function createTrainingArea() {
 // ==================================================
 // CITY WALL
 // ==================================================
-function createWallSegment(
-  x,
-  z,
-  width,
-  depth
-) {
+function createWallSegment(x, z, width, depth) {
   const wall = new THREE.Mesh(
     new THREE.BoxGeometry(
       width,
@@ -371,25 +357,14 @@ function createCityWall() {
 // ==================================================
 // ROAD
 // ==================================================
-function createRoad(
-  x,
-  z,
-  width,
-  depth
-) {
+function createRoad(x, z, width, depth) {
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
     roadMaterial
   );
 
   mesh.rotation.x = -Math.PI / 2;
-
-  mesh.position.set(
-    x,
-    0.025,
-    z
-  );
-
+  mesh.position.set(x, 0.025, z);
   mesh.receiveShadow = true;
 
   scene.add(mesh);
@@ -407,22 +382,11 @@ function createHouse(
   variant
 ) {
   const house = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      width,
-      height,
-      depth
-    ),
-    cityMaterials[
-      variant % cityMaterials.length
-    ]
+    new THREE.BoxGeometry(width, height, depth),
+    cityMaterials[variant % cityMaterials.length]
   );
 
-  house.position.set(
-    x,
-    height / 2,
-    z
-  );
-
+  house.position.set(x, height / 2, z);
   addWorldObject(house);
 
   const roof = new THREE.Mesh(
@@ -434,12 +398,7 @@ function createHouse(
     roofMaterial
   );
 
-  roof.position.set(
-    x,
-    height + 2.5,
-    z
-  );
-
+  roof.position.set(x, height + 2.5, z);
   roof.rotation.y = Math.PI / 4;
   roof.castShadow = true;
 
@@ -488,9 +447,8 @@ function createCity() {
         CITY_CENTER_Z +
         z * CITY_BLOCK_SPACING;
 
-      const seed = Math.abs(
-        x * 37 + z * 71
-      );
+      const seed =
+        Math.abs(x * 37 + z * 71);
 
       createHouse(
         px - 8,
@@ -514,45 +472,31 @@ function createCity() {
 }
 
 // ==================================================
-// TEST TITAN
+// TITAN
 // ==================================================
 const TITAN_HEIGHT = 15;
 
 const titan = new THREE.Group();
 
-titan.position.set(
-  0,
-  0,
-  -60
-);
-
+titan.position.set(0, 0, -60);
 scene.add(titan);
 
-// ==================================================
-// TITAN MATERIALS
-// ==================================================
-const titanSkinMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0xd8a27f,
-    roughness: 0.75
-  });
+const titanSkinMaterial = new THREE.MeshStandardMaterial({
+  color: 0xd8a27f,
+  roughness: 0.75
+});
 
-const titanHairMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0x30251f,
-    roughness: 0.9
-  });
+const titanHairMaterial = new THREE.MeshStandardMaterial({
+  color: 0x30251f,
+  roughness: 0.9
+});
 
-const titanWeakMaterial =
-  new THREE.MeshBasicMaterial({
-    color: 0xffee55,
-    transparent: true,
-    opacity: 0.15
-  });
+const titanWeakMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffee55,
+  transparent: true,
+  opacity: 0.15
+});
 
-// ==================================================
-// TITAN BODY
-// ==================================================
 function addTitanPart(
   geometry,
   material,
@@ -566,7 +510,6 @@ function addTitanPart(
   );
 
   mesh.position.set(x, y, z);
-
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
@@ -578,12 +521,7 @@ function addTitanPart(
 
 // Legs
 addTitanPart(
-  new THREE.CapsuleGeometry(
-    0.75,
-    5.2,
-    8,
-    12
-  ),
+  new THREE.CapsuleGeometry(0.75, 5.2, 8, 12),
   titanSkinMaterial,
   -0.9,
   3.3,
@@ -591,12 +529,7 @@ addTitanPart(
 );
 
 addTitanPart(
-  new THREE.CapsuleGeometry(
-    0.75,
-    5.2,
-    8,
-    12
-  ),
+  new THREE.CapsuleGeometry(0.75, 5.2, 8, 12),
   titanSkinMaterial,
   0.9,
   3.3,
@@ -605,12 +538,7 @@ addTitanPart(
 
 // Torso
 addTitanPart(
-  new THREE.CapsuleGeometry(
-    2.2,
-    4.2,
-    8,
-    12
-  ),
+  new THREE.CapsuleGeometry(2.2, 4.2, 8, 12),
   titanSkinMaterial,
   0,
   8.7,
@@ -618,99 +546,61 @@ addTitanPart(
 );
 
 // Arms
-const leftTitanArm =
-  addTitanPart(
-    new THREE.CapsuleGeometry(
-      0.55,
-      5,
-      8,
-      10
-    ),
-    titanSkinMaterial,
-    -2.6,
-    8.5,
-    0
-  );
+const leftTitanArm = addTitanPart(
+  new THREE.CapsuleGeometry(0.55, 5, 8, 10),
+  titanSkinMaterial,
+  -2.6,
+  8.5,
+  0
+);
 
 leftTitanArm.rotation.z = -0.15;
 
-const rightTitanArm =
-  addTitanPart(
-    new THREE.CapsuleGeometry(
-      0.55,
-      5,
-      8,
-      10
-    ),
-    titanSkinMaterial,
-    2.6,
-    8.5,
-    0
-  );
+const rightTitanArm = addTitanPart(
+  new THREE.CapsuleGeometry(0.55, 5, 8, 10),
+  titanSkinMaterial,
+  2.6,
+  8.5,
+  0
+);
 
 rightTitanArm.rotation.z = 0.15;
 
 // Head
-const titanHead =
-  addTitanPart(
-    new THREE.SphereGeometry(
-      1.5,
-      20,
-      16
-    ),
-    titanSkinMaterial,
-    0,
-    13.4,
-    0
-  );
-
-// Hair
-const titanHair =
-  new THREE.Mesh(
-    new THREE.SphereGeometry(
-      1.55,
-      20,
-      16,
-      0,
-      Math.PI * 2,
-      0,
-      Math.PI * 0.48
-    ),
-    titanHairMaterial
-  );
-
-titanHair.position.set(
+const titanHead = addTitanPart(
+  new THREE.SphereGeometry(1.5, 20, 16),
+  titanSkinMaterial,
   0,
-  13.7,
+  13.4,
   0
 );
 
-titan.add(titanHair);
-
-// ==================================================
-// NAPE WEAK POINT
-// ==================================================
-const titanNape =
-  new THREE.Mesh(
-    new THREE.BoxGeometry(
-      1.3,
-      1.0,
-      0.5
-    ),
-    titanWeakMaterial
-  );
-
-titanNape.position.set(
-  0,
-  12.2,
-  -1.45
+// Hair
+const titanHair = new THREE.Mesh(
+  new THREE.SphereGeometry(
+    1.55,
+    20,
+    16,
+    0,
+    Math.PI * 2,
+    0,
+    Math.PI * 0.48
+  ),
+  titanHairMaterial
 );
 
+titanHair.position.set(0, 13.7, 0);
+titan.add(titanHair);
+
+// Nape
+const titanNape = new THREE.Mesh(
+  new THREE.BoxGeometry(1.3, 1.0, 0.5),
+  titanWeakMaterial
+);
+
+titanNape.position.set(0, 12.2, -1.45);
 titan.add(titanNape);
 
-// ==================================================
-// TITAN COMBAT STATE
-// ==================================================
 let titanAlive = true;
 
 const attackTargets = [
@@ -736,33 +626,27 @@ let dead = false;
 let currentGasThrust = 0;
 
 // ==================================================
-// BLADE VISUAL
+// BLADES
 // ==================================================
 scene.add(camera);
 
-const bladeMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0xdfe7ec,
-    metalness: 0.9,
-    roughness: 0.18
-  });
+const bladeMaterial = new THREE.MeshStandardMaterial({
+  color: 0xdfe7ec,
+  metalness: 0.9,
+  roughness: 0.18
+});
 
-const bladeHandleMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0x252525,
-    metalness: 0.4,
-    roughness: 0.7
-  });
+const bladeHandleMaterial = new THREE.MeshStandardMaterial({
+  color: 0x252525,
+  metalness: 0.4,
+  roughness: 0.7
+});
 
 function createBlade(side) {
   const group = new THREE.Group();
 
   const handle = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      0.08,
-      0.08,
-      0.32
-    ),
+    new THREE.BoxGeometry(0.08, 0.08, 0.32),
     bladeHandleMaterial
   );
 
@@ -770,11 +654,7 @@ function createBlade(side) {
   group.add(handle);
 
   const blade = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      0.045,
-      0.055,
-      1.25
-    ),
+    new THREE.BoxGeometry(0.045, 0.055, 1.25),
     bladeMaterial
   );
 
@@ -798,15 +678,11 @@ function createBlade(side) {
 const leftBlade = createBlade(-1);
 const rightBlade = createBlade(1);
 
-// ==================================================
-// BLADE ANIMATION
-// ==================================================
 let attacking = false;
 let attackTimer = 0;
 let attackCooldownTimer = 0;
 
-const attackRaycaster =
-  new THREE.Raycaster();
+const attackRaycaster = new THREE.Raycaster();
 
 function bladeAttack() {
   if (
@@ -819,22 +695,19 @@ function bladeAttack() {
 
   attacking = true;
   attackTimer = 0;
-  attackCooldownTimer =
-    ATTACK_COOLDOWN;
+  attackCooldownTimer = ATTACK_COOLDOWN;
 
   attackRaycaster.setFromCamera(
     new THREE.Vector2(0, 0),
     camera
   );
 
-  attackRaycaster.far =
-    ATTACK_RANGE;
+  attackRaycaster.far = ATTACK_RANGE;
 
-  const hits =
-    attackRaycaster.intersectObjects(
-      attackTargets,
-      false
-    );
+  const hits = attackRaycaster.intersectObjects(
+    attackTargets,
+    false
+  );
 
   if (hits.length === 0) {
     return;
@@ -844,13 +717,10 @@ function bladeAttack() {
     return;
   }
 
-  const speed =
-    velocity.length();
+  const speed = velocity.length();
 
   if (speed < MIN_KILL_SPEED) {
-    showMessage(
-      "NOT ENOUGH SPEED"
-    );
+    showMessage("NOT ENOUGH SPEED");
     return;
   }
 
@@ -859,7 +729,6 @@ function bladeAttack() {
 
 function killTitan() {
   titanAlive = false;
-
   showMessage("TITAN DOWN");
 
   titan.rotation.z = 0.15;
@@ -868,10 +737,7 @@ function killTitan() {
     titan.visible = false;
   }, 700);
 
-  setTimeout(
-    respawnTitan,
-    4000
-  );
+  setTimeout(respawnTitan, 4000);
 }
 
 function respawnTitan() {
@@ -898,14 +764,10 @@ function updateBladeAnimation(delta) {
     1
   );
 
-  const swing =
-    Math.sin(t * Math.PI);
+  const swing = Math.sin(t * Math.PI);
 
-  leftBlade.rotation.z =
-    -swing * 1.15;
-
-  rightBlade.rotation.z =
-    swing * 1.15;
+  leftBlade.rotation.z = -swing * 1.15;
+  rightBlade.rotation.z = swing * 1.15;
 
   leftBlade.rotation.x =
     -0.12 + swing * 0.65;
@@ -948,11 +810,7 @@ const ropeOutward = new THREE.Vector3();
 const wireMiddle = new THREE.Vector3();
 const projectileDirection = new THREE.Vector3();
 
-const yAxis = new THREE.Vector3(
-  0,
-  1,
-  0
-);
+const yAxis = new THREE.Vector3(0, 1, 0);
 
 // ==================================================
 // UTILITY
@@ -963,8 +821,7 @@ function moveTowards(
   maxDelta
 ) {
   if (
-    Math.abs(target - current) <=
-    maxDelta
+    Math.abs(target - current) <= maxDelta
   ) {
     return target;
   }
@@ -979,8 +836,7 @@ function moveTowards(
 // ==================================================
 // ANCHORS
 // ==================================================
-const raycaster =
-  new THREE.Raycaster();
+const raycaster = new THREE.Raycaster();
 
 function createAnchor() {
   const wire = new THREE.Mesh(
@@ -996,7 +852,6 @@ function createAnchor() {
   );
 
   wire.visible = false;
-
   scene.add(wire);
 
   return {
@@ -1004,10 +859,8 @@ function createAnchor() {
     connected: false,
     targetPoint: new THREE.Vector3(),
     point: new THREE.Vector3(),
-    projectilePosition:
-      new THREE.Vector3(),
-    launchPosition:
-      new THREE.Vector3(),
+    projectilePosition: new THREE.Vector3(),
+    launchPosition: new THREE.Vector3(),
     target: null,
     length: 0,
     pulling: false,
@@ -1019,9 +872,6 @@ function createAnchor() {
 const leftAnchor = createAnchor();
 const rightAnchor = createAnchor();
 
-// ==================================================
-// ANCHOR FUNCTIONS
-// ==================================================
 function fireAnchor(
   anchor,
   offset = 0
@@ -1035,11 +885,10 @@ function fireAnchor(
     camera
   );
 
-  const hits =
-    raycaster.intersectObjects(
-      anchorTargets,
-      false
-    );
+  const hits = raycaster.intersectObjects(
+    anchorTargets,
+    false
+  );
 
   if (hits.length === 0) {
     return;
@@ -1050,16 +899,10 @@ function fireAnchor(
   anchor.state = "FIRING";
   anchor.connected = false;
 
-  anchor.targetPoint.copy(
-    hit.point
-  );
-
+  anchor.targetPoint.copy(hit.point);
   anchor.target = hit.object;
 
-  anchor.launchPosition.copy(
-    camera.position
-  );
-
+  anchor.launchPosition.copy(camera.position);
   anchor.projectilePosition.copy(
     anchor.launchPosition
   );
@@ -1073,9 +916,7 @@ function connectAnchor(anchor) {
   anchor.state = "CONNECTED";
   anchor.connected = true;
 
-  anchor.point.copy(
-    anchor.targetPoint
-  );
+  anchor.point.copy(anchor.targetPoint);
 
   anchor.length =
     camera.position.distanceTo(
@@ -1154,11 +995,10 @@ function updateAnchorProjectile(
 
   projectileDirection.normalize();
 
-  anchor.projectilePosition
-    .addScaledVector(
-      projectileDirection,
-      travel
-    );
+  anchor.projectilePosition.addScaledVector(
+    projectileDirection,
+    travel
+  );
 }
 
 function updateWireVisual(anchor) {
@@ -1176,8 +1016,7 @@ function updateWireVisual(anchor) {
     camera.position
   );
 
-  const distance =
-    wireDirection.length();
+  const distance = wireDirection.length();
 
   if (distance < 0.001) {
     anchor.wire.visible = false;
@@ -1191,9 +1030,7 @@ function updateWireVisual(anchor) {
     .add(end)
     .multiplyScalar(0.5);
 
-  anchor.wire.position.copy(
-    wireMiddle
-  );
+  anchor.wire.position.copy(wireMiddle);
 
   anchor.wire.scale.set(
     1,
@@ -1203,11 +1040,10 @@ function updateWireVisual(anchor) {
 
   wireDirection.normalize();
 
-  anchor.wire.quaternion
-    .setFromUnitVectors(
-      yAxis,
-      wireDirection
-    );
+  anchor.wire.quaternion.setFromUnitVectors(
+    yAxis,
+    wireDirection
+  );
 }
 
 function updateWireGas(delta) {
@@ -1222,9 +1058,7 @@ function updateWireGas(delta) {
     return false;
   }
 
-  gas -=
-    WIRE_GAS_USE_RATE * delta;
-
+  gas -= WIRE_GAS_USE_RATE * delta;
   gas = Math.max(gas, 0);
 
   return gas > 0;
@@ -1251,8 +1085,7 @@ function updateWire(
   );
 
   if (
-    wireDirection.lengthSq() <
-    0.001
+    wireDirection.lengthSq() < 0.001
   ) {
     return;
   }
@@ -1294,8 +1127,7 @@ function constrainRope(anchor) {
     anchor.point
   );
 
-  const distance =
-    ropeOutward.length();
+  const distance = ropeOutward.length();
 
   if (distance < 0.001) {
     return;
@@ -1337,9 +1169,7 @@ function updateGasFlight(delta) {
     return;
   }
 
-  gas -=
-    FLIGHT_GAS_USE_RATE * delta;
-
+  gas -= FLIGHT_GAS_USE_RATE * delta;
   gas = Math.max(gas, 0);
 
   if (velocity.y < 0) {
@@ -1439,10 +1269,7 @@ function impactDamage(speed) {
   const kmh =
     Math.abs(speed) * 3.6;
 
-  if (
-    kmh >=
-    LETHAL_IMPACT_KMH
-  ) {
+  if (kmh >= LETHAL_IMPACT_KMH) {
     return MAX_HEALTH;
   }
 
@@ -1460,10 +1287,7 @@ function impactDamage(speed) {
   const damage =
     t * t * MAX_HEALTH;
 
-  if (
-    damage <
-    MIN_DAMAGE_THRESHOLD
-  ) {
+  if (damage < MIN_DAMAGE_THRESHOLD) {
     return 0;
   }
 
@@ -1476,11 +1300,7 @@ function damageFromImpact(speed) {
   }
 
   health -= impactDamage(speed);
-
-  health = Math.max(
-    health,
-    0
-  );
+  health = Math.max(health, 0);
 
   if (health <= 0) {
     die();
@@ -1495,17 +1315,12 @@ function intersects(
   box
 ) {
   return (
-    position.x + PLAYER_RADIUS >
-      box.min.x &&
-    position.x - PLAYER_RADIUS <
-      box.max.x &&
+    position.x + PLAYER_RADIUS > box.min.x &&
+    position.x - PLAYER_RADIUS < box.max.x &&
     position.y > box.min.y &&
-    position.y - PLAYER_HEIGHT <
-      box.max.y &&
-    position.z + PLAYER_RADIUS >
-      box.min.z &&
-    position.z - PLAYER_RADIUS <
-      box.max.z
+    position.y - PLAYER_HEIGHT < box.max.y &&
+    position.z + PLAYER_RADIUS > box.min.z &&
+    position.z - PLAYER_RADIUS < box.max.z
   );
 }
 
@@ -1519,62 +1334,37 @@ function collides(position) {
   return false;
 }
 
-// ==================================================
-// MOVEMENT
-// ==================================================
 function moveHorizontal(delta) {
-  const nextX =
-    camera.position.clone();
-
-  nextX.x +=
-    velocity.x * delta;
+  const nextX = camera.position.clone();
+  nextX.x += velocity.x * delta;
 
   if (!collides(nextX)) {
-    camera.position.x =
-      nextX.x;
+    camera.position.x = nextX.x;
   } else {
-    damageFromImpact(
-      velocity.x
-    );
-
+    damageFromImpact(velocity.x);
     velocity.x = 0;
   }
 
-  const nextZ =
-    camera.position.clone();
-
-  nextZ.z +=
-    velocity.z * delta;
+  const nextZ = camera.position.clone();
+  nextZ.z += velocity.z * delta;
 
   if (!collides(nextZ)) {
-    camera.position.z =
-      nextZ.z;
+    camera.position.z = nextZ.z;
   } else {
-    damageFromImpact(
-      velocity.z
-    );
-
+    damageFromImpact(velocity.z);
     velocity.z = 0;
   }
 }
 
 function moveVertical(delta) {
-  const oldY =
-    camera.position.y;
+  const oldY = camera.position.y;
 
-  const next =
-    camera.position.clone();
+  const next = camera.position.clone();
+  next.y += velocity.y * delta;
 
-  next.y +=
-    velocity.y * delta;
-
-  if (
-    next.y <= PLAYER_HEIGHT
-  ) {
+  if (next.y <= PLAYER_HEIGHT) {
     if (velocity.y < 0) {
-      damageFromImpact(
-        velocity.y
-      );
+      damageFromImpact(velocity.y);
     }
 
     camera.position.y =
@@ -1587,9 +1377,7 @@ function moveVertical(delta) {
   }
 
   if (!collides(next)) {
-    camera.position.y =
-      next.y;
-
+    camera.position.y = next.y;
     grounded = false;
     return;
   }
@@ -1597,18 +1385,10 @@ function moveVertical(delta) {
   if (velocity.y <= 0) {
     for (const box of colliders) {
       const horizontal =
-        camera.position.x +
-          PLAYER_RADIUS >
-          box.min.x &&
-        camera.position.x -
-          PLAYER_RADIUS <
-          box.max.x &&
-        camera.position.z +
-          PLAYER_RADIUS >
-          box.min.z &&
-        camera.position.z -
-          PLAYER_RADIUS <
-          box.max.z;
+        camera.position.x + PLAYER_RADIUS > box.min.x &&
+        camera.position.x - PLAYER_RADIUS < box.max.x &&
+        camera.position.z + PLAYER_RADIUS > box.min.z &&
+        camera.position.z - PLAYER_RADIUS < box.max.z;
 
       if (!horizontal) {
         continue;
@@ -1624,13 +1404,10 @@ function moveVertical(delta) {
         oldFeet >= box.max.y &&
         newFeet <= box.max.y
       ) {
-        damageFromImpact(
-          velocity.y
-        );
+        damageFromImpact(velocity.y);
 
         camera.position.y =
-          box.max.y +
-          PLAYER_HEIGHT;
+          box.max.y + PLAYER_HEIGHT;
 
         velocity.y = 0;
         grounded = true;
@@ -1640,10 +1417,7 @@ function moveVertical(delta) {
     }
   }
 
-  damageFromImpact(
-    velocity.y
-  );
-
+  damageFromImpact(velocity.y);
   velocity.y = 0;
 }
 
@@ -1718,15 +1492,13 @@ function updateGround(delta) {
     velocity.z =
       currentDirection.z * speed;
   } else if (speed > 0) {
-    const newSpeed =
-      moveTowards(
-        speed,
-        0,
-        GROUND_DECEL * delta
-      );
+    const newSpeed = moveTowards(
+      speed,
+      0,
+      GROUND_DECEL * delta
+    );
 
-    const scale =
-      newSpeed / speed;
+    const scale = newSpeed / speed;
 
     velocity.x *= scale;
     velocity.z *= scale;
@@ -1734,8 +1506,7 @@ function updateGround(delta) {
 }
 
 function limitSpeed() {
-  const speed =
-    velocity.length();
+  const speed = velocity.length();
 
   if (speed > MAX_SPEED) {
     velocity.multiplyScalar(
@@ -1759,22 +1530,18 @@ function die() {
   releaseAnchor(leftAnchor);
   releaseAnchor(rightAnchor);
 
-  deathScreen.style.display =
-    "flex";
+  deathScreen.style.display = "flex";
 
-  setTimeout(
-    respawn,
-    2000
-  );
+  setTimeout(respawn, 2000);
 }
 
 function respawn() {
   camera.position.copy(SPAWN);
-
   velocity.set(0, 0, 0);
 
   health = MAX_HEALTH;
   gas = MAX_GAS;
+
   grounded = true;
   dead = false;
 
@@ -1784,8 +1551,7 @@ function respawn() {
   releaseAnchor(leftAnchor);
   releaseAnchor(rightAnchor);
 
-  deathScreen.style.display =
-    "none";
+  deathScreen.style.display = "none";
 }
 
 // ==================================================
@@ -1794,6 +1560,18 @@ function respawn() {
 window.addEventListener(
   "keydown",
   event => {
+    /*
+     * EscapeについてはpreventDefaultしない。
+     * ブラウザ自身のPointer Lock解除も働かせる。
+     */
+    if (event.code === "Escape") {
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+
+      return;
+    }
+
     if (event.code === "Space") {
       event.preventDefault();
 
@@ -1806,18 +1584,14 @@ window.addEventListener(
       event.code === "KeyQ" &&
       !keys["KeyQ"]
     ) {
-      toggleAnchor(
-        leftAnchor
-      );
+      toggleAnchor(leftAnchor);
     }
 
     if (
       event.code === "KeyR" &&
       !keys["KeyR"]
     ) {
-      toggleAnchor(
-        rightAnchor
-      );
+      toggleAnchor(rightAnchor);
     }
 
     keys[event.code] = true;
@@ -1832,27 +1606,128 @@ window.addEventListener(
 );
 
 // ==================================================
-// MOUSE
+// POINTER LOCK
 // ==================================================
-renderer.domElement.addEventListener(
-  "click",
+let pointerLocked = false;
+
+function restoreCursor() {
+  pointerLocked = false;
+
+  document.documentElement.style.cursor = "auto";
+  document.body.style.cursor = "auto";
+  renderer.domElement.style.cursor = "auto";
+}
+
+function hideCursor() {
+  document.documentElement.style.cursor = "none";
+  document.body.style.cursor = "none";
+  renderer.domElement.style.cursor = "none";
+}
+
+function unlockPointer() {
+  if (document.pointerLockElement) {
+    document.exitPointerLock();
+  }
+
+  restoreCursor();
+}
+
+function lockPointer() {
+  if (
+    pointerLocked ||
+    document.pointerLockElement
+  ) {
+    return;
+  }
+
+  /*
+   * Pointer Lockはユーザー操作から直接呼ぶ必要がある。
+   */
+  const result =
+    renderer.domElement.requestPointerLock();
+
+  /*
+   * 新しいブラウザではPromiseを返す場合もある。
+   */
+  if (
+    result &&
+    typeof result.catch === "function"
+  ) {
+    result.catch(() => {
+      restoreCursor();
+    });
+  }
+}
+
+// Pointer Lock状態はこのイベントを正とする
+document.addEventListener(
+  "pointerlockchange",
   () => {
-    renderer.domElement
-      .requestPointerLock();
+    pointerLocked =
+      document.pointerLockElement ===
+      renderer.domElement;
+
+    if (pointerLocked) {
+      hideCursor();
+    } else {
+      restoreCursor();
+
+      /*
+       * ロック解除時にキー入力状態もクリア。
+       * Esc後にW等が押しっぱなしになるのを防ぐ。
+       */
+      for (const code of Object.keys(keys)) {
+        keys[code] = false;
+      }
+
+      spacePressed = false;
+    }
   }
 );
 
+document.addEventListener(
+  "pointerlockerror",
+  () => {
+    restoreCursor();
+  }
+);
+
+// ==================================================
+// MOUSE
+// ==================================================
+
+/*
+ * ロックされていない状態でCanvasをクリック
+ * → Pointer Lock開始。
+ *
+ * ロック中のクリック
+ * → 通常のゲーム操作として扱う。
+ */
 renderer.domElement.addEventListener(
   "mousedown",
   event => {
+    if (!pointerLocked) {
+      /*
+       * 左クリックでゲームへ戻る。
+       * このクリックでは斬撃しない。
+       */
+      if (event.button === 0) {
+        lockPointer();
+      }
+
+      return;
+    }
+
     if (dead) {
       return;
     }
 
+    // Left Click = Blade Attack
     if (event.button === 0) {
       bladeAttack();
     }
 
+    // Right Click = Both Anchors
     if (event.button === 2) {
       toggleBothAnchors();
     }
@@ -1866,12 +1741,14 @@ renderer.domElement.addEventListener(
   }
 );
 
+// ロック中だけ視点移動
 document.addEventListener(
   "mousemove",
   event => {
     if (
+      !pointerLocked ||
       document.pointerLockElement !==
-      renderer.domElement
+        renderer.domElement
     ) {
       return;
     }
@@ -1892,6 +1769,41 @@ document.addEventListener(
   }
 );
 
+/*
+ * タブから離れたら可能な範囲で解除する。
+ */
+document.addEventListener(
+  "visibilitychange",
+  () => {
+    if (document.hidden) {
+      unlockPointer();
+    }
+  }
+);
+
+/*
+ * 戻る・タブ終了・ページ移動時。
+ */
+window.addEventListener(
+  "pagehide",
+  () => {
+    unlockPointer();
+  }
+);
+
+window.addEventListener(
+  "blur",
+  () => {
+    /*
+     * ブラウザUIなどへフォーカスが移った場合も
+     * カーソルを復元する。
+     */
+    if (document.pointerLockElement) {
+      unlockPointer();
+    }
+  }
+);
+
 // ==================================================
 // HUD
 // ==================================================
@@ -1909,16 +1821,13 @@ Object.assign(
     fontSize: "18px",
     fontWeight: "bold",
     whiteSpace: "pre",
-    textShadow:
-      "0 1px 4px black",
+    textShadow: "0 1px 4px black",
     pointerEvents: "none",
     zIndex: "100"
   }
 );
 
-document.body.appendChild(
-  debugHUD
-);
+document.body.appendChild(debugHUD);
 
 // ==================================================
 // MESSAGE HUD
@@ -1932,25 +1841,20 @@ Object.assign(
     position: "fixed",
     left: "50%",
     top: "35%",
-    transform:
-      "translate(-50%,-50%)",
+    transform: "translate(-50%,-50%)",
     color: "white",
     fontFamily: "Arial",
     fontSize: "38px",
     fontWeight: "bold",
-    textShadow:
-      "0 3px 8px black",
+    textShadow: "0 3px 8px black",
     opacity: "0",
-    transition:
-      "opacity .15s",
+    transition: "opacity .15s",
     pointerEvents: "none",
     zIndex: "150"
   }
 );
 
-document.body.appendChild(
-  messageHUD
-);
+document.body.appendChild(messageHUD);
 
 let messageTimeout = null;
 
@@ -1959,16 +1863,15 @@ function showMessage(text) {
   messageHUD.style.opacity = "1";
 
   if (messageTimeout) {
-    clearTimeout(
-      messageTimeout
-    );
+    clearTimeout(messageTimeout);
   }
 
-  messageTimeout =
-    setTimeout(() => {
-      messageHUD.style.opacity =
-        "0";
-    }, 1000);
+  messageTimeout = setTimeout(
+    () => {
+      messageHUD.style.opacity = "0";
+    },
+    1000
+  );
 }
 
 // ==================================================
@@ -1983,16 +1886,14 @@ Object.assign(
     position: "fixed",
     left: "50%",
     top: "54%",
-    transform:
-      "translateX(-50%)",
+    transform: "translateX(-50%)",
     display: "flex",
     gap: "50px",
     color: "white",
     fontFamily: "monospace",
     fontSize: "18px",
     fontWeight: "bold",
-    textShadow:
-      "0 1px 4px black",
+    textShadow: "0 1px 4px black",
     pointerEvents: "none"
   }
 );
@@ -2008,9 +1909,7 @@ anchorHUD.append(
   rightHUD
 );
 
-document.body.appendChild(
-  anchorHUD
-);
+document.body.appendChild(anchorHUD);
 
 // ==================================================
 // CROSSHAIR
@@ -2028,17 +1927,13 @@ Object.assign(
     height: "6px",
     background: "white",
     borderRadius: "50%",
-    transform:
-      "translate(-50%,-50%)",
-    boxShadow:
-      "0 0 3px black",
+    transform: "translate(-50%,-50%)",
+    boxShadow: "0 0 3px black",
     pointerEvents: "none"
   }
 );
 
-document.body.appendChild(
-  crosshair
-);
+document.body.appendChild(crosshair);
 
 // ==================================================
 // RESOURCE HUD
@@ -2056,21 +1951,17 @@ Object.assign(
     color: "white",
     fontFamily: "Arial",
     fontWeight: "bold",
-    textShadow:
-      "0 1px 3px black"
+    textShadow: "0 1px 3px black"
   }
 );
 
-document.body.appendChild(
-  resources
-);
+document.body.appendChild(resources);
 
 function createBar(color) {
   const wrapper =
     document.createElement("div");
 
-  wrapper.style.marginTop =
-    "12px";
+  wrapper.style.marginTop = "12px";
 
   const label =
     document.createElement("div");
@@ -2082,10 +1973,8 @@ function createBar(color) {
     background.style,
     {
       height: "18px",
-      border:
-        "2px solid white",
-      background:
-        "rgba(0,0,0,.6)",
+      border: "2px solid white",
+      background: "rgba(0,0,0,.6)",
       overflow: "hidden"
     }
   );
@@ -2103,9 +1992,7 @@ function createBar(color) {
     background
   );
 
-  resources.appendChild(
-    wrapper
-  );
+  resources.appendChild(wrapper);
 
   return {
     label,
@@ -2133,11 +2020,9 @@ Object.assign(
     display: "none",
     alignItems: "center",
     justifyContent: "center",
-    background:
-      "rgba(100,0,0,.45)",
+    background: "rgba(100,0,0,.45)",
     color: "white",
-    font:
-      "bold 64px Arial",
+    font: "bold 64px Arial",
     zIndex: "200"
   }
 );
@@ -2153,15 +2038,11 @@ document.body.appendChild(
 // HUD UPDATE
 // ==================================================
 function anchorSymbol(anchor) {
-  if (
-    anchor.state === "FIRING"
-  ) {
+  if (anchor.state === "FIRING") {
     return "→";
   }
 
-  if (
-    anchor.state === "CONNECTED"
-  ) {
+  if (anchor.state === "CONNECTED") {
     return "●";
   }
 
@@ -2169,28 +2050,21 @@ function anchorSymbol(anchor) {
 }
 
 function updateHUD() {
-  const speed =
-    velocity.length();
+  const speed = velocity.length();
 
   debugHUD.textContent =
     `Speed: ${speed.toFixed(1)} m/s\n` +
     ` ${(speed * 3.6).toFixed(0)} km/h\n` +
     `Vertical: ${velocity.y.toFixed(1)} m/s\n` +
     `Titan: ${
-      titanAlive
-        ? "ALIVE"
-        : "DOWN"
+      titanAlive ? "ALIVE" : "DOWN"
     }`;
 
   leftHUD.textContent =
-    `Q L ${anchorSymbol(
-      leftAnchor
-    )}`;
+    `Q L ${anchorSymbol(leftAnchor)}`;
 
   rightHUD.textContent =
-    `${anchorSymbol(
-      rightAnchor
-    )} R R`;
+    `${anchorSymbol(rightAnchor)} R R`;
 
   leftHUD.style.color =
     leftAnchor.state === "OFF"
@@ -2331,13 +2205,10 @@ window.addEventListener(
 // ==================================================
 // GAME LOOP
 // ==================================================
-const clock =
-  new THREE.Clock();
+const clock = new THREE.Clock();
 
 function animate() {
-  requestAnimationFrame(
-    animate
-  );
+  requestAnimationFrame(animate);
 
   const delta = Math.min(
     clock.getDelta(),
@@ -2346,17 +2217,10 @@ function animate() {
 
   updatePlayer(delta);
 
-  updateBladeAnimation(
-    delta
-  );
+  updateBladeAnimation(delta);
 
-  updateWireVisual(
-    leftAnchor
-  );
-
-  updateWireVisual(
-    rightAnchor
-  );
+  updateWireVisual(leftAnchor);
+  updateWireVisual(rightAnchor);
 
   updateHUD();
 
