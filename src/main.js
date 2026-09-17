@@ -24,7 +24,7 @@ const MIN_DAMAGE_THRESHOLD = 10;
 // ==================================================
 // GAS
 // ==================================================
-const MAX_GAS = 100;
+const MAX_GAS = 500;
 const FLIGHT_GAS_USE_RATE = 2.4;
 const WIRE_GAS_USE_RATE = FLIGHT_GAS_USE_RATE * 0.5;
 const GAS_RECOVERY_ACCEL = 28;
@@ -38,8 +38,8 @@ const AIR_STABILIZE_ACCEL = 18;
 // WIRE
 // ==================================================
 const WIRE_INITIAL_IMPULSE = 11;
-const WIRE_SUSTAIN_ACCEL = 5;
-const ANCHOR_SHOT_SPEED = 150;
+const WIRE_SUSTAIN_ACCEL = 10;
+const ANCHOR_SHOT_SPEED = 200;
 const WIRE_RADIUS = 0.07;
 const DUAL_AIM_OFFSET = 0.035;
 
