@@ -3,11 +3,8 @@ import * as THREE from "three";
 // ==================================================
 // WORLD SCALE
 // ==================================================
-// Three.js 内部の 1 unit を何メートルとして扱うか。
-// 以前: 1 unit = 1 m
-// 現在: 1 unit = 0.5 m
-//
-// 物理シミュレーション内部の数値は変更しない。
+// 1 Three.js unit = 0.5 m
+// 世界・物理の内部数値そのものは変更しない。
 const METERS_PER_UNIT = 0.5;
 
 // ==================================================
@@ -22,6 +19,13 @@ const GROUND_ACCEL = 18;
 const GROUND_DECEL = 22;
 const GROUND_TURN = 12;
 const MAX_SPEED = 60;
+
+// ==================================================
+// AIR DRAG
+// ==================================================
+// 空中で完全に推進操作をしていない場合の横方向抵抗。
+// 速度に比例して減衰する。
+const AIR_DRAG = 0.5;
 
 // ==================================================
 // DAMAGE
@@ -89,9 +93,7 @@ const CITY_ROAD_WIDTH = 12;
 // SCENE
 // ==================================================
 const scene = new THREE.Scene();
-
-scene.background =
-  new THREE.Color(0x87ceeb);
+scene.background = new THREE.Color(0x87ceeb);
 
 // ==================================================
 // CAMERA
@@ -99,8 +101,7 @@ scene.background =
 const camera =
   new THREE.PerspectiveCamera(
     75,
-    window.innerWidth /
-      window.innerHeight,
+    window.innerWidth / window.innerHeight,
     0.1,
     4000
   );
@@ -144,6 +145,7 @@ renderer.toneMapping =
 renderer.toneMappingExposure = 1;
 
 renderer.shadowMap.enabled = true;
+
 renderer.shadowMap.type =
   THREE.PCFSoftShadowMap;
 
@@ -229,7 +231,6 @@ sun.shadow.camera.top = 1200;
 sun.shadow.camera.bottom = -350;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 2000;
-
 sun.shadow.normalBias = 0.02;
 
 scene.add(sun);
@@ -560,7 +561,6 @@ function createHouse(
   roof.castShadow = true;
 
   scene.add(roof);
-
   anchorTargets.push(roof);
 }
 
@@ -710,7 +710,6 @@ function addTitanPart(
   mesh.receiveShadow = true;
 
   titan.add(mesh);
-
   anchorTargets.push(mesh);
 
   return mesh;
@@ -908,8 +907,7 @@ function createBlade(side) {
       bladeHandleMaterial
     );
 
-  handle.position.z =
-    -0.05;
+  handle.position.z = -0.05;
 
   group.add(handle);
 
@@ -923,8 +921,7 @@ function createBlade(side) {
       bladeMaterial
     );
 
-  blade.position.z =
-    -0.8;
+  blade.position.z = -0.8;
 
   group.add(blade);
 
@@ -934,9 +931,7 @@ function createBlade(side) {
     -0.7
   );
 
-  group.rotation.x =
-    -0.12;
-
+  group.rotation.x = -0.12;
   group.rotation.y =
     side * -0.12;
 
@@ -972,6 +967,7 @@ function bladeAttack() {
 
   attacking = true;
   attackTimer = 0;
+
   attackCooldownTimer =
     ATTACK_COOLDOWN;
 
@@ -1002,10 +998,6 @@ function bladeAttack() {
     return;
   }
 
-  /*
-   * MIN_KILL_SPEED はゲーム内部速度として維持。
-   * 操作感・戦闘バランスは変更しない。
-   */
   const speed =
     velocity.length();
 
@@ -1076,8 +1068,7 @@ function updateBladeAnimation(
 
   attackTimer += delta;
 
-  const duration =
-    0.28;
+  const duration = 0.28;
 
   const t =
     Math.min(
@@ -1088,8 +1079,7 @@ function updateBladeAnimation(
 
   const swing =
     Math.sin(
-      t *
-      Math.PI
+      t * Math.PI
     );
 
   leftBlade.rotation.z =
@@ -1106,7 +1096,9 @@ function updateBladeAnimation(
     -0.12 +
     swing * 0.65;
 
-  if (t >= 1) {
+  if (
+    t >= 1
+  ) {
     attacking = false;
 
     leftBlade.rotation.z = 0;
@@ -1179,8 +1171,7 @@ function moveTowards(
 ) {
   if (
     Math.abs(
-      target -
-      current
+      target - current
     ) <= maxDelta
   ) {
     return target;
@@ -1189,8 +1180,7 @@ function moveTowards(
   return (
     current +
     Math.sign(
-      target -
-      current
+      target - current
     ) *
     maxDelta
   );
@@ -1305,15 +1295,22 @@ function fireAnchor(
     anchor.launchPosition
   );
 
-  anchor.pulling = false;
-  anchor.impulseApplied = false;
-  anchor.wire.visible = true;
+  anchor.pulling =
+    false;
+
+  anchor.impulseApplied =
+    false;
+
+  anchor.wire.visible =
+    true;
 }
 
 // ==================================================
 // CONNECT ANCHOR
 // ==================================================
-function connectAnchor(anchor) {
+function connectAnchor(
+  anchor
+) {
   anchor.state =
     "CONNECTED";
 
@@ -1329,14 +1326,19 @@ function connectAnchor(anchor) {
       anchor.point
     );
 
-  anchor.pulling = false;
-  anchor.impulseApplied = false;
+  anchor.pulling =
+    false;
+
+  anchor.impulseApplied =
+    false;
 }
 
 // ==================================================
 // RELEASE ANCHOR
 // ==================================================
-function releaseAnchor(anchor) {
+function releaseAnchor(
+  anchor
+) {
   anchor.state =
     "OFF";
 
@@ -1344,17 +1346,26 @@ function releaseAnchor(anchor) {
     false;
 
   anchor.target = null;
-  anchor.pulling = false;
-  anchor.impulseApplied = false;
-  anchor.wire.visible = false;
+
+  anchor.pulling =
+    false;
+
+  anchor.impulseApplied =
+    false;
+
+  anchor.wire.visible =
+    false;
 }
 
 // ==================================================
 // TOGGLE ANCHOR
 // ==================================================
-function toggleAnchor(anchor) {
+function toggleAnchor(
+  anchor
+) {
   if (
-    anchor.state === "OFF"
+    anchor.state ===
+    "OFF"
   ) {
     fireAnchor(anchor);
   } else {
@@ -1483,13 +1494,9 @@ function updateWireVisual(
     true;
 
   wireMiddle
-    .copy(
-      camera.position
-    )
+    .copy(camera.position)
     .add(end)
-    .multiplyScalar(
-      0.5
-    );
+    .multiplyScalar(0.5);
 
   anchor.wire.position.copy(
     wireMiddle
@@ -1596,7 +1603,8 @@ function updateWire(
       );
   }
 
-  anchor.pulling = true;
+  anchor.pulling =
+    true;
 
   velocity.addScaledVector(
     wireDirection,
@@ -1827,16 +1835,106 @@ function updateGasFlight(
 }
 
 // ==================================================
+// AIR DRAG
+// ==================================================
+function updateAirDrag(
+  delta
+) {
+  /*
+   * 地上では既存のGROUND_DECELを使用する。
+   */
+  if (grounded) {
+    return;
+  }
+
+  /*
+   * WASDのいずれかを操作している間は
+   * 自動的な空気抵抗を掛けない。
+   */
+  const hasMovementInput =
+    keys["KeyW"] ||
+    keys["KeyA"] ||
+    keys["KeyS"] ||
+    keys["KeyD"];
+
+  /*
+   * ガス噴射中にも掛けない。
+   */
+  const usingFlightGas =
+    keys["Space"] &&
+    gas > 0;
+
+  /*
+   * ワイヤーで実際に牽引している場合にも掛けない。
+   */
+  const wirePulling =
+    leftAnchor.pulling ||
+    rightAnchor.pulling;
+
+  if (
+    hasMovementInput ||
+    usingFlightGas ||
+    wirePulling
+  ) {
+    return;
+  }
+
+  /*
+   * 指数減衰。
+   *
+   * velocityが大きいほど
+   * 1秒間に失われる絶対速度も大きくなる。
+   *
+   * フレームレートにも依存しにくい。
+   */
+  const dragFactor =
+    Math.exp(
+      -AIR_DRAG *
+      delta
+    );
+
+  /*
+   * 横方向にのみ適用。
+   * Yには重力があるので変更しない。
+   */
+  velocity.x *=
+    dragFactor;
+
+  velocity.z *=
+    dragFactor;
+
+  /*
+   * 極端に小さくなった速度を0にする。
+   */
+  if (
+    Math.abs(
+      velocity.x
+    ) < 0.001
+  ) {
+    velocity.x = 0;
+  }
+
+  if (
+    Math.abs(
+      velocity.z
+    ) < 0.001
+  ) {
+    velocity.z = 0;
+  }
+}
+
+// ==================================================
 // DAMAGE
 // ==================================================
 function impactDamage(
   speed
 ) {
   /*
-   * speed は内部 unit/s。
-   *
-   * 1 unit = 0.5 m なので、
-   * 現実の m/s に変換してから km/h にする。
+   * 内部 unit/s
+   * ↓
+   * 実際の m/s
+   * ↓
+   * km/h
    */
   const metersPerSecond =
     Math.abs(speed) *
@@ -2088,7 +2186,9 @@ function moveVertical(
           PLAYER_RADIUS <
           box.max.z;
 
-      if (!horizontal) {
+      if (
+        !horizontal
+      ) {
         continue;
       }
 
@@ -2246,8 +2346,11 @@ function updateGround(
       newSpeed /
       speed;
 
-    velocity.x *= scale;
-    velocity.z *= scale;
+    velocity.x *=
+      scale;
+
+    velocity.z *=
+      scale;
   }
 }
 
@@ -2344,10 +2447,8 @@ window.addEventListener(
   "keydown",
   event => {
     /*
-     * Escape はブラウザの標準
-     * Pointer Lock解除に任せる。
-     *
-     * preventDefault() はしない。
+     * EscapeはPointer Lockの
+     * ブラウザ標準解除に任せる。
      */
     if (
       event.code ===
@@ -2407,13 +2508,8 @@ window.addEventListener(
 // POINTER LOCK
 // ==================================================
 //
-// IMPORTANT:
-//
-// CSS の cursor:none は一切使用しない。
-// カーソルを隠す処理はブラウザ標準の
-// Pointer Lock に完全に任せる。
-//
-// Esc による解除についてもブラウザ標準を使用。
+// cursor:none は使用しない。
+// カーソルを隠すのはPointer Lock標準動作のみ。
 //
 // ==================================================
 let pointerLocked =
@@ -2426,12 +2522,12 @@ document.addEventListener(
       document.pointerLockElement ===
       renderer.domElement;
 
-    if (!pointerLocked) {
+    if (
+      !pointerLocked
+    ) {
       /*
-       * Esc解除後にキーが押しっぱなしに
-       * なることだけ防止する。
-       *
-       * カーソルのCSSには一切触らない。
+       * Esc解除時にキーが
+       * 押しっぱなしになるのを防止。
        */
       for (
         const code
@@ -2462,8 +2558,10 @@ renderer.domElement.addEventListener(
   "mousedown",
   event => {
     /*
-     * ロックされていない場合、
-     * 左クリックでゲームへ入る。
+     * ロックされていなければ
+     * 左クリックでPointer Lock。
+     *
+     * この最初のクリックでは斬撃しない。
      */
     if (
       document.pointerLockElement !==
@@ -2863,8 +2961,8 @@ function anchorSymbol(
 
 function updateHUD() {
   /*
-   * velocity は内部 unit/s。
-   * HUDでは実際のm/sへ換算する。
+   * 内部unit/s
+   * → m/s
    */
   const internalSpeed =
     velocity.length();
@@ -2963,6 +3061,7 @@ function updatePlayer(
     -Math.sin(yaw)
   );
 
+  // Ground
   if (
     grounded &&
     !leftAnchor.connected &&
@@ -2973,6 +3072,7 @@ function updatePlayer(
     );
   }
 
+  // Jump
   if (
     spacePressed &&
     grounded
@@ -2984,10 +3084,12 @@ function updatePlayer(
       false;
   }
 
+  // Gravity
   velocity.y -=
     GRAVITY *
     delta;
 
+  // Anchor projectiles
   updateAnchorProjectile(
     leftAnchor,
     delta
@@ -2998,11 +3100,13 @@ function updatePlayer(
     delta
   );
 
+  // Wire gas
   const gasAvailable =
     updateWireGas(
       delta
     );
 
+  // Wire
   updateWire(
     leftAnchor,
     delta,
@@ -3015,7 +3119,16 @@ function updatePlayer(
     gasAvailable
   );
 
+  // Flight gas
   updateGasFlight(
+    delta
+  );
+
+  /*
+   * 無操作で飛んでいるときだけ
+   * 横方向の空気抵抗を適用。
+   */
+  updateAirDrag(
     delta
   );
 
