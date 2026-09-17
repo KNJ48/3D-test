@@ -34,7 +34,7 @@ const MIN_DAMAGE_THRESHOLD = 10;
 // ==================================================
 // GAS
 // ==================================================
-const MAX_GAS = 100;
+const MAX_GAS = 500;
 const FLIGHT_GAS_USE_RATE = 2.4;
 const WIRE_GAS_USE_RATE =
   FLIGHT_GAS_USE_RATE * 0.5;
