@@ -38,7 +38,7 @@ const AIR_STABILIZE_ACCEL = 18;
 // WIRE
 // ==================================================
 const WIRE_INITIAL_IMPULSE = 11;
-const WIRE_SUSTAIN_ACCEL = 10;
+const WIRE_SUSTAIN_ACCEL = 20;
 const ANCHOR_SHOT_SPEED = 200;
 const WIRE_RADIUS = 0.07;
 const DUAL_AIM_OFFSET = 0.035;
