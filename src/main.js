@@ -5,111 +5,57 @@ import * as THREE from "three";
 // ==================================================
 const METERS_PER_UNIT = 0.5;
 
-function mpsToUnits(value) {
-  return value / METERS_PER_UNIT;
-}
-
-function unitsToMps(value) {
-  return value * METERS_PER_UNIT;
-}
-
-function kmhToUnits(value) {
-  return (value / 3.6) / METERS_PER_UNIT;
-}
-
-function unitsToKmh(value) {
-  return unitsToMps(value) * 3.6;
-}
-
 // ==================================================
 // PLAYER
 // ==================================================
 const PLAYER_HEIGHT = 1.7;
 const PLAYER_RADIUS = 0.35;
-
-// 実9.8m/s²
-const GRAVITY = mpsToUnits(9.8);
-
-// 地上ジャンプ
+const GRAVITY = 14;
 const JUMP_SPEED = 3.5;
 
-// 実10m/s
-const MAX_WALK_SPEED = mpsToUnits(10);
-
+const MAX_WALK_SPEED = 6;
 const GROUND_ACCEL = 18;
 const GROUND_DECEL = 22;
 const GROUND_TURN = 12;
 
-// 全体最高速度300km/h
-const MAX_SPEED = kmhToUnits(300);
+const MAX_SPEED = 60;
 
 // ==================================================
-// AIR / GAS CONTROL
+// AIR
 // ==================================================
-
-// 無操作時の空気抵抗
 const AIR_DRAG = 0.4;
-
-// GAS
-const MAX_GAS = 500;
-
-const FLIGHT_GAS_USE_RATE = 2.4;
-
-// ガス浮遊中の上向き加速
-const GAS_RECOVERY_ACCEL = 28;
-const GAS_CLIMB_SPEED = 8;
-
-// 前回弱めた値
-const GAS_CLIMB_ACCEL = 8;
-
-// Space + WASD中の方向加速
-// 実40m/s²
-const AIR_CONTROL_ACCEL =
-  40 / METERS_PER_UNIT;
-
-const AIR_STABILIZE_ACCEL = 18;
-
-// ==================================================
-// DOUBLE SPACE
-// ==================================================
-const DOUBLE_TAP_WINDOW = 0.3;
-
-// ダブルタップ時だけ上方向+10m/s
-const GAS_DOUBLE_JUMP_SPEED =
-  mpsToUnits(10);
-
-// 固定GAS消費
-const GAS_DOUBLE_JUMP_COST = 5;
-
-// ==================================================
-// WIRE
-// ==================================================
-const ANCHOR_SHOT_SPEED = 150;
-const WIRE_RADIUS = 0.07;
-const DUAL_AIM_OFFSET = 0.035;
-
-// ==================================================
-// WALL JUMP
-// ==================================================
-//
-// 正面90° = 30km/h
-// 45° = 60km/h
-//
-const WALL_JUMP_BASE_KMH = 30;
-
-const WALL_JUMP_SPEED =
-  mpsToUnits(5);
-
-const WALL_PUSH_EPSILON = 0.03;
 
 // ==================================================
 // DAMAGE
 // ==================================================
 const MAX_HEALTH = 500;
-
 const SAFE_IMPACT_KMH = 100;
 const LETHAL_IMPACT_KMH = 300;
 const MIN_DAMAGE_THRESHOLD = 10;
+
+// ==================================================
+// GAS
+// ==================================================
+const MAX_GAS = 500;
+const FLIGHT_GAS_USE_RATE = 2.4;
+const WIRE_GAS_USE_RATE = FLIGHT_GAS_USE_RATE * 0.5;
+
+const GAS_RECOVERY_ACCEL = 28;
+const GAS_CLIMB_SPEED = 8;
+const GAS_CLIMB_ACCEL = 18;
+
+const AIR_CONTROL_ACCEL = 24;
+const AIR_NORMAL_MAX_SPEED = 30;
+const AIR_STABILIZE_ACCEL = 18;
+
+// ==================================================
+// WIRE
+// ==================================================
+const WIRE_INITIAL_IMPULSE = 11;
+const WIRE_SUSTAIN_ACCEL = 20;
+const ANCHOR_SHOT_SPEED = 150;
+const WIRE_RADIUS = 0.07;
+const DUAL_AIM_OFFSET = 0.035;
 
 // ==================================================
 // ATTACK
@@ -132,16 +78,13 @@ const TRAINING_RADIUS = 4;
 // ==================================================
 const CITY_CENTER_X = 750;
 const CITY_CENTER_Z = 0;
-
 const CITY_WIDTH = 500;
 const CITY_DEPTH = 500;
 
-// 実100m
-const CITY_WALL_HEIGHT =
-  100 / METERS_PER_UNIT;
-
+const CITY_WALL_HEIGHT = 200;
 const CITY_WALL_THICKNESS = 12;
 const CITY_GATE_WIDTH = 35;
+
 const CITY_BLOCK_SPACING = 42;
 const CITY_ROAD_WIDTH = 12;
 
@@ -149,27 +92,23 @@ const CITY_ROAD_WIDTH = 12;
 // SCENE
 // ==================================================
 const scene = new THREE.Scene();
-
-scene.background =
-  new THREE.Color(0x87ceeb);
+scene.background = new THREE.Color(0x87ceeb);
 
 // ==================================================
 // CAMERA
 // ==================================================
-const camera =
-  new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    4000
-  );
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  4000
+);
 
-const SPAWN =
-  new THREE.Vector3(
-    0,
-    PLAYER_HEIGHT,
-    12
-  );
+const SPAWN = new THREE.Vector3(
+  0,
+  PLAYER_HEIGHT,
+  12
+);
 
 camera.position.copy(SPAWN);
 camera.rotation.order = "YXZ";
@@ -177,10 +116,9 @@ camera.rotation.order = "YXZ";
 // ==================================================
 // RENDERER
 // ==================================================
-const renderer =
-  new THREE.WebGLRenderer({
-    antialias: true
-  });
+const renderer = new THREE.WebGLRenderer({
+  antialias: true
+});
 
 renderer.setSize(
   window.innerWidth,
@@ -188,10 +126,7 @@ renderer.setSize(
 );
 
 renderer.setPixelRatio(
-  Math.min(
-    window.devicePixelRatio,
-    2
-  )
+  Math.min(window.devicePixelRatio, 2)
 );
 
 renderer.outputColorSpace =
@@ -288,6 +223,7 @@ sun.shadow.camera.top = 1200;
 sun.shadow.camera.bottom = -350;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 2000;
+
 sun.shadow.normalBias = 0.02;
 
 scene.add(sun);
@@ -315,7 +251,7 @@ ground.receiveShadow = true;
 scene.add(ground);
 
 // ==================================================
-// WORLD LISTS
+// WORLD OBJECT LISTS
 // ==================================================
 const colliders = [];
 const anchorTargets = [];
@@ -365,20 +301,8 @@ const roofMaterial =
     roughness: 0.9
   });
 
-const toriiMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0xb3261e,
-    roughness: 0.72
-  });
-
-const toriiDarkMaterial =
-  new THREE.MeshStandardMaterial({
-    color: 0x65110d,
-    roughness: 0.82
-  });
-
 // ==================================================
-// ADD WORLD OBJECT
+// WORLD OBJECT
 // ==================================================
 function addWorldObject(
   mesh,
@@ -455,122 +379,6 @@ function createTrainingArea() {
 }
 
 // ==================================================
-// GIANT TORII
-// ==================================================
-function createGiantTorii() {
-  const centerX = 0;
-  const centerZ = -120;
-
-  const leftPillar =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        8,
-        130,
-        8
-      ),
-      toriiMaterial
-    );
-
-  leftPillar.position.set(
-    centerX - 42,
-    65,
-    centerZ
-  );
-
-  addWorldObject(leftPillar);
-
-  const rightPillar =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        8,
-        130,
-        8
-      ),
-      toriiMaterial
-    );
-
-  rightPillar.position.set(
-    centerX + 42,
-    65,
-    centerZ
-  );
-
-  addWorldObject(rightPillar);
-
-  const mainBeam =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        110,
-        10,
-        10
-      ),
-      toriiMaterial
-    );
-
-  mainBeam.position.set(
-    centerX,
-    135,
-    centerZ
-  );
-
-  addWorldObject(mainBeam);
-
-  const upperBeam =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        125,
-        7,
-        12
-      ),
-      toriiDarkMaterial
-    );
-
-  upperBeam.position.set(
-    centerX,
-    145,
-    centerZ
-  );
-
-  addWorldObject(upperBeam);
-
-  const lowerBeam =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        88,
-        7,
-        8
-      ),
-      toriiMaterial
-    );
-
-  lowerBeam.position.set(
-    centerX,
-    105,
-    centerZ
-  );
-
-  addWorldObject(lowerBeam);
-
-  const centerSupport =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        9,
-        30,
-        8
-      ),
-      toriiDarkMaterial
-    );
-
-  centerSupport.position.set(
-    centerX,
-    120,
-    centerZ
-  );
-
-  addWorldObject(centerSupport);
-}
-
-// ==================================================
 // CITY WALL
 // ==================================================
 function createWallSegment(
@@ -608,16 +416,14 @@ function createCityWall() {
   createWallSegment(
     CITY_CENTER_X,
     CITY_CENTER_Z - halfD,
-    CITY_WIDTH +
-      CITY_WALL_THICKNESS,
+    CITY_WIDTH + CITY_WALL_THICKNESS,
     CITY_WALL_THICKNESS
   );
 
   createWallSegment(
     CITY_CENTER_X,
     CITY_CENTER_Z + halfD,
-    CITY_WIDTH +
-      CITY_WALL_THICKNESS,
+    CITY_WIDTH + CITY_WALL_THICKNESS,
     CITY_WALL_THICKNESS
   );
 
@@ -666,7 +472,7 @@ function createRoad(
   width,
   depth
 ) {
-  const road =
+  const mesh =
     new THREE.Mesh(
       new THREE.PlaneGeometry(
         width,
@@ -675,18 +481,18 @@ function createRoad(
       roadMaterial
     );
 
-  road.rotation.x =
+  mesh.rotation.x =
     -Math.PI / 2;
 
-  road.position.set(
+  mesh.position.set(
     x,
     0.025,
     z
   );
 
-  road.receiveShadow = true;
+  mesh.receiveShadow = true;
 
-  scene.add(road);
+  scene.add(mesh);
 }
 
 // ==================================================
@@ -724,10 +530,7 @@ function createHouse(
   const roof =
     new THREE.Mesh(
       new THREE.ConeGeometry(
-        Math.max(
-          width,
-          depth
-        ) * 0.72,
+        Math.max(width, depth) * 0.72,
         5,
         4
       ),
@@ -746,7 +549,6 @@ function createHouse(
   roof.castShadow = true;
 
   scene.add(roof);
-
   anchorTargets.push(roof);
 }
 
@@ -757,8 +559,7 @@ function createCity() {
   createRoad(
     CITY_CENTER_X,
     CITY_CENTER_Z,
-    CITY_WIDTH -
-      CITY_WALL_THICKNESS,
+    CITY_WIDTH - CITY_WALL_THICKNESS,
     CITY_ROAD_WIDTH
   );
 
@@ -766,8 +567,7 @@ function createCity() {
     CITY_CENTER_X,
     CITY_CENTER_Z,
     CITY_ROAD_WIDTH,
-    CITY_DEPTH -
-      CITY_WALL_THICKNESS
+    CITY_DEPTH - CITY_WALL_THICKNESS
   );
 
   const radius = 5;
@@ -815,8 +615,7 @@ function createCity() {
         pz - 8,
         14,
         14,
-        11 +
-          seed % 13,
+        11 + seed % 13,
         seed
       );
 
@@ -825,10 +624,7 @@ function createCity() {
         pz + 8,
         14,
         14,
-        13 +
-          (
-            seed * 7
-          ) % 15,
+        13 + (seed * 7) % 15,
         seed + 1
       );
     }
@@ -838,6 +634,8 @@ function createCity() {
 // ==================================================
 // TITAN
 // ==================================================
+const TITAN_HEIGHT = 15;
+
 const titan =
   new THREE.Group();
 
@@ -849,31 +647,68 @@ titan.position.set(
 
 scene.add(titan);
 
+// ==================================================
+// TITAN MATERIALS
+// ==================================================
 const titanSkinMaterial =
   new THREE.MeshStandardMaterial({
-    color: 0xd8a27f,
-    roughness: 0.75
+    color: 0xd18b70,
+    roughness: 0.82
+  });
+
+const titanSkinDarkMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0xb76c59,
+    roughness: 0.86
   });
 
 const titanHairMaterial =
   new THREE.MeshStandardMaterial({
-    color: 0x30251f,
-    roughness: 0.9
+    color: 0x211713,
+    roughness: 0.95
+  });
+
+const titanEyeMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0xf2eee4,
+    roughness: 0.4
+  });
+
+const titanIrisMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x6f5a39,
+    roughness: 0.4
+  });
+
+const titanPupilMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x080604,
+    roughness: 0.3
+  });
+
+const titanMouthMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x6b2625,
+    roughness: 1
   });
 
 const titanWeakMaterial =
   new THREE.MeshBasicMaterial({
-    color: 0xffee55,
     transparent: true,
-    opacity: 0.15
+    opacity: 0,
+    depthWrite: false
   });
 
+// ==================================================
+// TITAN HELPER
+// ==================================================
 function addTitanPart(
   geometry,
   material,
   x,
   y,
-  z
+  z,
+  anchorable = true
 ) {
   const mesh =
     new THREE.Mesh(
@@ -891,138 +726,573 @@ function addTitanPart(
   mesh.receiveShadow = true;
 
   titan.add(mesh);
-  anchorTargets.push(mesh);
+
+  if (anchorable) {
+    anchorTargets.push(mesh);
+  }
 
   return mesh;
 }
 
-// Legs
-addTitanPart(
-  new THREE.CapsuleGeometry(
-    0.75,
-    5.2,
-    8,
-    12
-  ),
-  titanSkinMaterial,
-  -0.9,
-  3.3,
-  0
-);
+// ==================================================
+// TITAN LEGS
+// ==================================================
+function createTitanLeg(side) {
+  const thigh =
+    addTitanPart(
+      new THREE.CapsuleGeometry(
+        0.83,
+        2.6,
+        8,
+        14
+      ),
+      titanSkinMaterial,
+      side * 0.92,
+      4.55,
+      0
+    );
 
-addTitanPart(
-  new THREE.CapsuleGeometry(
-    0.75,
-    5.2,
-    8,
-    12
-  ),
-  titanSkinMaterial,
-  0.9,
-  3.3,
-  0
-);
-
-// Torso
-addTitanPart(
-  new THREE.CapsuleGeometry(
-    2.2,
-    4.2,
-    8,
-    12
-  ),
-  titanSkinMaterial,
-  0,
-  8.7,
-  0
-);
-
-// Arms
-const leftTitanArm =
-  addTitanPart(
-    new THREE.CapsuleGeometry(
-      0.55,
-      5,
-      8,
-      10
-    ),
-    titanSkinMaterial,
-    -2.6,
-    8.5,
-    0
+  thigh.scale.set(
+    1.08,
+    1,
+    0.92
   );
 
-leftTitanArm.rotation.z =
-  -0.15;
+  const knee =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.65,
+        16,
+        12
+      ),
+      titanSkinDarkMaterial,
+      side * 0.92,
+      2.82,
+      0.03
+    );
 
-const rightTitanArm =
-  addTitanPart(
-    new THREE.CapsuleGeometry(
-      0.55,
-      5,
-      8,
-      10
-    ),
-    titanSkinMaterial,
-    2.6,
-    8.5,
-    0
+  knee.scale.set(
+    0.92,
+    1,
+    0.86
   );
 
-rightTitanArm.rotation.z =
-  0.15;
+  const calf =
+    addTitanPart(
+      new THREE.CapsuleGeometry(
+        0.6,
+        1.8,
+        8,
+        14
+      ),
+      titanSkinMaterial,
+      side * 0.92,
+      1.65,
+      0
+    );
 
-// Head
-addTitanPart(
-  new THREE.SphereGeometry(
-    1.5,
-    20,
-    16
-  ),
-  titanSkinMaterial,
-  0,
-  13.4,
-  0
-);
+  calf.scale.set(
+    0.93,
+    1,
+    0.84
+  );
 
-// Hair
-const titanHair =
-  new THREE.Mesh(
+  // 巨人の正面は +Z
+  const foot =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.7,
+        18,
+        14
+      ),
+      titanSkinMaterial,
+      side * 0.92,
+      0.46,
+      0.38
+    );
+
+  foot.scale.set(
+    0.9,
+    0.45,
+    1.55
+  );
+
+  return {
+    thigh,
+    knee,
+    calf,
+    foot
+  };
+}
+
+const leftTitanLeg =
+  createTitanLeg(-1);
+
+const rightTitanLeg =
+  createTitanLeg(1);
+
+// ==================================================
+// TITAN PELVIS
+// ==================================================
+const titanPelvis =
+  addTitanPart(
     new THREE.SphereGeometry(
       1.55,
-      20,
-      16,
+      22,
+      16
+    ),
+    titanSkinDarkMaterial,
+    0,
+    6.2,
+    0
+  );
+
+titanPelvis.scale.set(
+  1,
+  0.75,
+  0.75
+);
+
+// ==================================================
+// TITAN ABDOMEN
+// ==================================================
+const titanAbdomen =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      1.48,
+      22,
+      18
+    ),
+    titanSkinMaterial,
+    0,
+    7.45,
+    0
+  );
+
+titanAbdomen.scale.set(
+  0.9,
+  1.15,
+  0.68
+);
+
+// ==================================================
+// TITAN TORSO
+// ==================================================
+const titanTorso =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      2.15,
+      24,
+      20
+    ),
+    titanSkinMaterial,
+    0,
+    9.25,
+    0
+  );
+
+titanTorso.scale.set(
+  1.18,
+  1.15,
+  0.72
+);
+
+// Chest muscle shapes
+const titanLeftChest =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      0.95,
+      18,
+      14
+    ),
+    titanSkinDarkMaterial,
+    -0.82,
+    9.55,
+    1.15
+  );
+
+titanLeftChest.scale.set(
+  1.1,
+  0.68,
+  0.28
+);
+
+const titanRightChest =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      0.95,
+      18,
+      14
+    ),
+    titanSkinDarkMaterial,
+    0.82,
+    9.55,
+    1.15
+  );
+
+titanRightChest.scale.set(
+  1.1,
+  0.68,
+  0.28
+);
+
+// ==================================================
+// TITAN ARMS
+// ==================================================
+function createTitanArm(side) {
+  const shoulder =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.82,
+        18,
+        14
+      ),
+      titanSkinMaterial,
+      side * 2.48,
+      10.15,
+      0
+    );
+
+  shoulder.scale.set(
+    1,
+    1.05,
+    0.95
+  );
+
+  const upperArm =
+    addTitanPart(
+      new THREE.CapsuleGeometry(
+        0.58,
+        2.05,
+        8,
+        12
+      ),
+      titanSkinMaterial,
+      side * 2.65,
+      8.65,
+      0
+    );
+
+  upperArm.rotation.z =
+    side * -0.1;
+
+  const elbow =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.5,
+        16,
+        12
+      ),
+      titanSkinDarkMaterial,
+      side * 2.78,
+      7.25,
+      0
+    );
+
+  const forearm =
+    addTitanPart(
+      new THREE.CapsuleGeometry(
+        0.48,
+        1.9,
+        8,
+        12
+      ),
+      titanSkinMaterial,
+      side * 2.82,
+      5.95,
+      0
+    );
+
+  const hand =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.62,
+        18,
+        14
+      ),
+      titanSkinMaterial,
+      side * 2.84,
+      4.65,
+      0.08
+    );
+
+  hand.scale.set(
+    0.72,
+    1.2,
+    0.5
+  );
+
+  return {
+    shoulder,
+    upperArm,
+    elbow,
+    forearm,
+    hand
+  };
+}
+
+const leftTitanArm =
+  createTitanArm(-1);
+
+const rightTitanArm =
+  createTitanArm(1);
+
+// ==================================================
+// TITAN NECK
+// ==================================================
+const titanNeck =
+  addTitanPart(
+    new THREE.CylinderGeometry(
+      0.58,
+      0.78,
+      1.5,
+      18
+    ),
+    titanSkinMaterial,
+    0,
+    11.65,
+    0
+  );
+
+// ==================================================
+// TITAN HEAD
+// ==================================================
+const titanHead =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      1.36,
+      28,
+      22
+    ),
+    titanSkinMaterial,
+    0,
+    13.15,
+    0
+  );
+
+titanHead.scale.set(
+  0.83,
+  1.07,
+  0.82
+);
+
+// ==================================================
+// JAW
+// ==================================================
+const titanJaw =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      0.92,
+      22,
+      18
+    ),
+    titanSkinMaterial,
+    0,
+    12.7,
+    0.52
+  );
+
+titanJaw.scale.set(
+  0.92,
+  0.56,
+  0.72
+);
+
+// ==================================================
+// EARS
+// ==================================================
+for (
+  const side of [-1, 1]
+) {
+  const ear =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.3,
+        14,
+        12
+      ),
+      titanSkinMaterial,
+      side * 1.14,
+      13.2,
+      0
+    );
+
+  ear.scale.set(
+    0.45,
+    1,
+    0.6
+  );
+}
+
+// ==================================================
+// EYES
+// ==================================================
+function createTitanEye(side) {
+  const x =
+    side * 0.45;
+
+  const eye =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.22,
+        16,
+        12
+      ),
+      titanEyeMaterial,
+      x,
+      13.38,
+      1.04
+    );
+
+  eye.scale.set(
+    1.25,
+    0.62,
+    0.32
+  );
+
+  const iris =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.105,
+        14,
+        10
+      ),
+      titanIrisMaterial,
+      x,
+      13.38,
+      1.18,
+      false
+    );
+
+  iris.scale.set(
+    1,
+    1.1,
+    0.35
+  );
+
+  const pupil =
+    addTitanPart(
+      new THREE.SphereGeometry(
+        0.052,
+        12,
+        8
+      ),
+      titanPupilMaterial,
+      x,
+      13.38,
+      1.245,
+      false
+    );
+
+  pupil.scale.y = 1.25;
+}
+
+createTitanEye(-1);
+createTitanEye(1);
+
+// ==================================================
+// EYEBROWS
+// ==================================================
+for (
+  const side of [-1, 1]
+) {
+  const brow =
+    addTitanPart(
+      new THREE.BoxGeometry(
+        0.62,
+        0.1,
+        0.1
+      ),
+      titanHairMaterial,
+      side * 0.46,
+      13.72,
+      1.05,
+      false
+    );
+
+  brow.rotation.z =
+    side * -0.08;
+}
+
+// ==================================================
+// NOSE
+// ==================================================
+const titanNose =
+  addTitanPart(
+    new THREE.ConeGeometry(
+      0.2,
+      0.65,
+      8
+    ),
+    titanSkinDarkMaterial,
+    0,
+    13.05,
+    1.15
+  );
+
+titanNose.rotation.x =
+  Math.PI / 2;
+
+// ==================================================
+// MOUTH
+// ==================================================
+const titanMouth =
+  addTitanPart(
+    new THREE.BoxGeometry(
+      0.9,
+      0.13,
+      0.08
+    ),
+    titanMouthMaterial,
+    0,
+    12.55,
+    1.13
+  );
+
+// ==================================================
+// HAIR
+// ==================================================
+const titanHair =
+  addTitanPart(
+    new THREE.SphereGeometry(
+      1.43,
+      26,
+      18,
       0,
       Math.PI * 2,
       0,
-      Math.PI * 0.48
+      Math.PI * 0.5
     ),
-    titanHairMaterial
+    titanHairMaterial,
+    0,
+    13.55,
+    -0.04
   );
 
-titanHair.position.set(
-  0,
-  13.7,
-  0
+titanHair.scale.set(
+  0.86,
+  1,
+  0.86
 );
 
-titan.add(titanHair);
-
-// Nape
+// ==================================================
+// NAPE
+// ==================================================
 const titanNape =
   new THREE.Mesh(
     new THREE.BoxGeometry(
-      1.3,
-      1,
-      0.5
+      1.25,
+      0.9,
+      0.45
     ),
     titanWeakMaterial
   );
 
+// -Z = back
 titanNape.position.set(
   0,
-  12.2,
-  -1.45
+  12.05,
+  -0.82
 );
 
 titan.add(titanNape);
@@ -1039,7 +1309,6 @@ const attackTargets = [
 createTrainingArea();
 createCityWall();
 createCity();
-createGiantTorii();
 
 // ==================================================
 // PLAYER STATE
@@ -1056,6 +1325,8 @@ let gas =
   MAX_GAS;
 
 let dead = false;
+
+let currentGasThrust = 0;
 
 // ==================================================
 // BLADES
@@ -1076,9 +1347,7 @@ const bladeHandleMaterial =
     roughness: 0.7
   });
 
-function createBlade(
-  side
-) {
+function createBlade(side) {
   const group =
     new THREE.Group();
 
@@ -1092,8 +1361,7 @@ function createBlade(
       bladeHandleMaterial
     );
 
-  handle.position.z =
-    -0.05;
+  handle.position.z = -0.05;
 
   group.add(handle);
 
@@ -1107,8 +1375,7 @@ function createBlade(
       bladeMaterial
     );
 
-  blade.position.z =
-    -0.8;
+  blade.position.z = -0.8;
 
   group.add(blade);
 
@@ -1136,9 +1403,7 @@ const rightBlade =
   createBlade(1);
 
 let attacking = false;
-
 let attackTimer = 0;
-
 let attackCooldownTimer = 0;
 
 const attackRaycaster =
@@ -1157,16 +1422,14 @@ function bladeAttack() {
   }
 
   attacking = true;
+
   attackTimer = 0;
 
   attackCooldownTimer =
     ATTACK_COOLDOWN;
 
   attackRaycaster.setFromCamera(
-    new THREE.Vector2(
-      0,
-      0
-    ),
+    new THREE.Vector2(0, 0),
     camera
   );
 
@@ -1186,8 +1449,11 @@ function bladeAttack() {
     return;
   }
 
+  const speed =
+    velocity.length();
+
   if (
-    velocity.length() <
+    speed <
     MIN_KILL_SPEED
   ) {
     showMessage(
@@ -1212,8 +1478,7 @@ function killTitan() {
 
   setTimeout(
     () => {
-      titan.visible =
-        false;
+      titan.visible = false;
     },
     700
   );
@@ -1254,38 +1519,33 @@ function updateBladeAnimation(
 
   attackTimer += delta;
 
-  const duration = 0.28;
+  const duration =
+    0.28;
 
   const t =
     Math.min(
-      attackTimer /
-        duration,
+      attackTimer / duration,
       1
     );
 
   const swing =
     Math.sin(
-      t *
-      Math.PI
+      t * Math.PI
     );
 
   leftBlade.rotation.z =
-    -swing *
-    1.15;
+    -swing * 1.15;
 
   rightBlade.rotation.z =
-    swing *
-    1.15;
+    swing * 1.15;
 
   leftBlade.rotation.x =
     -0.12 +
-    swing *
-    0.65;
+    swing * 0.65;
 
   rightBlade.rotation.x =
     -0.12 +
-    swing *
-    0.65;
+    swing * 0.65;
 
   if (
     t >= 1
@@ -1308,17 +1568,13 @@ function updateBladeAnimation(
 // ==================================================
 const keys = {};
 
-let jumpRequested = false;
+let spacePressed = false;
 
 let yaw = 0;
 let pitch = 0;
 
 const MOUSE_SENSITIVITY =
   0.002;
-
-// Spaceダブルタップ
-let lastSpacePressTime =
-  -Infinity;
 
 // ==================================================
 // TEMP VECTORS
@@ -1341,7 +1597,7 @@ const targetDirection =
 const wireDirection =
   new THREE.Vector3();
 
-const ropeDirection =
+const ropeOutward =
   new THREE.Vector3();
 
 const wireMiddle =
@@ -1378,19 +1634,12 @@ function moveTowards(
     Math.sign(
       target - current
     ) *
-      maxDelta
-  );
-}
-
-function isCtrlPressed() {
-  return (
-    keys["ControlLeft"] ||
-    keys["ControlRight"]
+    maxDelta
   );
 }
 
 // ==================================================
-// ANCHORS
+// ANCHOR
 // ==================================================
 const raycaster =
   new THREE.Raycaster();
@@ -1415,7 +1664,6 @@ function createAnchor() {
 
   return {
     state: "OFF",
-
     connected: false,
 
     targetPoint:
@@ -1427,12 +1675,16 @@ function createAnchor() {
     projectilePosition:
       new THREE.Vector3(),
 
+    launchPosition:
+      new THREE.Vector3(),
+
     target: null,
 
-    // Ctrlを押した瞬間の距離
-    lockedLength: 0,
+    length: 0,
 
-    lengthLocked: false,
+    pulling: false,
+
+    impulseApplied: false,
 
     wire
   };
@@ -1488,18 +1740,19 @@ function fireAnchor(
   anchor.target =
     hit.object;
 
-  anchor.projectilePosition.copy(
+  anchor.launchPosition.copy(
     camera.position
   );
 
-  anchor.lengthLocked =
-    false;
+  anchor.projectilePosition.copy(
+    anchor.launchPosition
+  );
 
-  anchor.lockedLength =
-    0;
+  anchor.pulling = false;
 
-  anchor.wire.visible =
-    true;
+  anchor.impulseApplied = false;
+
+  anchor.wire.visible = true;
 }
 
 function connectAnchor(
@@ -1515,17 +1768,14 @@ function connectAnchor(
     anchor.targetPoint
   );
 
-  /*
-   * Ctrlがすでに押されていた場合、
-   * 接続した瞬間の距離で固定。
-   */
-  if (
-    isCtrlPressed()
-  ) {
-    lockAnchorLength(
-      anchor
+  anchor.length =
+    camera.position.distanceTo(
+      anchor.point
     );
-  }
+
+  anchor.pulling = false;
+
+  anchor.impulseApplied = false;
 }
 
 function releaseAnchor(
@@ -1540,11 +1790,11 @@ function releaseAnchor(
   anchor.target =
     null;
 
-  anchor.lengthLocked =
+  anchor.pulling =
     false;
 
-  anchor.lockedLength =
-    0;
+  anchor.impulseApplied =
+    false;
 
   anchor.wire.visible =
     false;
@@ -1565,8 +1815,10 @@ function toggleAnchor(
 
 function toggleBothAnchors() {
   if (
-    leftAnchor.state !== "OFF" ||
-    rightAnchor.state !== "OFF"
+    leftAnchor.state !==
+      "OFF" ||
+    rightAnchor.state !==
+      "OFF"
   ) {
     releaseAnchor(
       leftAnchor
@@ -1623,7 +1875,9 @@ function updateAnchorProjectile(
       anchor.targetPoint
     );
 
-    connectAnchor(anchor);
+    connectAnchor(
+      anchor
+    );
 
     return;
   }
@@ -1651,7 +1905,8 @@ function updateWireVisual(
   }
 
   const end =
-    anchor.state === "FIRING"
+    anchor.state ===
+    "FIRING"
       ? anchor.projectilePosition
       : anchor.point;
 
@@ -1664,7 +1919,8 @@ function updateWireVisual(
     wireDirection.length();
 
   if (
-    distance < 0.001
+    distance <
+    0.001
   ) {
     anchor.wire.visible =
       false;
@@ -1676,9 +1932,7 @@ function updateWireVisual(
     true;
 
   wireMiddle
-    .copy(
-      camera.position
-    )
+    .copy(camera.position)
     .add(end)
     .multiplyScalar(0.5);
 
@@ -1702,130 +1956,28 @@ function updateWireVisual(
 }
 
 // ==================================================
-// CTRL = ROPE LENGTH LOCK ONLY
+// WIRE GAS
 // ==================================================
-function lockAnchorLength(
-  anchor
+function updateWireGas(
+  delta
 ) {
-  if (
-    !anchor.connected
-  ) {
-    return;
-  }
-
-  anchor.lockedLength =
-    camera.position.distanceTo(
-      anchor.point
+  const active =
+    keys["KeyW"] &&
+    (
+      leftAnchor.connected ||
+      rightAnchor.connected
     );
 
-  anchor.lengthLocked =
-    true;
-}
-
-function unlockAnchorLength(
-  anchor
-) {
-  anchor.lengthLocked =
-    false;
-}
-
-function startRopeLock() {
-  lockAnchorLength(
-    leftAnchor
-  );
-
-  lockAnchorLength(
-    rightAnchor
-  );
-}
-
-function stopRopeLock() {
-  unlockAnchorLength(
-    leftAnchor
-  );
-
-  unlockAnchorLength(
-    rightAnchor
-  );
-}
-
-// ==================================================
-// ROPE CONSTRAINT
-// ==================================================
-function constrainLockedRope(
-  anchor
-) {
   if (
-    !anchor.connected ||
-    !anchor.lengthLocked ||
-    !isCtrlPressed()
+    !active ||
+    gas <= 0
   ) {
-    return;
-  }
-
-  ropeDirection.subVectors(
-    camera.position,
-    anchor.point
-  );
-
-  const distance =
-    ropeDirection.length();
-
-  if (
-    distance < 0.001
-  ) {
-    return;
-  }
-
-  ropeDirection.normalize();
-
-  /*
-   * Ctrlを押した瞬間の半径を
-   * ずっと維持。
-   *
-   * 巻き取りなし。
-   * 伸び縮みなし。
-   */
-  camera.position
-    .copy(
-      anchor.point
-    )
-    .addScaledVector(
-      ropeDirection,
-      anchor.lockedLength
-    );
-
-  /*
-   * 半径方向の速度だけ消す。
-   *
-   * 円周方向は残るので
-   * ブランコできる。
-   */
-  const radialVelocity =
-    velocity.dot(
-      ropeDirection
-    );
-
-  velocity.addScaledVector(
-    ropeDirection,
-    -radialVelocity
-  );
-}
-
-// ==================================================
-// DOUBLE SPACE BOOST
-// ==================================================
-function activateDoubleSpaceBoost() {
-  if (
-    grounded ||
-    gas <
-      GAS_DOUBLE_JUMP_COST
-  ) {
-    return;
+    return false;
   }
 
   gas -=
-    GAS_DOUBLE_JUMP_COST;
+    WIRE_GAS_USE_RATE *
+    delta;
 
   gas =
     Math.max(
@@ -1833,94 +1985,145 @@ function activateDoubleSpaceBoost() {
       0
     );
 
-  if (
-    velocity.y <= 0
-  ) {
-    /*
-     * 落下中なら
-     * 即上方向10m/s。
-     */
-    velocity.y =
-      GAS_DOUBLE_JUMP_SPEED;
-  } else {
-    /*
-     * 上昇中なら
-     * 現在速度+10m/s。
-     */
-    velocity.y +=
-      GAS_DOUBLE_JUMP_SPEED;
-  }
-
-  showMessage(
-    "GAS BOOST"
-  );
-}
-
-function handleSpacePress() {
-  const now =
-    performance.now() /
-    1000;
-
-  if (
-    grounded
-  ) {
-    jumpRequested = true;
-
-    lastSpacePressTime =
-      -Infinity;
-
-    return;
-  }
-
-  /*
-   * 空中の1回目。
-   *
-   * 何も奪わない。
-   * この後keys["Space"]がtrueになるので、
-   * 従来通りのガス浮遊が開始される。
-   */
-  if (
-    now -
-      lastSpacePressTime >
-    DOUBLE_TAP_WINDOW
-  ) {
-    lastSpacePressTime =
-      now;
-
-    return;
-  }
-
-  /*
-   * 0.3秒以内の2回目。
-   *
-   * 通常ガス浮遊
-   * +
-   * 10m/s追加ブースト。
-   */
-  activateDoubleSpaceBoost();
-
-  lastSpacePressTime =
-    -Infinity;
+  return gas > 0;
 }
 
 // ==================================================
-// ORIGINAL GAS FLIGHT
+// WIRE PHYSICS
+// ==================================================
+function updateWire(
+  anchor,
+  delta,
+  gasAvailable
+) {
+  if (
+    !anchor.connected ||
+    !keys["KeyW"] ||
+    !gasAvailable
+  ) {
+    anchor.pulling =
+      false;
+
+    anchor.impulseApplied =
+      false;
+
+    return;
+  }
+
+  wireDirection.subVectors(
+    anchor.point,
+    camera.position
+  );
+
+  if (
+    wireDirection.lengthSq() <
+    0.001
+  ) {
+    return;
+  }
+
+  wireDirection.normalize();
+
+  if (
+    !anchor.impulseApplied
+  ) {
+    velocity.addScaledVector(
+      wireDirection,
+      WIRE_INITIAL_IMPULSE
+    );
+
+    anchor.impulseApplied =
+      true;
+
+    anchor.length =
+      camera.position.distanceTo(
+        anchor.point
+      );
+  }
+
+  anchor.pulling =
+    true;
+
+  velocity.addScaledVector(
+    wireDirection,
+    WIRE_SUSTAIN_ACCEL *
+    delta
+  );
+}
+
+// ==================================================
+// ROPE CONSTRAINT
+// ==================================================
+function constrainRope(
+  anchor
+) {
+  if (
+    !anchor.connected ||
+    !anchor.pulling
+  ) {
+    return;
+  }
+
+  ropeOutward.subVectors(
+    camera.position,
+    anchor.point
+  );
+
+  const distance =
+    ropeOutward.length();
+
+  if (
+    distance <
+    0.001
+  ) {
+    return;
+  }
+
+  ropeOutward.normalize();
+
+  if (
+    distance >
+    anchor.length
+  ) {
+    camera.position
+      .copy(
+        anchor.point
+      )
+      .addScaledVector(
+        ropeOutward,
+        anchor.length
+      );
+  }
+
+  const outwardVelocity =
+    velocity.dot(
+      ropeOutward
+    );
+
+  if (
+    outwardVelocity >
+    0
+  ) {
+    velocity.addScaledVector(
+      ropeOutward,
+      -outwardVelocity
+    );
+  }
+}
+
+// ==================================================
+// GAS FLIGHT
 // ==================================================
 function updateGasFlight(
   delta
 ) {
-  /*
-   * Spaceを押している間だけ
-   * 従来通りガス浮遊。
-   */
   const usingGas =
     !grounded &&
     keys["Space"] &&
     gas > 0;
 
-  if (
-    !usingGas
-  ) {
+  if (!usingGas) {
+    currentGasThrust = 0;
     return;
   }
 
@@ -1934,33 +2137,29 @@ function updateGasFlight(
       0
     );
 
-  // ----------------------------------------------
-  // Vertical
-  // ----------------------------------------------
-
-  /*
-   * 落下中。
-   *
-   * ガスで落下を緩和する。
-   */
   if (
-    velocity.y < 0
+    velocity.y <
+    0
   ) {
+    currentGasThrust =
+      GAS_RECOVERY_ACCEL;
+
     velocity.y +=
       GAS_RECOVERY_ACCEL *
       delta;
   } else {
-    /*
-     * 上昇中は弱い継続推力。
-     */
-    velocity.y +=
-      GAS_CLIMB_ACCEL *
-      delta;
+    currentGasThrust =
+      GAS_CLIMB_ACCEL;
+
+    velocity.y =
+      moveTowards(
+        velocity.y,
+        GAS_CLIMB_SPEED,
+        GAS_CLIMB_ACCEL *
+          delta
+      );
   }
 
-  // ----------------------------------------------
-  // Horizontal
-  // ----------------------------------------------
   let forwardSpeed =
     velocity.x *
       forward.x +
@@ -1997,9 +2196,6 @@ function updateGasFlight(
         : 0
     );
 
-  /*
-   * Space + W/S
-   */
   if (
     forwardInput === 0
   ) {
@@ -2011,15 +2207,28 @@ function updateGasFlight(
           delta
       );
   } else {
+    const old =
+      forwardSpeed;
+
     forwardSpeed +=
       forwardInput *
       AIR_CONTROL_ACCEL *
       delta;
+
+    if (
+      Math.abs(
+        forwardSpeed
+      ) >
+        AIR_NORMAL_MAX_SPEED &&
+      Math.abs(
+        forwardSpeed
+      ) >
+        Math.abs(old)
+    ) {
+      forwardSpeed = old;
+    }
   }
 
-  /*
-   * Space + A/D
-   */
   if (
     sideInput === 0
   ) {
@@ -2031,10 +2240,26 @@ function updateGasFlight(
           delta
       );
   } else {
+    const old =
+      sideSpeed;
+
     sideSpeed +=
       sideInput *
       AIR_CONTROL_ACCEL *
       delta;
+
+    if (
+      Math.abs(
+        sideSpeed
+      ) >
+        AIR_NORMAL_MAX_SPEED &&
+      Math.abs(
+        sideSpeed
+      ) >
+        Math.abs(old)
+    ) {
+      sideSpeed = old;
+    }
   }
 
   velocity.x =
@@ -2056,37 +2281,43 @@ function updateGasFlight(
 function updateAirDrag(
   delta
 ) {
-  if (
-    grounded
-  ) {
+  if (grounded) {
     return;
   }
+
+  const hasMovementInput =
+    keys["KeyW"] ||
+    keys["KeyA"] ||
+    keys["KeyS"] ||
+    keys["KeyD"];
 
   const usingGas =
     keys["Space"] &&
     gas > 0;
 
-  /*
-   * ガス中は従来のガス制御へ任せる。
-   *
-   * Ctrlロック中は振り子の慣性を
-   * 不自然に削らない。
-   */
+  const wirePulling =
+    leftAnchor.pulling ||
+    rightAnchor.pulling;
+
   if (
+    hasMovementInput ||
     usingGas ||
-    isCtrlPressed()
+    wirePulling
   ) {
     return;
   }
 
-  const factor =
+  const dragFactor =
     Math.exp(
       -AIR_DRAG *
       delta
     );
 
-  velocity.x *= factor;
-  velocity.z *= factor;
+  velocity.x *=
+    dragFactor;
+
+  velocity.z *=
+    dragFactor;
 
   if (
     Math.abs(
@@ -2111,12 +2342,13 @@ function updateAirDrag(
 function impactDamage(
   speed
 ) {
+  const metersPerSecond =
+    Math.abs(speed) *
+    METERS_PER_UNIT;
+
   const kmh =
-    unitsToKmh(
-      Math.abs(
-        speed
-      )
-    );
+    metersPerSecond *
+    3.6;
 
   if (
     kmh >=
@@ -2160,9 +2392,7 @@ function impactDamage(
 function damageFromImpact(
   speed
 ) {
-  if (
-    dead
-  ) {
+  if (dead) {
     return;
   }
 
@@ -2217,7 +2447,7 @@ function intersects(
   );
 }
 
-function findCollision(
+function collides(
   position
 ) {
   for (
@@ -2230,188 +2460,15 @@ function findCollision(
         box
       )
     ) {
-      return box;
+      return true;
     }
   }
 
-  return null;
-}
-
-function collides(
-  position
-) {
-  return (
-    findCollision(
-      position
-    ) !== null
-  );
+  return false;
 }
 
 // ==================================================
-// WALL JUMP
-// ==================================================
-function getWallJumpInfo(
-  axis
-) {
-  const vx =
-    Math.abs(
-      velocity.x
-    );
-
-  const vz =
-    Math.abs(
-      velocity.z
-    );
-
-  const horizontal =
-    Math.hypot(
-      vx,
-      vz
-    );
-
-  if (
-    horizontal <
-    0.001
-  ) {
-    return {
-      speedKmh: 0,
-
-      allowedKmh:
-        WALL_JUMP_BASE_KMH,
-
-      canJump: true
-    };
-  }
-
-  const normal =
-    axis === "x"
-      ? vx
-      : vz;
-
-  const sinAngle =
-    THREE.MathUtils.clamp(
-      normal /
-        horizontal,
-      0,
-      1
-    );
-
-  const speedKmh =
-    unitsToKmh(
-      horizontal
-    );
-
-  const sinSquared =
-    sinAngle *
-    sinAngle;
-
-  const allowedKmh =
-    sinSquared <
-      0.000001
-      ? Infinity
-      : WALL_JUMP_BASE_KMH /
-        sinSquared;
-
-  return {
-    speedKmh,
-    allowedKmh,
-
-    canJump:
-      speedKmh <=
-      allowedKmh
-  };
-}
-
-function shouldAutoWallJump(
-  axis
-) {
-  if (
-    grounded
-  ) {
-    return false;
-  }
-
-  return (
-    getWallJumpInfo(
-      axis
-    ).canJump
-  );
-}
-
-function autoWallJumpX(
-  box
-) {
-  const center =
-    (
-      box.min.x +
-      box.max.x
-    ) / 2;
-
-  const normal =
-    camera.position.x <
-      center
-      ? -1
-      : 1;
-
-  velocity.x =
-    normal *
-    WALL_JUMP_SPEED;
-
-  if (
-    normal < 0
-  ) {
-    camera.position.x =
-      box.min.x -
-      PLAYER_RADIUS -
-      WALL_PUSH_EPSILON;
-  } else {
-    camera.position.x =
-      box.max.x +
-      PLAYER_RADIUS +
-      WALL_PUSH_EPSILON;
-  }
-
-  grounded = false;
-}
-
-function autoWallJumpZ(
-  box
-) {
-  const center =
-    (
-      box.min.z +
-      box.max.z
-    ) / 2;
-
-  const normal =
-    camera.position.z <
-      center
-      ? -1
-      : 1;
-
-  velocity.z =
-    normal *
-    WALL_JUMP_SPEED;
-
-  if (
-    normal < 0
-  ) {
-    camera.position.z =
-      box.min.z -
-      PLAYER_RADIUS -
-      WALL_PUSH_EPSILON;
-  } else {
-    camera.position.z =
-      box.max.z +
-      PLAYER_RADIUS +
-      WALL_PUSH_EPSILON;
-  }
-
-  grounded = false;
-}
-
-// ==================================================
-// HORIZONTAL MOVE
+// MOVEMENT
 // ==================================================
 function moveHorizontal(
   delta
@@ -2423,36 +2480,19 @@ function moveHorizontal(
     velocity.x *
     delta;
 
-  const hitX =
-    findCollision(
-      nextX
-    );
-
   if (
-    !hitX
+    !collides(
+      nextX
+    )
   ) {
     camera.position.x =
       nextX.x;
-  } else if (
-    shouldAutoWallJump(
-      "x"
-    )
-  ) {
-    autoWallJumpX(
-      hitX
-    );
   } else {
     damageFromImpact(
       velocity.x
     );
 
     velocity.x = 0;
-  }
-
-  if (
-    dead
-  ) {
-    return;
   }
 
   const nextZ =
@@ -2462,24 +2502,13 @@ function moveHorizontal(
     velocity.z *
     delta;
 
-  const hitZ =
-    findCollision(
-      nextZ
-    );
-
   if (
-    !hitZ
+    !collides(
+      nextZ
+    )
   ) {
     camera.position.z =
       nextZ.z;
-  } else if (
-    shouldAutoWallJump(
-      "z"
-    )
-  ) {
-    autoWallJumpZ(
-      hitZ
-    );
   } else {
     damageFromImpact(
       velocity.z
@@ -2489,9 +2518,6 @@ function moveHorizontal(
   }
 }
 
-// ==================================================
-// VERTICAL MOVE
-// ==================================================
 function moveVertical(
   delta
 ) {
@@ -2510,8 +2536,7 @@ function moveVertical(
     PLAYER_HEIGHT
   ) {
     if (
-      velocity.y <
-      0
+      velocity.y < 0
     ) {
       damageFromImpact(
         velocity.y
@@ -2565,9 +2590,7 @@ function moveVertical(
           PLAYER_RADIUS <
           box.max.z;
 
-      if (
-        !horizontal
-      ) {
+      if (!horizontal) {
         continue;
       }
 
@@ -2660,7 +2683,8 @@ function updateGround(
     );
 
   if (
-    input.lengthSq() > 0
+    input.lengthSq() >
+    0
   ) {
     input.normalize();
 
@@ -2712,7 +2736,8 @@ function updateGround(
       currentDirection.z *
       speed;
   } else if (
-    speed > 0
+    speed >
+    0
   ) {
     const newSpeed =
       moveTowards(
@@ -2753,9 +2778,7 @@ function limitSpeed() {
 // DEATH
 // ==================================================
 function die() {
-  if (
-    dead
-  ) {
+  if (dead) {
     return;
   }
 
@@ -2807,11 +2830,6 @@ function respawn() {
   yaw = 0;
   pitch = 0;
 
-  jumpRequested = false;
-
-  lastSpacePressTime =
-    -Infinity;
-
   releaseAnchor(
     leftAnchor
   );
@@ -2819,8 +2837,6 @@ function respawn() {
   releaseAnchor(
     rightAnchor
   );
-
-  stopRopeLock();
 
   deathScreen.style.display =
     "none";
@@ -2839,44 +2855,6 @@ window.addEventListener(
       return;
     }
 
-    // ----------------------------------------------
-    // CTRL
-    // Rope length lock ONLY.
-    // ----------------------------------------------
-    if (
-      event.code ===
-        "ControlLeft" ||
-      event.code ===
-        "ControlRight"
-    ) {
-      if (
-        document.pointerLockElement ===
-        renderer.domElement
-      ) {
-        event.preventDefault();
-      }
-
-      if (
-        !keys[
-          event.code
-        ]
-      ) {
-        /*
-         * 先にキーをONにしておく。
-         */
-        keys[
-          event.code
-        ] = true;
-
-        startRopeLock();
-      }
-
-      return;
-    }
-
-    // ----------------------------------------------
-    // SPACE
-    // ----------------------------------------------
     if (
       event.code ===
       "Space"
@@ -2886,23 +2864,10 @@ window.addEventListener(
       if (
         !keys["Space"]
       ) {
-        handleSpacePress();
+        spacePressed = true;
       }
-
-      /*
-       * これにより、
-       * シングルタップでも従来通り
-       * updateGasFlight()が動く。
-       */
-      keys["Space"] =
-        true;
-
-      return;
     }
 
-    // ----------------------------------------------
-    // Q
-    // ----------------------------------------------
     if (
       event.code ===
         "KeyQ" &&
@@ -2913,9 +2878,6 @@ window.addEventListener(
       );
     }
 
-    // ----------------------------------------------
-    // R
-    // ----------------------------------------------
     if (
       event.code ===
         "KeyR" &&
@@ -2926,49 +2888,34 @@ window.addEventListener(
       );
     }
 
-    keys[
-      event.code
-    ] = true;
+    keys[event.code] =
+      true;
   }
 );
 
 window.addEventListener(
   "keyup",
   event => {
-    if (
-      event.code ===
-        "ControlLeft" ||
-      event.code ===
-        "ControlRight"
-    ) {
-      keys[
-        event.code
-      ] = false;
-
-      if (
-        !isCtrlPressed()
-      ) {
-        stopRopeLock();
-      }
-
-      return;
-    }
-
-    keys[
-      event.code
-    ] = false;
+    keys[event.code] =
+      false;
   }
 );
 
 // ==================================================
 // POINTER LOCK
 // ==================================================
+let pointerLocked =
+  false;
+
 document.addEventListener(
   "pointerlockchange",
   () => {
+    pointerLocked =
+      document.pointerLockElement ===
+      renderer.domElement;
+
     if (
-      document.pointerLockElement !==
-      renderer.domElement
+      !pointerLocked
     ) {
       for (
         const code
@@ -2976,19 +2923,21 @@ document.addEventListener(
           keys
         )
       ) {
-        keys[
-          code
-        ] = false;
+        keys[code] =
+          false;
       }
 
-      stopRopeLock();
-
-      jumpRequested =
+      spacePressed =
         false;
-
-      lastSpacePressTime =
-        -Infinity;
     }
+  }
+);
+
+document.addEventListener(
+  "pointerlockerror",
+  () => {
+    pointerLocked =
+      false;
   }
 );
 
@@ -3013,22 +2962,20 @@ renderer.domElement.addEventListener(
       return;
     }
 
-    if (
-      dead
-    ) {
+    if (dead) {
       return;
     }
 
+    // Left click = blade
     if (
-      event.button ===
-      0
+      event.button === 0
     ) {
       bladeAttack();
     }
 
+    // Right click = dual anchor
     if (
-      event.button ===
-      2
+      event.button === 2
     ) {
       toggleBothAnchors();
     }
@@ -3063,16 +3010,14 @@ document.addEventListener(
     pitch =
       THREE.MathUtils.clamp(
         pitch,
-        -Math.PI / 2 +
-          0.01,
-        Math.PI / 2 -
-          0.01
+        -Math.PI / 2 + 0.01,
+        Math.PI / 2 - 0.01
       );
   }
 );
 
 // ==================================================
-// HUD
+// DEBUG HUD
 // ==================================================
 const debugHUD =
   document.createElement(
@@ -3102,7 +3047,7 @@ document.body.appendChild(
 );
 
 // ==================================================
-// MESSAGE
+// MESSAGE HUD
 // ==================================================
 const messageHUD =
   document.createElement(
@@ -3135,7 +3080,8 @@ document.body.appendChild(
   messageHUD
 );
 
-let messageTimeout = null;
+let messageTimeout =
+  null;
 
 function showMessage(
   text
@@ -3242,7 +3188,7 @@ document.body.appendChild(
 );
 
 // ==================================================
-// RESOURCES
+// RESOURCE HUD
 // ==================================================
 const resources =
   document.createElement(
@@ -3390,38 +3336,32 @@ function anchorSymbol(
     anchor.state ===
     "CONNECTED"
   ) {
-    return anchor.lengthLocked
-      ? "◆"
-      : "●";
+    return "●";
   }
 
   return "○";
 }
 
 function updateHUD() {
+  const internalSpeed =
+    velocity.length();
+
   const speedMps =
-    unitsToMps(
-      velocity.length()
-    );
+    internalSpeed *
+    METERS_PER_UNIT;
 
   const speedKmh =
     speedMps *
     3.6;
 
   const verticalMps =
-    unitsToMps(
-      velocity.y
-    );
+    velocity.y *
+    METERS_PER_UNIT;
 
   debugHUD.textContent =
     `Speed: ${speedMps.toFixed(1)} m/s\n` +
-    ` ${speedKmh.toFixed(0)} km/h\n` +
+    `       ${speedKmh.toFixed(0)} km/h\n` +
     `Vertical: ${verticalMps.toFixed(1)} m/s\n` +
-    `Ctrl Rope: ${
-      isCtrlPressed()
-        ? "LOCKED"
-        : "FREE"
-    }\n` +
     `Titan: ${
       titanAlive
         ? "ALIVE"
@@ -3440,13 +3380,13 @@ function updateHUD() {
 
   leftHUD.style.color =
     leftAnchor.state ===
-      "OFF"
+    "OFF"
       ? "#777"
       : "#fff";
 
   rightHUD.style.color =
     rightAnchor.state ===
-      "OFF"
+    "OFF"
       ? "#777"
       : "#fff";
 
@@ -3481,12 +3421,8 @@ function updateHUD() {
 function updatePlayer(
   delta
 ) {
-  if (
-    dead
-  ) {
-    jumpRequested =
-      false;
-
+  if (dead) {
+    spacePressed = false;
     return;
   }
 
@@ -3497,41 +3433,29 @@ function updatePlayer(
     pitch;
 
   forward.set(
-    -Math.sin(
-      yaw
-    ),
+    -Math.sin(yaw),
     0,
-    -Math.cos(
-      yaw
-    )
+    -Math.cos(yaw)
   );
 
   right.set(
-    Math.cos(
-      yaw
-    ),
+    Math.cos(yaw),
     0,
-    -Math.sin(
-      yaw
-    )
+    -Math.sin(yaw)
   );
 
-  // ----------------------------------------------
-  // Ground control
-  // ----------------------------------------------
   if (
-    grounded
+    grounded &&
+    !leftAnchor.connected &&
+    !rightAnchor.connected
   ) {
     updateGround(
       delta
     );
   }
 
-  // ----------------------------------------------
-  // Ground jump
-  // ----------------------------------------------
   if (
-    jumpRequested &&
+    spacePressed &&
     grounded
   ) {
     velocity.y =
@@ -3541,19 +3465,10 @@ function updatePlayer(
       false;
   }
 
-  jumpRequested =
-    false;
-
-  // ----------------------------------------------
-  // Gravity
-  // ----------------------------------------------
   velocity.y -=
     GRAVITY *
     delta;
 
-  // ----------------------------------------------
-  // Anchors
-  // ----------------------------------------------
   updateAnchorProjectile(
     leftAnchor,
     delta
@@ -3564,36 +3479,38 @@ function updatePlayer(
     delta
   );
 
-  // ----------------------------------------------
-  // ORIGINAL GAS MODE
-  // Space activates this.
-  // ----------------------------------------------
+  const gasAvailable =
+    updateWireGas(
+      delta
+    );
+
+  updateWire(
+    leftAnchor,
+    delta,
+    gasAvailable
+  );
+
+  updateWire(
+    rightAnchor,
+    delta,
+    gasAvailable
+  );
+
   updateGasFlight(
     delta
   );
 
-  // ----------------------------------------------
-  // Drag
-  // ----------------------------------------------
   updateAirDrag(
     delta
   );
 
-  // ----------------------------------------------
-  // 300km/h global limit
-  // ----------------------------------------------
   limitSpeed();
 
-  // ----------------------------------------------
-  // Movement
-  // ----------------------------------------------
   moveHorizontal(
     delta
   );
 
-  if (
-    dead
-  ) {
+  if (dead) {
     return;
   }
 
@@ -3601,23 +3518,20 @@ function updatePlayer(
     delta
   );
 
-  if (
-    dead
-  ) {
+  if (dead) {
     return;
   }
 
-  // ----------------------------------------------
-  // CTRL ONLY:
-  // fixed rope radius
-  // ----------------------------------------------
-  constrainLockedRope(
+  constrainRope(
     leftAnchor
   );
 
-  constrainLockedRope(
+  constrainRope(
     rightAnchor
   );
+
+  spacePressed =
+    false;
 }
 
 // ==================================================
@@ -3630,7 +3544,8 @@ window.addEventListener(
       window.innerWidth /
       window.innerHeight;
 
-    camera.updateProjectionMatrix();
+    camera
+      .updateProjectionMatrix();
 
     renderer.setSize(
       window.innerWidth,
@@ -3640,7 +3555,7 @@ window.addEventListener(
 );
 
 // ==================================================
-// LOOP
+// GAME LOOP
 // ==================================================
 const clock =
   new THREE.Clock();
