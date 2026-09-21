@@ -94,8 +94,8 @@ const GAS_BURST_COOLDOWN = 0.25;
 // ==================================================
 // WIRE
 // ==================================================
-const WIRE_INITIAL_IMPULSE = 11;
-const WIRE_SUSTAIN_ACCEL = 20;
+const WIRE_INITIAL_IMPULSE = 9;
+const WIRE_SUSTAIN_ACCEL = 16;
 
 const ANCHOR_SHOT_SPEED = 150;
 
