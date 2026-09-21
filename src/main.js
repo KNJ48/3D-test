@@ -89,7 +89,7 @@ const GAS_DOUBLE_TAP_WINDOW = 0.5;
 // = 約43.2km/hを視線方向へ加算
 const GAS_BURST_IMPULSE = 24;
 
-const GAS_BURST_COOLDOWN = 0.25;
+const GAS_BURST_COOLDOWN = 3;
 
 // ==================================================
 // WIRE
