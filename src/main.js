@@ -92,10 +92,25 @@ const WIRE_GAS_USE_RATE =
   FLIGHT_GAS_USE_RATE * 0.5;
 
 // --------------------------
+// NORMAL GAS MAX SPEED
+// --------------------------
+
+// 通常ガス飛行で作れる
+// 3次元合成速度の最大値
+// 150km/h
+const GAS_NORMAL_MAX_KMH = 150;
+
+const GAS_NORMAL_MAX_SPEED =
+  GAS_NORMAL_MAX_KMH /
+  3.6 /
+  METERS_PER_UNIT;
+
+// --------------------------
 // VERTICAL GAS
 // --------------------------
 
-// ガス上昇の最高速度
+// 通常ガスによる
+// 上昇速度自体の最大値
 // 20m/s
 const GAS_CLIMB_MAX_MPS = 20;
 
@@ -103,28 +118,16 @@ const GAS_CLIMB_SPEED =
   GAS_CLIMB_MAX_MPS /
   METERS_PER_UNIT;
 
-// 落下中にガスを使った際の
-// 回復加速度
+// 落下回復加速度
 const GAS_RECOVERY_ACCEL = 28;
 
-// 上方向への加速度
+// 上方向加速度
 const GAS_CLIMB_ACCEL = 18;
 
 // --------------------------
-// NORMAL GAS HORIZONTAL
+// AIR CONTROL
 // --------------------------
 
-// 通常ガス飛行だけで
-// 新たに作れる水平最高速度。
-// 100km/h。
-const GAS_NORMAL_MAX_KMH = 100;
-
-const GAS_NORMAL_MAX_SPEED =
-  GAS_NORMAL_MAX_KMH /
-  3.6 /
-  METERS_PER_UNIT;
-
-// 空中WASD加速度
 // 元24の80%
 const AIR_CONTROL_ACCEL = 19.2;
 
@@ -3447,6 +3450,161 @@ function updateGasFlight(
       gas,
       0
     );
+
+  /*
+   * 重要:
+   *
+   * この関数へ入った時点で
+   * すでに150km/hを超えているなら、
+   * ワイヤー/BURST由来の慣性。
+   *
+   * 通常ガスでその速度を
+   * 150km/hへ強制的に落とさない。
+   */
+  const speedBeforeGas =
+    velocity.length();
+
+  const alreadyOverLimit =
+    speedBeforeGas >=
+    GAS_NORMAL_MAX_SPEED;
+
+  // =================================================
+  // VERTICAL GAS
+  // =================================================
+
+  /*
+   * 通常ガス自身では
+   * 上昇20m/sを超えない。
+   */
+  if (
+    velocity.y < 0
+  ) {
+    velocity.y +=
+      GAS_RECOVERY_ACCEL *
+      delta;
+
+    velocity.y =
+      Math.min(
+        velocity.y,
+        GAS_CLIMB_SPEED
+      );
+  } else if (
+    velocity.y <
+    GAS_CLIMB_SPEED
+  ) {
+    velocity.y +=
+      GAS_CLIMB_ACCEL *
+      delta;
+
+    velocity.y =
+      Math.min(
+        velocity.y,
+        GAS_CLIMB_SPEED
+      );
+  }
+
+  // =================================================
+  // HORIZONTAL CONTROL
+  // =================================================
+
+  input.set(
+    0,
+    0,
+    0
+  );
+
+  if (
+    keys["KeyW"]
+  ) {
+    input.add(
+      forward
+    );
+  }
+
+  if (
+    keys["KeyS"]
+  ) {
+    input.sub(
+      forward
+    );
+  }
+
+  if (
+    keys["KeyD"]
+  ) {
+    input.add(
+      right
+    );
+  }
+
+  if (
+    keys["KeyA"]
+  ) {
+    input.sub(
+      right
+    );
+  }
+
+  if (
+    input.lengthSq() > 0
+  ) {
+    input.normalize();
+
+    velocity.addScaledVector(
+      input,
+      AIR_CONTROL_ACCEL *
+      delta
+    );
+  }
+
+  // =================================================
+  // NORMAL GAS TOTAL SPEED LIMIT
+  // =================================================
+
+  const speedAfterGas =
+    velocity.length();
+
+  /*
+   * 150km/h未満から
+   * 通常ガスによって上限を超えた場合。
+   *
+   * → 150km/hに制限。
+   */
+  if (
+    !alreadyOverLimit &&
+    speedAfterGas >
+      GAS_NORMAL_MAX_SPEED
+  ) {
+    velocity.multiplyScalar(
+      GAS_NORMAL_MAX_SPEED /
+      speedAfterGas
+    );
+
+    return;
+  }
+
+  /*
+   * すでに150km/h超だった場合。
+   *
+   * 通常ガスを使ったことで
+   * さらに総速度が増えてしまったなら、
+   * 発動前の速度まで戻す。
+   *
+   * 方向転換や落下回復は可能だが、
+   * 通常ガスだけで高速域を
+   * さらに育てられない。
+   */
+  if (
+    alreadyOverLimit &&
+    speedAfterGas >
+      speedBeforeGas
+  ) {
+    velocity.multiplyScalar(
+      speedBeforeGas /
+      speedAfterGas
+    );
+  }
+}
 
   // =================================================
   // VERTICAL GAS
