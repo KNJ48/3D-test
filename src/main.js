@@ -717,83 +717,187 @@ function createTrainingArea() {
 
 const wallRings = [];
 
+/*
+ * 厚みのある巨大リング壁を作る。
+ *
+ * 外壁
+ * 内壁
+ * 天面
+ *
+ * の3枚から構成。
+ */
 function createWallRing(
   radius,
   name
 ) {
-  /*
-   * 1個の連続したCylinder側面。
-   *
-   * Boxを並べないので
-   * 壁に隙間は発生しない。
-   */
-  const geometry =
+  const halfThickness =
+    CITY_WALL_THICKNESS /
+    2;
+
+  const outerRadius =
+    radius +
+    halfThickness;
+
+  const innerRadius =
+    radius -
+    halfThickness;
+
+  // 十分な円形分割
+  const radialSegments =
+    512;
+
+  // =================================================
+  // OUTER WALL
+  // =================================================
+
+  const outerGeometry =
     new THREE.CylinderGeometry(
-      radius,
-      radius,
+      outerRadius,
+      outerRadius,
       CITY_WALL_HEIGHT,
-      256,
+      radialSegments,
       1,
       true
     );
 
-  const wall =
+  const outerWall =
     new THREE.Mesh(
-      geometry,
+      outerGeometry,
       outerWallMaterial
     );
 
-  wall.position.y =
-    CITY_WALL_HEIGHT / 2;
+  outerWall.position.y =
+    CITY_WALL_HEIGHT /
+    2;
 
-  wall.castShadow = true;
-  wall.receiveShadow = true;
+  outerWall.castShadow =
+    true;
 
-  /*
-   * 内側からも外側からも
-   * 壁面が見えるようにする。
-   */
-  wall.material.side =
-    THREE.DoubleSide;
+  outerWall.receiveShadow =
+    true;
 
-  wall.frustumCulled =
+  outerWall.frustumCulled =
     false;
 
-  wall.userData.wallName =
-    name;
+  scene.add(
+    outerWall
+  );
 
-  scene.add(wall);
+  anchorTargets.push(
+    outerWall
+  );
+
+  // =================================================
+  // INNER WALL
+  // =================================================
+
+  const innerGeometry =
+    new THREE.CylinderGeometry(
+      innerRadius,
+      innerRadius,
+      CITY_WALL_HEIGHT,
+      radialSegments,
+      1,
+      true
+    );
+
+  const innerMaterial =
+    outerWallMaterial.clone();
 
   /*
-   * アンカー可能。
+   * Cylinderの内側を見るので
+   * BackSideを使用。
    */
-  anchorTargets.push(
-    wall
+  innerMaterial.side =
+    THREE.BackSide;
+
+  const innerWall =
+    new THREE.Mesh(
+      innerGeometry,
+      innerMaterial
+    );
+
+  innerWall.position.y =
+    CITY_WALL_HEIGHT /
+    2;
+
+  innerWall.castShadow =
+    true;
+
+  innerWall.receiveShadow =
+    true;
+
+  innerWall.frustumCulled =
+    false;
+
+  scene.add(
+    innerWall
   );
+
+  anchorTargets.push(
+    innerWall
+  );
+
+  // =================================================
+  // WALL TOP
+  // =================================================
+
+  /*
+   * RingGeometryで壁の天面を作る。
+   *
+   * これで壁の上へ着地したとき
+   * 「紙の端」ではなく、
+   * 実際の床面が見える。
+   */
+  const topGeometry =
+    new THREE.RingGeometry(
+      innerRadius,
+      outerRadius,
+      radialSegments
+    );
+
+  const topMaterial =
+    outerWallMaterial.clone();
+
+  topMaterial.side =
+    THREE.DoubleSide;
+
+  const wallTop =
+    new THREE.Mesh(
+      topGeometry,
+      topMaterial
+    );
+
+  wallTop.rotation.x =
+    -Math.PI / 2;
+
+  wallTop.position.y =
+    CITY_WALL_HEIGHT;
+
+  wallTop.receiveShadow =
+    true;
+
+  wallTop.frustumCulled =
+    false;
+
+  scene.add(
+    wallTop
+  );
+
+  anchorTargets.push(
+    wallTop
+  );
+
+  // =================================================
+  // REGISTER
+  // =================================================
 
   wallRings.push({
     radius,
-    mesh: wall,
-    name
-  });
-}
 
-function createCityWall() {
-  createWallRing(
-    MARIA_RADIUS,
-    "MARIA"
-  );
+    innerRadius,
 
-  createWallRing(
-    ROSE_RADIUS,
-    "ROSE"
-  );
-
-  createWallRing(
-    SINA_RADIUS,
-    "SINA"
-  );
-}
+    outerRadius,
 
 // ==================================================
 // ROAD
