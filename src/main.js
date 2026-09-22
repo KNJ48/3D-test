@@ -128,8 +128,7 @@ const ANCHOR_SHOT_SPEED = 150;
 // WIRE VISUAL PARAMETERS
 // --------------------------
 
-// ワイヤー半径。
-// テスト時は基本ここだけ変更すればOK。
+// ワイヤー半径
 //
 // 0.005 = 極細
 // 0.010 = 細い
@@ -141,14 +140,22 @@ const WIRE_VISUAL_RADIUS = 0.01;
 const WIRE_VISUAL_SEGMENTS = 6;
 
 // ワイヤー色
-const WIRE_VISUAL_COLOR = 0xd8dde0;
+// ほぼ黒。完全な0x000000より
+// 輪郭を認識しやすい程度に少し明るくしている。
+const WIRE_VISUAL_COLOR = 0x101214;
 
 // 透明度
 const WIRE_VISUAL_OPACITY = 1.0;
 
 // 一人称カメラ基準の射出口
+
+// 左右への距離
 const WIRE_START_SIDE = 0.28;
+
+// カメラより下
 const WIRE_START_DOWN = -0.22;
+
+// カメラより前
 const WIRE_START_FORWARD = -0.45;
 
 // ==================================================
