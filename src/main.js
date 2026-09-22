@@ -239,136 +239,378 @@ const TRAINING_RADIUS = 4;
 // CITY
 // ==================================================
 
-/*
- * 巨大な地理上の距離だけ
- * 1/10スケール。
- *
- * 壁の高さ・厚さ・家・人間・巨人・
- * 道幅・ゲーム物理は縮小しない。
- */
-const WORLD_HORIZONTAL_SCALE = 0.1;
-
-// --------------------------
-// UNIT CONVERSION
-// --------------------------
-
-function metersToUnits(
-  meters
+function createDistrict(
+  centerX,
+  centerZ,
+  facingAngle,
+  houseCount
 ) {
-  return (
-    meters /
-    METERS_PER_UNIT
+  /*
+   * 以前より大幅に広い地区。
+   *
+   * 家そのものの大きさは変更しない。
+   */
+  const districtLength =
+    metersToUnits(
+      900
+    );
+
+  const districtWidth =
+    metersToUnits(
+      650
+    );
+
+  const mainRoadWidth =
+    metersToUnits(
+      14
+    );
+
+  const sideRoadSpacing =
+    metersToUnits(
+      90
+    );
+
+  const forwardX =
+    Math.sin(
+      facingAngle
+    );
+
+  const forwardZ =
+    Math.cos(
+      facingAngle
+    );
+
+  const rightX =
+    Math.cos(
+      facingAngle
+    );
+
+  const rightZ =
+    -Math.sin(
+      facingAngle
+    );
+
+  // =================================================
+  // MAIN ROAD
+  // =================================================
+
+  const mainRoad =
+    new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        mainRoadWidth,
+        districtLength
+      ),
+      roadMaterial
+    );
+
+  mainRoad.rotation.x =
+    -Math.PI / 2;
+
+  mainRoad.rotation.z =
+    -facingAngle;
+
+  mainRoad.position.set(
+    centerX,
+    0.03,
+    centerZ
   );
+
+  mainRoad.receiveShadow =
+    true;
+
+  scene.add(
+    mainRoad
+  );
+
+  // =================================================
+  // CROSS ROADS
+  // =================================================
+
+  const roadCount =
+    Math.floor(
+      districtLength /
+      sideRoadSpacing
+    );
+
+  for (
+    let i =
+      -Math.floor(
+        roadCount / 2
+      );
+
+    i <=
+      Math.floor(
+        roadCount / 2
+      );
+
+    i++
+  ) {
+    const along =
+      i *
+      sideRoadSpacing;
+
+    const roadX =
+      centerX +
+      forwardX *
+      along;
+
+    const roadZ =
+      centerZ +
+      forwardZ *
+      along;
+
+    const crossRoad =
+      new THREE.Mesh(
+        new THREE.PlaneGeometry(
+          districtWidth,
+          metersToUnits(7)
+        ),
+        roadMaterial
+      );
+
+    crossRoad.rotation.x =
+      -Math.PI / 2;
+
+    crossRoad.rotation.z =
+      -facingAngle;
+
+    /*
+     * Planeの長い方向を
+     * 横方向へ向ける。
+     */
+    crossRoad.rotation.z +=
+      Math.PI / 2;
+
+    crossRoad.position.set(
+      roadX,
+      0.035,
+      roadZ
+    );
+
+    crossRoad.receiveShadow =
+      true;
+
+    scene.add(
+      crossRoad
+    );
+  }
+
+  // =================================================
+  // HOUSES
+  // =================================================
+
+  let created = 0;
+  let attempts = 0;
+
+  const maxAttempts =
+    houseCount * 20;
+
+  while (
+    created <
+      houseCount &&
+    attempts <
+      maxAttempts
+  ) {
+    attempts++;
+
+    const along =
+      THREE.MathUtils.randFloat(
+        -districtLength /
+          2 +
+          metersToUnits(20),
+
+        districtLength /
+          2 -
+          metersToUnits(20)
+      );
+
+    const sideways =
+      THREE.MathUtils.randFloat(
+        -districtWidth /
+          2 +
+          metersToUnits(15),
+
+        districtWidth /
+          2 -
+          metersToUnits(15)
+      );
+
+    /*
+     * 中央大通りを空ける。
+     */
+    if (
+      Math.abs(
+        sideways
+      ) <
+      mainRoadWidth /
+        2 +
+        metersToUnits(7)
+    ) {
+      continue;
+    }
+
+    /*
+     * 横道を空ける。
+     */
+    const nearestSideRoad =
+      Math.round(
+        along /
+        sideRoadSpacing
+      ) *
+      sideRoadSpacing;
+
+    if (
+      Math.abs(
+        along -
+        nearestSideRoad
+      ) <
+      metersToUnits(7)
+    ) {
+      continue;
+    }
+
+    const x =
+      centerX +
+      forwardX *
+        along +
+      rightX *
+        sideways;
+
+    const z =
+      centerZ +
+      forwardZ *
+        along +
+      rightZ *
+        sideways;
+
+    createHouse(
+      x,
+      z,
+      created,
+      -facingAngle
+    );
+
+    created++;
+  }
 }
 
-/*
- * 巨大な地理距離専用。
- *
- * 実距離[m]
- * ↓
- * 1/10
- * ↓
- * Three.js内部unit
- */
-function compressedDistance(
-  meters
-) {
-  return (
-    meters *
-    WORLD_HORIZONTAL_SCALE /
-    METERS_PER_UNIT
+function createCity() {
+  /*
+   * 主要地区。
+   *
+   * 1地区300棟。
+   *
+   * 家のサイズは実寸のまま。
+   */
+
+  const housesPerDistrict =
+    300;
+
+  // =================================================
+  // MARIA SOUTH
+  // =================================================
+
+  createDistrict(
+    0,
+
+    MARIA_RADIUS -
+      metersToUnits(470),
+
+    Math.PI,
+
+    housesPerDistrict
   );
+
+  // =================================================
+  // ROSE SOUTH
+  // =================================================
+
+  createDistrict(
+    0,
+
+    ROSE_RADIUS -
+      metersToUnits(470),
+
+    Math.PI,
+
+    housesPerDistrict
+  );
+
+  // =================================================
+  // SINA SOUTH
+  // =================================================
+
+  createDistrict(
+    0,
+
+    SINA_RADIUS -
+      metersToUnits(470),
+
+    Math.PI,
+
+    housesPerDistrict
+  );
+
+  // =================================================
+  // SMALL VILLAGES
+  // =================================================
+
+  const villages = [
+    [-2500, 3000],
+    [3200, 2200],
+    [-4000, -1800],
+    [3600, -3500],
+    [-7000, 6000],
+    [6500, -6500],
+    [-10000, 8000],
+    [9000, 11000]
+  ];
+
+  for (
+    let v = 0;
+    v < villages.length;
+    v++
+  ) {
+    const [
+      villageX,
+      villageZ
+    ] =
+      villages[v];
+
+    for (
+      let i = 0;
+      i < 24;
+      i++
+    ) {
+      const angle =
+        Math.random() *
+        Math.PI *
+        2;
+
+      const radius =
+        THREE.MathUtils.randFloat(
+          metersToUnits(20),
+          metersToUnits(120)
+        );
+
+      createHouse(
+        villageX +
+          Math.cos(angle) *
+          radius,
+
+        villageZ +
+          Math.sin(angle) *
+          radius,
+
+        i + v * 10,
+
+        Math.random() *
+          Math.PI *
+          2
+      );
+    }
+  }
 }
-
-// --------------------------
-// WALL PHYSICAL SIZE
-// --------------------------
-
-// 壁高 50m。
-// 水平世界を1/10にしても
-// 壁自体の大きさは実寸。
-const CITY_WALL_HEIGHT =
-  metersToUnits(
-    50
-  );
-
-// 壁厚 8m
-const CITY_WALL_THICKNESS =
-  metersToUnits(
-    8
-  );
-
-// 門幅 18m
-const CITY_GATE_WIDTH =
-  metersToUnits(
-    18
-  );
-
-// --------------------------
-// WALL RADII
-// --------------------------
-
-/*
- * 仮想的な実距離200km
- * ↓
- * 1/10
- * ↓
- * ゲーム内半径20km
- *
- * 最外周直径 約40km
- */
-const MARIA_RADIUS =
-  compressedDistance(
-    200000
-  );
-
-// ゲーム内半径 約13km
-const ROSE_RADIUS =
-  compressedDistance(
-    130000
-  );
-
-// ゲーム内半径 約6.5km
-const SINA_RADIUS =
-  compressedDistance(
-    65000
-  );
-
-// --------------------------
-// DISTRICT
-// --------------------------
-
-// 市街地奥行き260m
-const DISTRICT_DEPTH =
-  metersToUnits(
-    260
-  );
-
-// 市街地幅210m
-const DISTRICT_WIDTH =
-  metersToUnits(
-    210
-  );
-
-// メイン道路幅10m
-const CITY_ROAD_WIDTH =
-  metersToUnits(
-    10
-  );
-
-// 主要都市1地区の家数
-const DISTRICT_HOUSE_COUNT =
-  110;
-
-// --------------------------
-// WORLD SETTLEMENTS
-// --------------------------
-
-const WORLD_VILLAGE_COUNT =
-  14;
-
-const VILLAGE_HOUSE_COUNT =
-  16;
 
 // ==================================================
 // SCENE
@@ -469,9 +711,17 @@ groundTexture.wrapS =
 groundTexture.wrapT =
   THREE.RepeatWrapping;
 
+/*
+ * 100km級の巨大Planeなので
+ * repeat 400では模様1枚が巨大になる。
+ *
+ * 1タイルを約10mとして扱う。
+ *
+ * 100km / 10m = 10000 repeats
+ */
 groundTexture.repeat.set(
-  400,
-  400
+  10000,
+  10000
 );
 
 const wallTexture =
@@ -488,6 +738,10 @@ wallTexture.wrapS =
 wallTexture.wrapT =
   THREE.RepeatWrapping;
 
+/*
+ * 壁のテクスチャ。
+ * 巨大化させず元の密度を維持。
+ */
 wallTexture.repeat.set(
   2,
   12
@@ -4653,9 +4907,10 @@ function moveVertical(
     velocity.y *
     delta;
 
-  // -------------------------
+  // =================================================
   // GROUND
-  // -------------------------
+  // =================================================
+
   if (
     next.y <=
     PLAYER_HEIGHT
@@ -4678,9 +4933,87 @@ function moveVertical(
     return;
   }
 
-  // -------------------------
-  // NO COLLISION
-  // -------------------------
+  // =================================================
+  // LAND ON RING WALL
+  // =================================================
+
+  if (
+    velocity.y <= 0
+  ) {
+    const radialDistance =
+      Math.hypot(
+        camera.position.x,
+        camera.position.z
+      );
+
+    for (
+      const ring
+      of wallRings
+    ) {
+      /*
+       * プレイヤーが壁の厚みの
+       * 範囲内にいるか。
+       */
+      const onWallHorizontally =
+        radialDistance >=
+          ring.innerRadius -
+          PLAYER_RADIUS &&
+
+        radialDistance <=
+          ring.outerRadius +
+          PLAYER_RADIUS;
+
+      if (
+        !onWallHorizontally
+      ) {
+        continue;
+      }
+
+      const oldFeet =
+        oldY -
+        PLAYER_HEIGHT;
+
+      const newFeet =
+        next.y -
+        PLAYER_HEIGHT;
+
+      /*
+       * 上から壁上面を跨いだ場合。
+       */
+      if (
+        oldFeet >=
+          CITY_WALL_HEIGHT &&
+        newFeet <=
+          CITY_WALL_HEIGHT
+      ) {
+        damageFromImpact(
+          velocity.y
+        );
+
+        if (dead) {
+          return;
+        }
+
+        camera.position.y =
+          CITY_WALL_HEIGHT +
+          PLAYER_HEIGHT;
+
+        velocity.y = 0;
+
+        /*
+         * 地面と完全に同じ扱い。
+         */
+        grounded = true;
+
+        return;
+      }
+    }
+  }
+
+  // =================================================
+  // NORMAL BUILDING MOVEMENT
+  // =================================================
+
   if (
     !collides(
       next
@@ -4694,9 +5027,10 @@ function moveVertical(
     return;
   }
 
-  // -------------------------
+  // =================================================
   // LAND ON BUILDING
-  // -------------------------
+  // =================================================
+
   if (
     velocity.y <= 0
   ) {
@@ -4745,6 +5079,10 @@ function moveVertical(
           velocity.y
         );
 
+        if (dead) {
+          return;
+        }
+
         camera.position.y =
           box.max.y +
           PLAYER_HEIGHT;
@@ -4758,6 +5096,9 @@ function moveVertical(
     }
   }
 
+  /*
+   * 天井等への縦衝突。
+   */
   damageFromImpact(
     velocity.y
   );
