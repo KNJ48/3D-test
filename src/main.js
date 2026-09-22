@@ -4234,7 +4234,6 @@ function applyWallStun(
 // ==================================================
 // COLLISION
 // ==================================================
-
 function intersects(
   position,
   box
@@ -4268,14 +4267,10 @@ function intersects(
 // ==================================================
 // RING WALL COLLISION
 // ==================================================
-
 function collidesRingWall(
   position
 ) {
-  /*
-   * 壁より完全に上なら
-   * リング壁とは衝突しない。
-   */
+  // 壁より上なら衝突しない
   const feet =
     position.y -
     PLAYER_HEIGHT;
@@ -4287,7 +4282,8 @@ function collidesRingWall(
     return false;
   }
 
-  const radius =
+  // 世界中心からの水平距離
+  const radialDistance =
     Math.hypot(
       position.x,
       position.z
@@ -4298,13 +4294,14 @@ function collidesRingWall(
       2 +
     PLAYER_RADIUS;
 
+  // Maria / Rose / Sina
   for (
     const ring
     of wallRings
   ) {
     const difference =
       Math.abs(
-        radius -
+        radialDistance -
         ring.radius
       );
 
@@ -4322,9 +4319,7 @@ function collidesRingWall(
 function collides(
   position
 ) {
-  /*
-   * 建物等のBox衝突。
-   */
+  // 建物など
   for (
     const box
     of colliders
@@ -4339,131 +4334,7 @@ function collides(
     }
   }
 
-  /*
-   * 3重壁。
-   */
-  if (
-    collidesRingWall(
-      position
-    )
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-// ==================================================
-// RING WALL COLLISION
-// ==================================================
-
-function collidesRingWall(
-  position
-) {
-  /*
-   * 壁より上なら通過可能。
-   */
-  const playerFeet =
-    position.y -
-    PLAYER_HEIGHT;
-
-  if (
-    playerFeet >=
-    CITY_WALL_HEIGHT
-  ) {
-    return false;
-  }
-
-  const radialDistance =
-    Math.hypot(
-      position.x,
-      position.z
-    );
-
-  const halfThickness =
-    CITY_WALL_THICKNESS /
-    2;
-
-  for (
-    const ring
-    of wallRings
-  ) {
-    const radialDifference =
-      Math.abs(
-        radialDistance -
-        ring.radius
-      );
-
-    if (
-      radialDifference >
-      halfThickness +
-      PLAYER_RADIUS
-    ) {
-      continue;
-    }
-
-    /*
-     * +Z側の門判定。
-     *
-     * atan2(x,z)なので
-     * +Zが0rad。
-     */
-    const angle =
-      Math.atan2(
-        position.x,
-        position.z
-      );
-
-    const gateHalfAngle =
-      (
-        CITY_GATE_WIDTH /
-        2
-      ) /
-      ring.radius;
-
-    const angleFromGate =
-      Math.abs(
-        Math.atan2(
-          Math.sin(angle),
-          Math.cos(angle)
-        )
-      );
-
-    /*
-     * 門の中なら壁なし。
-     */
-    if (
-      angleFromGate <
-      gateHalfAngle
-    ) {
-      continue;
-    }
-
-    return true;
-  }
-
-  return false;
-}
-
-function collides(
-  position
-) {
-  // 建物等
-  for (
-    const box
-    of colliders
-  ) {
-    if (
-      intersects(
-        position,
-        box
-      )
-    ) {
-      return true;
-    }
-  }
-
-  // 巨大リング壁
+  // 三重壁
   if (
     collidesRingWall(
       position
