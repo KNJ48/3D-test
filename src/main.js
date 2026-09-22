@@ -714,42 +714,26 @@ function createTrainingArea() {
 // ==================================================
 // CITY WALL
 // ==================================================
-
 const wallRings = [];
 
-/*
- * 厚みのある巨大リング壁を作る。
- *
- * 外壁
- * 内壁
- * 天面
- *
- * の3枚から構成。
- */
 function createWallRing(
   radius,
   name
 ) {
   const halfThickness =
-    CITY_WALL_THICKNESS /
-    2;
+    CITY_WALL_THICKNESS / 2;
 
   const outerRadius =
-    radius +
-    halfThickness;
+    radius + halfThickness;
 
   const innerRadius =
-    radius -
-    halfThickness;
+    radius - halfThickness;
 
-  // 十分な円形分割
-  const radialSegments =
-    512;
+  const radialSegments = 512;
 
-  // =================================================
+  // -------------------------
   // OUTER WALL
-  // =================================================
-
+  // -------------------------
   const outerGeometry =
     new THREE.CylinderGeometry(
       outerRadius,
@@ -760,24 +744,27 @@ function createWallRing(
       true
     );
 
+  const outerMaterial =
+    outerWallMaterial.clone();
+
+  outerMaterial.side =
+    THREE.FrontSide;
+
   const outerWall =
     new THREE.Mesh(
       outerGeometry,
-      outerWallMaterial
+      outerMaterial
     );
 
-  outerWall.position.y =
-    CITY_WALL_HEIGHT /
-    2;
+  outerWall.position.set(
+    0,
+    CITY_WALL_HEIGHT / 2,
+    0
+  );
 
-  outerWall.castShadow =
-    true;
-
-  outerWall.receiveShadow =
-    true;
-
-  outerWall.frustumCulled =
-    false;
+  outerWall.castShadow = true;
+  outerWall.receiveShadow = true;
+  outerWall.frustumCulled = false;
 
   scene.add(
     outerWall
@@ -787,10 +774,9 @@ function createWallRing(
     outerWall
   );
 
-  // =================================================
+  // -------------------------
   // INNER WALL
-  // =================================================
-
+  // -------------------------
   const innerGeometry =
     new THREE.CylinderGeometry(
       innerRadius,
@@ -804,10 +790,6 @@ function createWallRing(
   const innerMaterial =
     outerWallMaterial.clone();
 
-  /*
-   * Cylinderの内側を見るので
-   * BackSideを使用。
-   */
   innerMaterial.side =
     THREE.BackSide;
 
@@ -817,18 +799,15 @@ function createWallRing(
       innerMaterial
     );
 
-  innerWall.position.y =
-    CITY_WALL_HEIGHT /
-    2;
+  innerWall.position.set(
+    0,
+    CITY_WALL_HEIGHT / 2,
+    0
+  );
 
-  innerWall.castShadow =
-    true;
-
-  innerWall.receiveShadow =
-    true;
-
-  innerWall.frustumCulled =
-    false;
+  innerWall.castShadow = true;
+  innerWall.receiveShadow = true;
+  innerWall.frustumCulled = false;
 
   scene.add(
     innerWall
@@ -838,17 +817,9 @@ function createWallRing(
     innerWall
   );
 
-  // =================================================
+  // -------------------------
   // WALL TOP
-  // =================================================
-
-  /*
-   * RingGeometryで壁の天面を作る。
-   *
-   * これで壁の上へ着地したとき
-   * 「紙の端」ではなく、
-   * 実際の床面が見える。
-   */
+  // -------------------------
   const topGeometry =
     new THREE.RingGeometry(
       innerRadius,
@@ -871,14 +842,14 @@ function createWallRing(
   wallTop.rotation.x =
     -Math.PI / 2;
 
-  wallTop.position.y =
-    CITY_WALL_HEIGHT;
+  wallTop.position.set(
+    0,
+    CITY_WALL_HEIGHT,
+    0
+  );
 
-  wallTop.receiveShadow =
-    true;
-
-  wallTop.frustumCulled =
-    false;
+  wallTop.receiveShadow = true;
+  wallTop.frustumCulled = false;
 
   scene.add(
     wallTop
@@ -888,16 +859,36 @@ function createWallRing(
     wallTop
   );
 
-  // =================================================
-  // REGISTER
-  // =================================================
-
+  // -------------------------
+  // REGISTER COLLISION DATA
+  // -------------------------
   wallRings.push({
-    radius,
+    radius: radius,
+    innerRadius: innerRadius,
+    outerRadius: outerRadius,
+    outerWall: outerWall,
+    innerWall: innerWall,
+    wallTop: wallTop,
+    name: name
+  });
+}
 
-    innerRadius,
+function createCityWall() {
+  createWallRing(
+    MARIA_RADIUS,
+    "MARIA"
+  );
 
-    outerRadius,
+  createWallRing(
+    ROSE_RADIUS,
+    "ROSE"
+  );
+
+  createWallRing(
+    SINA_RADIUS,
+    "SINA"
+  );
+}
 
 // ==================================================
 // ROAD
