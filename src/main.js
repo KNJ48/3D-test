@@ -267,7 +267,7 @@ const TRAINING_RADIUS = 0;
  * ・ゲーム物理
  */
 const WORLD_HORIZONTAL_SCALE =
-  0.1;
+  1.0;
 
 /*
  * 実寸m
