@@ -2286,11 +2286,6 @@ function fireAnchorAtPoint(
     return false;
   }
 
-  /*
-   * ここでは「狙う方向」を計算するだけ。
-   *
-   * まだ接続はしない。
-   */
   const time =
     calculateAnchorLaunch(
       point,
@@ -2303,41 +2298,64 @@ function fireAnchorAtPoint(
     return false;
   }
 
-  anchor.state = "FIRING";
+  anchor.state =
+    "FIRING";
 
-  anchor.connected = false;
+  anchor.connected =
+    false;
 
-  // AUTO / 手動が狙った予定地点
+  /*
+   * 接続予定地点はここで確定。
+   */
   anchor.targetPoint.copy(
     point
   );
 
-  anchor.launchPosition.copy(
-    camera.position
-  );
-
   /*
-   * 実際のアンカー弾は
-   * プレイヤー位置からスタート。
+   * アンカーの本当の発射位置。
+   * ワイヤー射出口と同じ。
    */
+  wireVisualStart.set(
+    (anchor.side ?? 0) *
+      WIRE_START_SIDE,
+    WIRE_START_DOWN,
+    WIRE_START_FORWARD
+  );
+
+  camera.localToWorld(
+    wireVisualStart
+  );
+
+  anchor.launchPosition.copy(
+    wireVisualStart
+  );
+
   anchor.projectilePosition.copy(
-    camera.position
+    wireVisualStart
   );
 
-  anchor.projectileMesh.position.copy(
-    anchor.projectilePosition
-  );
+  if (
+    anchor.projectileMesh
+  ) {
+    anchor.projectileMesh.position.copy(
+      wireVisualStart
+    );
 
-  anchor.projectileMesh.visible =
+    anchor.projectileMesh.visible =
+      true;
+  }
+
+  anchor.target =
+    target;
+
+  anchor.pulling =
+    false;
+
+  anchor.impulseApplied =
+    false;
+
+  anchor.wire.visible =
     true;
-
-  anchor.target = target;
-
-  anchor.pulling = false;
-
-  anchor.impulseApplied = false;
-
-  anchor.wire.visible = true;
 
   return true;
 }
@@ -3003,8 +3021,8 @@ function updateAnchorProjectile(
   }
 
   /*
-   * 現在のアンカー位置から
-   * 最初に確定したtargetPointへ。
+   * targetPointは発射した瞬間に確定済み。
+   * 途中で変更しない。
    */
   projectileDirection
     .subVectors(
@@ -3016,8 +3034,12 @@ function updateAnchorProjectile(
     projectileDirection.length();
 
   if (
-    remaining < 0.001
+    remaining <= 0.001
   ) {
+    anchor.projectilePosition.copy(
+      anchor.targetPoint
+    );
+
     connectAnchor(
       anchor,
       anchor.targetPoint,
@@ -3030,21 +3052,29 @@ function updateAnchorProjectile(
   projectileDirection.normalize();
 
   /*
-   * 発射時に決定した速度の
-   * 大きさだけを利用する。
-   *
-   * 方向は常に固定接続点方向。
+   * projectileVelocityは
+   * 発射時に決めた「速度の大きさ」として使用。
    */
   const projectileSpeed =
     anchor.projectileVelocity.length();
+
+  if (
+    projectileSpeed <= 0.001
+  ) {
+    releaseAnchor(
+      anchor
+    );
+
+    return;
+  }
 
   const travel =
     projectileSpeed *
     delta;
 
   /*
-   * このフレームで接続点へ
-   * 到達する場合。
+   * このフレームで目的地点へ
+   * 到達できる場合だけ接続。
    */
   if (
     travel >= remaining
@@ -3057,7 +3087,7 @@ function updateAnchorProjectile(
       anchor.projectileMesh
     ) {
       anchor.projectileMesh.position.copy(
-        anchor.targetPoint
+        anchor.projectilePosition
       );
     }
 
@@ -3071,8 +3101,8 @@ function updateAnchorProjectile(
   }
 
   /*
-   * 接続点へ向かって
-   * 実速度分だけ進む。
+   * このフレームで実際に進める距離だけ
+   * targetPoint方向へ進む。
    */
   anchor.projectilePosition
     .addScaledVector(
@@ -3114,21 +3144,29 @@ function updateWireVisual(
   if (
     anchor.state === "OFF"
   ) {
-    anchor.wire.visible = false;
+    anchor.wire.visible =
+      false;
+
     return;
   }
 
   /*
-   * ワイヤー終端は常に
-   * 実体アンカーの現在位置。
+   * 重要:
    *
-   * targetPointは使わない。
+   * targetPointは絶対に
+   * ワイヤー描画へ使用しない。
+   *
+   * 発射中のワイヤー先端は
+   * projectilePositionそのもの。
    */
   const end =
-    anchor.projectileMesh.position;
+    anchor.state === "FIRING"
+      ? anchor.projectilePosition
+      : anchor.point;
 
+  // 左右の射出口
   wireVisualStart.set(
-    anchor.side *
+    (anchor.side ?? 0) *
       WIRE_START_SIDE,
     WIRE_START_DOWN,
     WIRE_START_FORWARD
@@ -3138,18 +3176,28 @@ function updateWireVisual(
     wireVisualStart
   );
 
-  wireVisualDirection.subVectors(
-    end,
-    wireVisualStart
-  );
+  /*
+   * 現在の射出口
+   *      ↓
+   * 現在のアンカー位置
+   *
+   * の距離しか描画しない。
+   */
+  wireVisualDirection
+    .subVectors(
+      end,
+      wireVisualStart
+    );
 
-  const distance =
+  const currentWireLength =
     wireVisualDirection.length();
 
   if (
-    distance < 0.001
+    currentWireLength <= 0.001
   ) {
-    anchor.wire.visible = false;
+    anchor.wire.visible =
+      false;
+
     return;
   }
 
@@ -3158,15 +3206,23 @@ function updateWireVisual(
       wireVisualStart
     )
     .add(end)
-    .multiplyScalar(0.5);
+    .multiplyScalar(
+      0.5
+    );
 
   anchor.wire.position.copy(
     wireVisualMiddle
   );
 
+  /*
+   * ワイヤー長 =
+   * 現在のアンカーまでの距離。
+   *
+   * targetPointまでの距離ではない。
+   */
   anchor.wire.scale.set(
     1,
-    distance,
+    currentWireLength,
     1
   );
 
@@ -3178,7 +3234,8 @@ function updateWireVisual(
       wireVisualDirection
     );
 
-  anchor.wire.visible = true;
+  anchor.wire.visible =
+    true;
 }
 
 // ==================================================
