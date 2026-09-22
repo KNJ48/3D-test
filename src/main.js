@@ -235,61 +235,6 @@ const TRAINING_DEPTH = 8;
 const TRAINING_HEIGHT = 51;
 const TRAINING_RADIUS = 4;
 
-// ==================================================
-// CITY
-// ==================================================
-
-function createDistrict(
-  centerX,
-  centerZ,
-  facingAngle,
-  houseCount
-) {
-  /*
-   * 以前より大幅に広い地区。
-   *
-   * 家そのものの大きさは変更しない。
-   */
-  const districtLength =
-    metersToUnits(
-      900
-    );
-
-  const districtWidth =
-    metersToUnits(
-      650
-    );
-
-  const mainRoadWidth =
-    metersToUnits(
-      14
-    );
-
-  const sideRoadSpacing =
-    metersToUnits(
-      90
-    );
-
-  const forwardX =
-    Math.sin(
-      facingAngle
-    );
-
-  const forwardZ =
-    Math.cos(
-      facingAngle
-    );
-
-  const rightX =
-    Math.cos(
-      facingAngle
-    );
-
-  const rightZ =
-    -Math.sin(
-      facingAngle
-    );
-
   // =================================================
   // MAIN ROAD
   // =================================================
