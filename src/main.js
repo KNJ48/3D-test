@@ -1,5 +1,9 @@
 import * as THREE from "three";
 
+import {
+  WORLD_MAP
+} from "./worldMap.js";
+
 // ==================================================
 // WORLD SCALE
 // ==================================================
