@@ -114,34 +114,77 @@ const GAS_BURST_COOLDOWN = 0.5;
 // ==================================================
 // WIRE
 // ==================================================
-// 初動は元通り
+
+// ワイヤー牽引開始時の初速
 const WIRE_INITIAL_IMPULSE = 11;
 
-// 継続加速だけ20→16
+// 継続加速度
 const WIRE_SUSTAIN_ACCEL = 16;
 
+// アンカーそのものの射出速度
 const ANCHOR_SHOT_SPEED = 150;
+
+// --------------------------
+// WIRE VISUAL PARAMETERS
+// --------------------------
+
+// ワイヤー半径。
+// テスト時は基本ここだけ変更すればOK。
+//
+// 0.005 = 極細
+// 0.010 = 細い
+// 0.015 = 見やすい
+// 0.020 = 太め
+const WIRE_VISUAL_RADIUS = 0.01;
+
+// 円柱断面の分割数
+const WIRE_VISUAL_SEGMENTS = 6;
+
+// ワイヤー色
+const WIRE_VISUAL_COLOR = 0xd8dde0;
+
+// 透明度
+const WIRE_VISUAL_OPACITY = 1.0;
+
+// 一人称カメラ基準の射出口
+const WIRE_START_SIDE = 0.28;
+const WIRE_START_DOWN = -0.22;
+const WIRE_START_FORWARD = -0.45;
 
 // ==================================================
 // AUTO DUAL ANCHOR
 // ==================================================
+
+// 視線から左右へ何度まで探索するか
 const AUTO_MAX_ANGLE = 68;
+
+// 何度ずつ探索するか
 const AUTO_ANGLE_STEP = 2;
 
+// AUTOアンカー最大探索距離
 const AUTO_MAX_DISTANCE = 350;
-const AUTO_MIN_DISTANCE = 7;
 
-// 同じ列とみなす奥行き誤差
+// 停止・低速時でも最低5m先
+const AUTO_MIN_FORWARD_METERS = 5;
+
+// 現在速度で1.5秒進む距離より
+// 手前の物体にはAUTOで撃たない
+//
+// 10m/s → 15m
+// 20m/s → 30m
+// 50m/s → 75m
+const AUTO_MIN_FORWARD_TIME = 1.5;
+
+// 左右の奥行き差が20%以内なら
+// 同じ建物列とみなす
 const AUTO_DEPTH_TOLERANCE = 0.20;
 
-// 左右アンカーの最低間隔
+// 左右アンカー接続点の最低間隔
 const AUTO_MIN_SEPARATION = 5;
 
-// 近い深度なら「手前」を優先するための許容差
+// 平均奥行きがこの値以内なら
+// 同程度の奥行きとして比較
 const AUTO_DEPTH_PRIORITY_EPSILON = 2;
-
-// アンカー到着時に対象を通り越していたら不採用
-const AUTO_FUTURE_MARGIN = 1;
 
 // ==================================================
 // BLADE
@@ -2059,50 +2102,55 @@ const anchorProjectileRay =
 // ==================================================
 function createWire() {
   const geometry =
-    new THREE.BufferGeometry();
-
-  const positions =
-    new Float32Array(
-      6
+    new THREE.CylinderGeometry(
+      WIRE_VISUAL_RADIUS,
+      WIRE_VISUAL_RADIUS,
+      1,
+      WIRE_VISUAL_SEGMENTS
     );
 
-  geometry.setAttribute(
-    "position",
-    new THREE.BufferAttribute(
-      positions,
-      3
-    )
-  );
-
   const material =
-    new THREE.LineBasicMaterial({
-      color: 0xd6d9dc,
-      toneMapped: false,
-      transparent: true,
-      opacity: 0.9
+    new THREE.MeshBasicMaterial({
+      color:
+        WIRE_VISUAL_COLOR,
+
+      transparent:
+        WIRE_VISUAL_OPACITY < 1,
+
+      opacity:
+        WIRE_VISUAL_OPACITY,
+
+      toneMapped: false
     });
 
-  const line =
-    new THREE.Line(
+  const wire =
+    new THREE.Mesh(
       geometry,
       material
     );
 
-  line.visible = false;
+  wire.visible = false;
 
-  line.frustumCulled =
-    false;
+  // 高速移動や長距離ワイヤーで
+  // 誤ってカリングされるのを防止
+  wire.frustumCulled = false;
 
-  scene.add(line);
+  scene.add(wire);
 
-  return line;
+  return wire;
 }
 
 // ==================================================
 // CREATE ANCHOR
 // ==================================================
-function createAnchor() {
+function createAnchor(
+  side
+) {
   return {
+    // -1 = left
+    // +1 = right
+    side,
+
     state: "OFF",
 
     connected: false,
@@ -2136,10 +2184,10 @@ function createAnchor() {
 }
 
 const leftAnchor =
-  createAnchor();
+  createAnchor(-1);
 
 const rightAnchor =
-  createAnchor();
+  createAnchor(1);
 
 // ==================================================
 // ANCHOR LAUNCH SOLVER
@@ -2406,13 +2454,17 @@ function collectAutoAnchorCandidates(
 ) {
   const candidates = [];
 
+  // 現在の視線方向
   camera.getWorldDirection(
     autoForward
   );
 
   autoForward.normalize();
 
-  // カメラから見た上方向
+  /*
+   * カメラ自身の「上」。
+   * これを軸に左右へレイを振る。
+   */
   autoUp
     .set(
       0,
@@ -2424,18 +2476,58 @@ function collectAutoAnchorCandidates(
     )
     .normalize();
 
+  // -------------------------
+  // MINIMUM FORWARD DISTANCE
+  // -------------------------
+
   /*
-   * 同じMeshを角度ごとに何十回も
-   * 候補へ入れるのを防ぐ。
+   * 現在の実速度 m/s。
+   */
+  const speedMps =
+    velocity.length() *
+    METERS_PER_UNIT;
+
+  /*
+   * AUTOが狙っていい最低奥行き。
+   *
+   * 速度10m/sなら:
+   *
+   * 10 × 1.5 = 15m
+   *
+   * 停止時でも最低5m先。
+   */
+  const minimumForwardMeters =
+    Math.max(
+      AUTO_MIN_FORWARD_METERS,
+
+      speedMps *
+      AUTO_MIN_FORWARD_TIME
+    );
+
+  /*
+   * meter → internal unit
+   */
+  const minimumForwardUnits =
+    minimumForwardMeters /
+    METERS_PER_UNIT;
+
+  /*
+   * 同じMeshを角度違いで
+   * 大量に候補登録しない。
    */
   const seenObjects =
     new Set();
 
+  // -------------------------
+  // SEARCH
+  // -------------------------
   for (
     let angleDeg =
       AUTO_ANGLE_STEP;
+
     angleDeg <=
       AUTO_MAX_ANGLE;
+
     angleDeg +=
       AUTO_ANGLE_STEP
   ) {
@@ -2445,6 +2537,10 @@ function collectAutoAnchorCandidates(
         side
       );
 
+    /*
+     * 視線方向から
+     * 左または右へ徐々に開く。
+     */
     autoDirection
       .copy(
         autoForward
@@ -2487,40 +2583,47 @@ function collectAutoAnchorCandidates(
       continue;
     }
 
-    const distance =
-      camera.position
-        .distanceTo(
-          hit.point
-        );
-
-    if (
-      distance <
-      AUTO_MIN_DISTANCE
-    ) {
-      continue;
-    }
-
+    // -------------------------
+    // FORWARD DEPTH
+    // -------------------------
     autoOffset.subVectors(
       hit.point,
       camera.position
     );
 
     /*
-     * カメラ視線方向への奥行き。
-     * 左右の直線距離ではなく
-     * これを比較する。
+     * 視線方向への奥行き。
+     *
+     * 単純な直線距離ではない。
      */
     const depth =
       autoOffset.dot(
         autoForward
       );
 
+    // 後ろ・真横は不採用
     if (
       depth <= 0
     ) {
       continue;
     }
 
+    /*
+     * 今回追加した重要条件。
+     *
+     * 現在速度 × 1.5秒より
+     * 手前の物体はAUTO対象外。
+     */
+    if (
+      depth <
+      minimumForwardUnits
+    ) {
+      continue;
+    }
+
+    // -------------------------
+    // ANCHOR TRAVEL
+    // -------------------------
     const testVelocity =
       new THREE.Vector3();
 
@@ -2537,11 +2640,8 @@ function collectAutoAnchorCandidates(
     }
 
     /*
-     * アンカーが到達すると予想される
-     * 時刻のプレイヤー位置。
-     *
-     * ここでは現在速度をそのまま
-     * 維持すると仮定する。
+     * アンカーが届く頃の
+     * プレイヤー予測位置。
      */
     tempFuturePlayer
       .copy(
@@ -2558,20 +2658,18 @@ function collectAutoAnchorCandidates(
         tempFuturePlayer
       );
 
-    /*
-     * アンカー到着時に、
-     * 視線方向で既にターゲットを
-     * 通り過ぎているならAUTOでは使わない。
-     */
     const futureDepth =
       tempFutureTarget.dot(
         autoForward
       );
 
+    /*
+     * アンカーが届く頃には
+     * 既に通り過ぎている場所も除外。
+     */
     if (
       velocity.length() > 3 &&
-      futureDepth <
-        AUTO_FUTURE_MARGIN
+      futureDepth <= 0
     ) {
       continue;
     }
@@ -2587,9 +2685,9 @@ function collectAutoAnchorCandidates(
       object:
         hit.object,
 
+      // 左右ペアリングに使う
+      // 視線方向の奥行き
       depth,
-
-      distance,
 
       angleDeg,
 
@@ -3064,6 +3162,22 @@ function updateAnchorProjectile(
 // ==================================================
 // WIRE VISUAL
 // ==================================================
+const wireVisualStart =
+  new THREE.Vector3();
+
+const wireVisualDirection =
+  new THREE.Vector3();
+
+const wireVisualMiddle =
+  new THREE.Vector3();
+
+const wireVisualYAxis =
+  new THREE.Vector3(
+    0,
+    1,
+    0
+  );
+
 function updateWireVisual(
   anchor
 ) {
@@ -3079,10 +3193,10 @@ function updateWireVisual(
 
   /*
    * 発射中:
-   * プレイヤー → 飛んでいるアンカー
+   * 射出口 → 飛行中アンカー
    *
    * 接続後:
-   * プレイヤー → 接続点
+   * 射出口 → 接続地点
    */
   const end =
     anchor.state ===
@@ -3090,26 +3204,89 @@ function updateWireVisual(
       ? anchor.projectilePosition
       : anchor.point;
 
-  const positions =
-    anchor.wire.geometry
-      .attributes.position;
+  // -------------------------
+  // START POSITION
+  // -------------------------
+  wireVisualStart.set(
+    anchor.side *
+      WIRE_START_SIDE,
 
-  positions.setXYZ(
-    0,
-    camera.position.x,
-    camera.position.y,
-    camera.position.z
+    WIRE_START_DOWN,
+
+    WIRE_START_FORWARD
   );
 
-  positions.setXYZ(
+  /*
+   * カメラローカル座標を
+   * ワールド座標へ変換。
+   *
+   * これで視点を回しても
+   * 射出口がカメラについてくる。
+   */
+  camera.localToWorld(
+    wireVisualStart
+  );
+
+  // -------------------------
+  // DIRECTION
+  // -------------------------
+  wireVisualDirection
+    .subVectors(
+      end,
+      wireVisualStart
+    );
+
+  const distance =
+    wireVisualDirection.length();
+
+  if (
+    distance <
+    0.001
+  ) {
+    anchor.wire.visible =
+      false;
+
+    return;
+  }
+
+  // -------------------------
+  // POSITION
+  // -------------------------
+  wireVisualMiddle
+    .copy(
+      wireVisualStart
+    )
+    .add(end)
+    .multiplyScalar(
+      0.5
+    );
+
+  anchor.wire.position.copy(
+    wireVisualMiddle
+  );
+
+  /*
+   * CylinderGeometryの高さは1。
+   *
+   * Yだけdistance倍することで、
+   * 太さを変更せず接続地点まで伸ばす。
+   */
+  anchor.wire.scale.set(
     1,
-    end.x,
-    end.y,
-    end.z
+    distance,
+    1
   );
 
-  positions.needsUpdate =
-    true;
+  // -------------------------
+  // ROTATION
+  // -------------------------
+  wireVisualDirection.normalize();
+
+  anchor.wire.quaternion
+    .setFromUnitVectors(
+      wireVisualYAxis,
+      wireVisualDirection
+    );
 
   anchor.wire.visible =
     true;
