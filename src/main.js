@@ -238,19 +238,101 @@ const TRAINING_RADIUS = 4;
 // ==================================================
 // CITY
 // ==================================================
-const CITY_CENTER_X = 750;
-const CITY_CENTER_Z = 0;
 
-const CITY_WIDTH = 500;
-const CITY_DEPTH = 500;
+// ------------------------------------------
+// 1 unit = 0.5m
+//
+// 世界の巨大な水平距離だけ1/100。
+// 建物・壁高・道幅などは縮小しない。
+// ------------------------------------------
 
-const CITY_WALL_HEIGHT = 200;
-const CITY_WALL_THICKNESS = 12;
-const CITY_GATE_WIDTH = 35;
+const WORLD_HORIZONTAL_SCALE = 0.01;
 
-const CITY_BLOCK_SPACING = 42;
-const CITY_ROAD_WIDTH = 12;
+function metersToUnits(
+  meters
+) {
+  return (
+    meters /
+    METERS_PER_UNIT
+  );
+}
 
+function compressedDistance(
+  meters
+) {
+  return (
+    meters *
+    WORLD_HORIZONTAL_SCALE /
+    METERS_PER_UNIT
+  );
+}
+
+// ------------------------------------------
+// WALL DIMENSIONS
+// ------------------------------------------
+
+// 壁高 50m
+const CITY_WALL_HEIGHT =
+  metersToUnits(50);
+
+// 壁厚 8m
+const CITY_WALL_THICKNESS =
+  metersToUnits(8);
+
+// 門幅 18m
+const CITY_GATE_WIDTH =
+  metersToUnits(18);
+
+// ------------------------------------------
+// COMPRESSED WORLD
+// ------------------------------------------
+//
+// テスト用のゲーム世界。
+// 最外周直径 約4km。
+//
+// 200km → 2km半径
+// → ゲーム内部4000units
+// ------------------------------------------
+
+const MARIA_RADIUS =
+  compressedDistance(
+    200000
+  );
+
+// RoseはMariaより内側
+const ROSE_RADIUS =
+  compressedDistance(
+    130000
+  );
+
+// Sina
+const SINA_RADIUS =
+  compressedDistance(
+    65000
+  );
+
+// ------------------------------------------
+// CITY / DISTRICT
+// ------------------------------------------
+
+// 門の前後に作る市街地の長さ
+const DISTRICT_DEPTH =
+  metersToUnits(260);
+
+// 市街地幅
+const DISTRICT_WIDTH =
+  metersToUnits(210);
+
+// メインストリート
+const CITY_ROAD_WIDTH =
+  metersToUnits(10);
+
+// 建物間の最低間隔
+const CITY_HOUSE_GAP =
+  metersToUnits(2);
+
+// 各主要地区の家数
+const DISTRICT_HOUSE_COUNT = 95;
 // ==================================================
 // SCENE
 // ==================================================
@@ -271,17 +353,20 @@ const camera =
     window.innerWidth /
       window.innerHeight,
     0.1,
-    4000
+    12000
   );
 
 camera.rotation.order =
   "YXZ";
 
+/*
+ * 最外周南側の都市の中から開始。
+ */
 const SPAWN =
   new THREE.Vector3(
     0,
     PLAYER_HEIGHT,
-    12
+    MARIA_RADIUS - 90
   );
 
 camera.position.copy(
@@ -425,23 +510,26 @@ scene.add(sun);
 // ==================================================
 // GROUND
 // ==================================================
+const WORLD_GROUND_SIZE =
+  12000;
+
 const ground =
   new THREE.Mesh(
     new THREE.PlaneGeometry(
-      4000,
-      4000
+      WORLD_GROUND_SIZE,
+      WORLD_GROUND_SIZE
     ),
     new THREE.MeshStandardMaterial({
       map: groundTexture,
-      roughness: 0.95
+      roughness: 0.95,
+      color: 0x92a867
     })
   );
 
 ground.rotation.x =
   -Math.PI / 2;
 
-ground.receiveShadow =
-  true;
+ground.receiveShadow = true;
 
 scene.add(ground);
 
@@ -585,96 +673,144 @@ function createTrainingArea() {
 // ==================================================
 // CITY WALL
 // ==================================================
-function createWallSegment(
-  x,
-  z,
-  width,
-  depth
+function createWallRing(
+  radius,
+  gateAngle = 0
 ) {
-  const wall =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        width,
-        CITY_WALL_HEIGHT,
-        depth
-      ),
-      outerWallMaterial
+  const segmentCount = 180;
+
+  const segmentAngle =
+    Math.PI * 2 /
+    segmentCount;
+
+  /*
+   * 南側に門を置く。
+   * gateAngle = 0 は +Z方向。
+   */
+  const gateAngularWidth =
+    CITY_GATE_WIDTH /
+    radius;
+
+  for (
+    let i = 0;
+    i < segmentCount;
+    i++
+  ) {
+    const angle =
+      i *
+      segmentAngle;
+
+    /*
+     * +Zを角度0として扱うため、
+     * x = sin
+     * z = cos
+     */
+    let difference =
+      Math.atan2(
+        Math.sin(
+          angle -
+          gateAngle
+        ),
+        Math.cos(
+          angle -
+          gateAngle
+        )
+      );
+
+    difference =
+      Math.abs(
+        difference
+      );
+
+    if (
+      difference <
+      gateAngularWidth /
+      2
+    ) {
+      continue;
+    }
+
+    const nextAngle =
+      angle +
+      segmentAngle;
+
+    const x1 =
+      Math.sin(angle) *
+      radius;
+
+    const z1 =
+      Math.cos(angle) *
+      radius;
+
+    const x2 =
+      Math.sin(nextAngle) *
+      radius;
+
+    const z2 =
+      Math.cos(nextAngle) *
+      radius;
+
+    const centerX =
+      (
+        x1 +
+        x2
+      ) / 2;
+
+    const centerZ =
+      (
+        z1 +
+        z2
+      ) / 2;
+
+    const length =
+      Math.hypot(
+        x2 - x1,
+        z2 - z1
+      ) +
+      0.5;
+
+    const wall =
+      new THREE.Mesh(
+        new THREE.BoxGeometry(
+          CITY_WALL_THICKNESS,
+          CITY_WALL_HEIGHT,
+          length
+        ),
+        outerWallMaterial
+      );
+
+    wall.position.set(
+      centerX,
+      CITY_WALL_HEIGHT / 2,
+      centerZ
     );
 
-  wall.position.set(
-    x,
-    CITY_WALL_HEIGHT / 2,
-    z
-  );
+    wall.rotation.y =
+      -angle;
 
-  addWorldObject(
-    wall
-  );
+    addWorldObject(
+      wall
+    );
+  }
 }
 
 function createCityWall() {
-  const halfW =
-    CITY_WIDTH / 2;
-
-  const halfD =
-    CITY_DEPTH / 2;
-
-  createWallSegment(
-    CITY_CENTER_X,
-    CITY_CENTER_Z -
-      halfD,
-    CITY_WIDTH +
-      CITY_WALL_THICKNESS,
-    CITY_WALL_THICKNESS
+  // Wall Maria
+  createWallRing(
+    MARIA_RADIUS,
+    0
   );
 
-  createWallSegment(
-    CITY_CENTER_X,
-    CITY_CENTER_Z +
-      halfD,
-    CITY_WIDTH +
-      CITY_WALL_THICKNESS,
-    CITY_WALL_THICKNESS
+  // Wall Rose
+  createWallRing(
+    ROSE_RADIUS,
+    0
   );
 
-  createWallSegment(
-    CITY_CENTER_X +
-      halfW,
-    CITY_CENTER_Z,
-    CITY_WALL_THICKNESS,
-    CITY_DEPTH
-  );
-
-  const sideLength =
-    (
-      CITY_DEPTH -
-      CITY_GATE_WIDTH
-    ) / 2;
-
-  createWallSegment(
-    CITY_CENTER_X -
-      halfW,
-    CITY_CENTER_Z -
-      (
-        CITY_GATE_WIDTH /
-          2 +
-        sideLength / 2
-      ),
-    CITY_WALL_THICKNESS,
-    sideLength
-  );
-
-  createWallSegment(
-    CITY_CENTER_X -
-      halfW,
-    CITY_CENTER_Z +
-      (
-        CITY_GATE_WIDTH /
-          2 +
-        sideLength / 2
-      ),
-    CITY_WALL_THICKNESS,
-    sideLength
+  // Wall Sina
+  createWallRing(
+    SINA_RADIUS,
+    0
   );
 }
 
@@ -714,14 +850,85 @@ function createRoad(
 // ==================================================
 // HOUSE
 // ==================================================
+
+/*
+ * 家そのものは1/100にしない。
+ *
+ * 全て実寸スケール。
+ */
+const HOUSE_TEMPLATES = [
+  {
+    width: 7,
+    depth: 9,
+    height: 8,
+    roofHeight: 3
+  },
+
+  {
+    width: 9,
+    depth: 11,
+    height: 10,
+    roofHeight: 3.5
+  },
+
+  {
+    width: 11,
+    depth: 8,
+    height: 12,
+    roofHeight: 4
+  },
+
+  {
+    width: 8,
+    depth: 8,
+    height: 14,
+    roofHeight: 3
+  },
+
+  {
+    width: 13,
+    depth: 10,
+    height: 9,
+    roofHeight: 4
+  }
+];
+
+/*
+ * テンプレ値はmなので、
+ * ここでunitへ変換。
+ */
 function createHouse(
   x,
   z,
-  width,
-  depth,
-  height,
-  variant
+  variant,
+  rotation = 0
 ) {
+  const template =
+    HOUSE_TEMPLATES[
+      variant %
+      HOUSE_TEMPLATES.length
+    ];
+
+  const width =
+    metersToUnits(
+      template.width
+    );
+
+  const depth =
+    metersToUnits(
+      template.depth
+    );
+
+  const height =
+    metersToUnits(
+      template.height
+    );
+
+  const roofHeight =
+    metersToUnits(
+      template.roofHeight
+    );
+
   const house =
     new THREE.Mesh(
       new THREE.BoxGeometry(
@@ -731,7 +938,7 @@ function createHouse(
       ),
       cityMaterials[
         variant %
-          cityMaterials.length
+        cityMaterials.length
       ]
     );
 
@@ -740,6 +947,9 @@ function createHouse(
     height / 2,
     z
   );
+
+  house.rotation.y =
+    rotation;
 
   addWorldObject(
     house
@@ -752,7 +962,9 @@ function createHouse(
           width,
           depth
         ) * 0.72,
-        5,
+
+        roofHeight,
+
         4
       ),
       roofMaterial
@@ -760,16 +972,20 @@ function createHouse(
 
   roof.position.set(
     x,
-    height + 2.5,
+    height +
+      roofHeight / 2,
     z
   );
 
   roof.rotation.y =
-    Math.PI / 4;
+    Math.PI / 4 +
+    rotation;
 
   roof.castShadow = true;
 
-  scene.add(roof);
+  scene.add(
+    roof
+  );
 
   anchorTargets.push(
     roof
@@ -779,84 +995,255 @@ function createHouse(
 // ==================================================
 // CITY
 // ==================================================
-function createCity() {
-  createRoad(
-    CITY_CENTER_X,
-    CITY_CENTER_Z,
-    CITY_WIDTH -
-      CITY_WALL_THICKNESS,
-    CITY_ROAD_WIDTH
+
+function createDistrict(
+  centerX,
+  centerZ,
+  facingAngle,
+  houseCount
+) {
+  /*
+   * facingAngle方向へ伸びる都市。
+   *
+   * local forward:
+   * x = sin(angle)
+   * z = cos(angle)
+   */
+
+  const forwardX =
+    Math.sin(
+      facingAngle
+    );
+
+  const forwardZ =
+    Math.cos(
+      facingAngle
+    );
+
+  const rightX =
+    Math.cos(
+      facingAngle
+    );
+
+  const rightZ =
+    -Math.sin(
+      facingAngle
+    );
+
+  // メインストリート
+  const road =
+    new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        CITY_ROAD_WIDTH,
+        DISTRICT_DEPTH
+      ),
+      roadMaterial
+    );
+
+  road.rotation.x =
+    -Math.PI / 2;
+
+  road.rotation.z =
+    -facingAngle;
+
+  road.position.set(
+    centerX,
+    0.03,
+    centerZ
   );
 
-  createRoad(
-    CITY_CENTER_X,
-    CITY_CENTER_Z,
-    CITY_ROAD_WIDTH,
-    CITY_DEPTH -
-      CITY_WALL_THICKNESS
+  road.receiveShadow =
+    true;
+
+  scene.add(
+    road
   );
 
-  const radius = 5;
+  // -----------------------------------------
+  // HOUSES
+  // -----------------------------------------
 
   for (
-    let x = -radius;
-    x <= radius;
-    x++
+    let i = 0;
+    i < houseCount;
+    i++
   ) {
-    for (
-      let z = -radius;
-      z <= radius;
-      z++
-    ) {
-      if (
-        x === 0 ||
-        z === 0
-      ) {
-        continue;
-      }
+    /*
+     * 道の左右どちらか。
+     */
+    const side =
+      Math.random() <
+      0.5
+        ? -1
+        : 1;
 
-      if (
-        Math.abs(x) <= 1 &&
-        Math.abs(z) <= 1
-      ) {
-        continue;
-      }
+    /*
+     * 都市の前後位置。
+     */
+    const along =
+      THREE.MathUtils.randFloat(
+        -DISTRICT_DEPTH /
+          2 +
+          15,
 
-      const px =
-        CITY_CENTER_X +
-        x *
-          CITY_BLOCK_SPACING;
-
-      const pz =
-        CITY_CENTER_Z +
-        z *
-          CITY_BLOCK_SPACING;
-
-      const seed =
-        Math.abs(
-          x * 37 +
-          z * 71
-        );
-
-      createHouse(
-        px - 8,
-        pz - 8,
-        14,
-        14,
-        11 +
-          seed % 13,
-        seed
+        DISTRICT_DEPTH /
+          2 -
+          15
       );
 
+    /*
+     * メイン道路からの距離。
+     */
+    const sideways =
+      side *
+      THREE.MathUtils.randFloat(
+        CITY_ROAD_WIDTH /
+          2 +
+          10,
+
+        DISTRICT_WIDTH /
+          2 -
+          10
+      );
+
+    const x =
+      centerX +
+      forwardX *
+        along +
+      rightX *
+        sideways;
+
+    const z =
+      centerZ +
+      forwardZ *
+        along +
+      rightZ *
+        sideways;
+
+    createHouse(
+      x,
+      z,
+      i,
+      -facingAngle
+    );
+  }
+}
+
+function createCity() {
+  /*
+   * まずテストとして、
+   * 各壁の南門付近へ都市を配置。
+   *
+   * 後から東西北にも
+   * 地区を追加できる。
+   */
+
+  // -----------------------------------------
+  // MARIA SOUTH DISTRICT
+  // -----------------------------------------
+
+  createDistrict(
+    0,
+    MARIA_RADIUS -
+      DISTRICT_DEPTH / 2 -
+      20,
+    Math.PI,
+    DISTRICT_HOUSE_COUNT
+  );
+
+  // -----------------------------------------
+  // ROSE SOUTH DISTRICT
+  // -----------------------------------------
+
+  createDistrict(
+    0,
+    ROSE_RADIUS -
+      DISTRICT_DEPTH / 2 -
+      20,
+    Math.PI,
+    DISTRICT_HOUSE_COUNT
+  );
+
+  // -----------------------------------------
+  // SINA SOUTH DISTRICT
+  // -----------------------------------------
+
+  createDistrict(
+    0,
+    SINA_RADIUS -
+      DISTRICT_DEPTH / 2 -
+      20,
+    Math.PI,
+    DISTRICT_HOUSE_COUNT
+  );
+
+  // -----------------------------------------
+  // SMALL VILLAGES
+  // -----------------------------------------
+
+  const villages = [
+    {
+      x: -900,
+      z: 900
+    },
+
+    {
+      x: 850,
+      z: 500
+    },
+
+    {
+      x: -650,
+      z: -800
+    },
+
+    {
+      x: 1000,
+      z: -600
+    }
+  ];
+
+  for (
+    let v = 0;
+    v < villages.length;
+    v++
+  ) {
+    const village =
+      villages[v];
+
+    for (
+      let i = 0;
+      i < 18;
+      i++
+    ) {
+      const angle =
+        Math.random() *
+        Math.PI *
+        2;
+
+      const radius =
+        THREE.MathUtils.randFloat(
+          15,
+          90
+        );
+
+      const x =
+        village.x +
+        Math.cos(angle) *
+        radius;
+
+      const z =
+        village.z +
+        Math.sin(angle) *
+        radius;
+
       createHouse(
-        px + 8,
-        pz + 8,
-        14,
-        14,
-        13 +
-          (seed * 7) %
-            15,
-        seed + 1
+        x,
+        z,
+        i + v * 10,
+        Math.random() *
+        Math.PI *
+        2
       );
     }
   }
