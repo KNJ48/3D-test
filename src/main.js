@@ -229,333 +229,147 @@ const TITAN_PART_REGEN_TIME = 12;
 // ==================================================
 // TRAINING
 // ==================================================
+
+// ------------------------------------------
+// TRAINING SETTINGS
+// ------------------------------------------
+
 const TRAINING_SPACING = 30;
 const TRAINING_WIDTH = 8;
 const TRAINING_DEPTH = 8;
 const TRAINING_HEIGHT = 51;
-const TRAINING_RADIUS = 4;
 
-  // =================================================
-  // MAIN ROAD
-  // =================================================
+/*
+ * 巨大ワールドへ移行したので
+ * 訓練塔は現在生成しない。
+ */
+const TRAINING_RADIUS = 0;
 
-  const mainRoad =
-    new THREE.Mesh(
-      new THREE.PlaneGeometry(
-        mainRoadWidth,
-        districtLength
-      ),
-      roadMaterial
-    );
+// ------------------------------------------
+// WORLD SCALE HELPERS
+// ------------------------------------------
 
-  mainRoad.rotation.x =
-    -Math.PI / 2;
+/*
+ * 巨大な地理上の距離だけ
+ * 1/10へ圧縮する。
+ *
+ * 縮めないもの:
+ * ・人間
+ * ・巨人
+ * ・家
+ * ・壁の高さ
+ * ・壁の厚さ
+ * ・道路
+ * ・ゲーム物理
+ */
+const WORLD_HORIZONTAL_SCALE =
+  0.1;
 
-  mainRoad.rotation.z =
-    -facingAngle;
-
-  mainRoad.position.set(
-    centerX,
-    0.03,
-    centerZ
+/*
+ * 実寸m
+ * ↓
+ * Three.js内部unit
+ *
+ * 現在:
+ * 1unit = 0.5m
+ */
+function metersToUnits(
+  meters
+) {
+  return (
+    meters /
+    METERS_PER_UNIT
   );
-
-  mainRoad.receiveShadow =
-    true;
-
-  scene.add(
-    mainRoad
-  );
-
-  // =================================================
-  // CROSS ROADS
-  // =================================================
-
-  const roadCount =
-    Math.floor(
-      districtLength /
-      sideRoadSpacing
-    );
-
-  for (
-    let i =
-      -Math.floor(
-        roadCount / 2
-      );
-
-    i <=
-      Math.floor(
-        roadCount / 2
-      );
-
-    i++
-  ) {
-    const along =
-      i *
-      sideRoadSpacing;
-
-    const roadX =
-      centerX +
-      forwardX *
-      along;
-
-    const roadZ =
-      centerZ +
-      forwardZ *
-      along;
-
-    const crossRoad =
-      new THREE.Mesh(
-        new THREE.PlaneGeometry(
-          districtWidth,
-          metersToUnits(7)
-        ),
-        roadMaterial
-      );
-
-    crossRoad.rotation.x =
-      -Math.PI / 2;
-
-    crossRoad.rotation.z =
-      -facingAngle;
-
-    /*
-     * Planeの長い方向を
-     * 横方向へ向ける。
-     */
-    crossRoad.rotation.z +=
-      Math.PI / 2;
-
-    crossRoad.position.set(
-      roadX,
-      0.035,
-      roadZ
-    );
-
-    crossRoad.receiveShadow =
-      true;
-
-    scene.add(
-      crossRoad
-    );
-  }
-
-  // =================================================
-  // HOUSES
-  // =================================================
-
-  let created = 0;
-  let attempts = 0;
-
-  const maxAttempts =
-    houseCount * 20;
-
-  while (
-    created <
-      houseCount &&
-    attempts <
-      maxAttempts
-  ) {
-    attempts++;
-
-    const along =
-      THREE.MathUtils.randFloat(
-        -districtLength /
-          2 +
-          metersToUnits(20),
-
-        districtLength /
-          2 -
-          metersToUnits(20)
-      );
-
-    const sideways =
-      THREE.MathUtils.randFloat(
-        -districtWidth /
-          2 +
-          metersToUnits(15),
-
-        districtWidth /
-          2 -
-          metersToUnits(15)
-      );
-
-    /*
-     * 中央大通りを空ける。
-     */
-    if (
-      Math.abs(
-        sideways
-      ) <
-      mainRoadWidth /
-        2 +
-        metersToUnits(7)
-    ) {
-      continue;
-    }
-
-    /*
-     * 横道を空ける。
-     */
-    const nearestSideRoad =
-      Math.round(
-        along /
-        sideRoadSpacing
-      ) *
-      sideRoadSpacing;
-
-    if (
-      Math.abs(
-        along -
-        nearestSideRoad
-      ) <
-      metersToUnits(7)
-    ) {
-      continue;
-    }
-
-    const x =
-      centerX +
-      forwardX *
-        along +
-      rightX *
-        sideways;
-
-    const z =
-      centerZ +
-      forwardZ *
-        along +
-      rightZ *
-        sideways;
-
-    createHouse(
-      x,
-      z,
-      created,
-      -facingAngle
-    );
-
-    created++;
-  }
 }
 
-function createCity() {
-  /*
-   * 主要地区。
-   *
-   * 1地区300棟。
-   *
-   * 家のサイズは実寸のまま。
-   */
-
-  const housesPerDistrict =
-    300;
-
-  // =================================================
-  // MARIA SOUTH
-  // =================================================
-
-  createDistrict(
-    0,
-
-    MARIA_RADIUS -
-      metersToUnits(470),
-
-    Math.PI,
-
-    housesPerDistrict
+/*
+ * 世界規模の水平距離専用。
+ *
+ * 実寸m
+ * ↓
+ * 1/10
+ * ↓
+ * Three.js内部unit
+ */
+function compressedDistance(
+  meters
+) {
+  return (
+    meters *
+    WORLD_HORIZONTAL_SCALE /
+    METERS_PER_UNIT
   );
-
-  // =================================================
-  // ROSE SOUTH
-  // =================================================
-
-  createDistrict(
-    0,
-
-    ROSE_RADIUS -
-      metersToUnits(470),
-
-    Math.PI,
-
-    housesPerDistrict
-  );
-
-  // =================================================
-  // SINA SOUTH
-  // =================================================
-
-  createDistrict(
-    0,
-
-    SINA_RADIUS -
-      metersToUnits(470),
-
-    Math.PI,
-
-    housesPerDistrict
-  );
-
-  // =================================================
-  // SMALL VILLAGES
-  // =================================================
-
-  const villages = [
-    [-2500, 3000],
-    [3200, 2200],
-    [-4000, -1800],
-    [3600, -3500],
-    [-7000, 6000],
-    [6500, -6500],
-    [-10000, 8000],
-    [9000, 11000]
-  ];
-
-  for (
-    let v = 0;
-    v < villages.length;
-    v++
-  ) {
-    const [
-      villageX,
-      villageZ
-    ] =
-      villages[v];
-
-    for (
-      let i = 0;
-      i < 24;
-      i++
-    ) {
-      const angle =
-        Math.random() *
-        Math.PI *
-        2;
-
-      const radius =
-        THREE.MathUtils.randFloat(
-          metersToUnits(20),
-          metersToUnits(120)
-        );
-
-      createHouse(
-        villageX +
-          Math.cos(angle) *
-          radius,
-
-        villageZ +
-          Math.sin(angle) *
-          radius,
-
-        i + v * 10,
-
-        Math.random() *
-          Math.PI *
-          2
-      );
-    }
-  }
 }
+
+// ------------------------------------------
+// WALL SIZE
+// ------------------------------------------
+
+// 壁高50m
+const CITY_WALL_HEIGHT =
+  metersToUnits(
+    50
+  );
+
+// 壁厚12m
+const CITY_WALL_THICKNESS =
+  metersToUnits(
+    12
+  );
+
+// 将来の門用
+// 幅18m
+const CITY_GATE_WIDTH =
+  metersToUnits(
+    18
+  );
+
+// ------------------------------------------
+// THREE WALLS
+// ------------------------------------------
+
+/*
+ * 仮の世界設定。
+ *
+ * 元の巨大地理距離に
+ * 1/10を適用する。
+ *
+ * Wall Maria:
+ * ゲーム内半径20km
+ * → 直径40km
+ */
+const MARIA_RADIUS =
+  compressedDistance(
+    200000
+  );
+
+/*
+ * Wall Rose:
+ * ゲーム内半径13km
+ */
+const ROSE_RADIUS =
+  compressedDistance(
+    130000
+  );
+
+/*
+ * Wall Sina:
+ * ゲーム内半径6.5km
+ */
+const SINA_RADIUS =
+  compressedDistance(
+    65000
+  );
+
+// ------------------------------------------
+// CITY SETTINGS
+// ------------------------------------------
+
+// 道幅10m
+const CITY_ROAD_WIDTH =
+  metersToUnits(
+    10
+  );
 
 // ==================================================
 // SCENE
@@ -1270,116 +1084,184 @@ function createHouse(
 // ==================================================
 // CITY
 // ==================================================
-
 function createDistrict(
   centerX,
   centerZ,
   facingAngle,
   houseCount
 ) {
-  /*
-   * facingAngle方向へ伸びる都市。
-   *
-   * local forward:
-   * x = sin(angle)
-   * z = cos(angle)
-   */
+  // 大規模城塞都市
+  const districtLength =
+    metersToUnits(900);
+
+  const districtWidth =
+    metersToUnits(650);
+
+  const mainRoadWidth =
+    metersToUnits(14);
+
+  const sideRoadSpacing =
+    metersToUnits(90);
 
   const forwardX =
-    Math.sin(
-      facingAngle
-    );
+    Math.sin(facingAngle);
 
   const forwardZ =
-    Math.cos(
-      facingAngle
-    );
+    Math.cos(facingAngle);
 
   const rightX =
-    Math.cos(
-      facingAngle
-    );
+    Math.cos(facingAngle);
 
   const rightZ =
-    -Math.sin(
-      facingAngle
-    );
+    -Math.sin(facingAngle);
 
-  // メインストリート
-  const road =
+  // =================================================
+  // MAIN ROAD
+  // ==================================================
+  const mainRoad =
     new THREE.Mesh(
       new THREE.PlaneGeometry(
-        CITY_ROAD_WIDTH,
-        DISTRICT_DEPTH
+        mainRoadWidth,
+        districtLength
       ),
       roadMaterial
     );
 
-  road.rotation.x =
+  mainRoad.rotation.x =
     -Math.PI / 2;
 
-  road.rotation.z =
+  mainRoad.rotation.z =
     -facingAngle;
 
-  road.position.set(
+  mainRoad.position.set(
     centerX,
     0.03,
     centerZ
   );
 
-  road.receiveShadow =
-    true;
+  mainRoad.receiveShadow = true;
 
-  scene.add(
-    road
-  );
+  scene.add(mainRoad);
 
-  // -----------------------------------------
-  // HOUSES
-  // -----------------------------------------
+  // =================================================
+  // CROSS ROADS
+  // ==================================================
+  const roadCount =
+    Math.floor(
+      districtLength /
+      sideRoadSpacing
+    );
 
   for (
-    let i = 0;
-    i < houseCount;
+    let i =
+      -Math.floor(
+        roadCount / 2
+      );
+    i <=
+      Math.floor(
+        roadCount / 2
+      );
     i++
   ) {
-    /*
-     * 道の左右どちらか。
-     */
-    const side =
-      Math.random() <
-      0.5
-        ? -1
-        : 1;
+    const along =
+      i *
+      sideRoadSpacing;
 
-    /*
-     * 都市の前後位置。
-     */
+    const roadX =
+      centerX +
+      forwardX *
+      along;
+
+    const roadZ =
+      centerZ +
+      forwardZ *
+      along;
+
+    const crossRoad =
+      new THREE.Mesh(
+        new THREE.PlaneGeometry(
+          districtWidth,
+          metersToUnits(7)
+        ),
+        roadMaterial
+      );
+
+    crossRoad.rotation.x =
+      -Math.PI / 2;
+
+    crossRoad.rotation.z =
+      -facingAngle +
+      Math.PI / 2;
+
+    crossRoad.position.set(
+      roadX,
+      0.035,
+      roadZ
+    );
+
+    crossRoad.receiveShadow = true;
+
+    scene.add(crossRoad);
+  }
+
+  // =================================================
+  // HOUSES
+  // ==================================================
+  let created = 0;
+
+  let attempts = 0;
+
+  const maxAttempts =
+    houseCount * 20;
+
+  while (
+    created < houseCount &&
+    attempts < maxAttempts
+  ) {
+    attempts++;
+
     const along =
       THREE.MathUtils.randFloat(
-        -DISTRICT_DEPTH /
-          2 +
-          15,
-
-        DISTRICT_DEPTH /
-          2 -
-          15
+        -districtLength / 2 +
+          metersToUnits(20),
+        districtLength / 2 -
+          metersToUnits(20)
       );
 
-    /*
-     * メイン道路からの距離。
-     */
     const sideways =
-      side *
       THREE.MathUtils.randFloat(
-        CITY_ROAD_WIDTH /
-          2 +
-          10,
-
-        DISTRICT_WIDTH /
-          2 -
-          10
+        -districtWidth / 2 +
+          metersToUnits(15),
+        districtWidth / 2 -
+          metersToUnits(15)
       );
+
+    // 中央大通り
+    if (
+      Math.abs(sideways) <
+      mainRoadWidth / 2 +
+        metersToUnits(7)
+    ) {
+      continue;
+    }
+
+    // 横道
+    const nearestSideRoad =
+      Math.round(
+        along /
+        sideRoadSpacing
+      ) *
+      sideRoadSpacing;
+
+    if (
+      Math.abs(
+        along -
+        nearestSideRoad
+      ) <
+      metersToUnits(7)
+    ) {
+      continue;
+    }
 
     const x =
       centerX +
@@ -1398,84 +1280,63 @@ function createDistrict(
     createHouse(
       x,
       z,
-      i,
+      created,
       -facingAngle
     );
+
+    created++;
   }
 }
 
 function createCity() {
-  /*
-   * まずテストとして、
-   * 各壁の南門付近へ都市を配置。
-   *
-   * 後から東西北にも
-   * 地区を追加できる。
-   */
+  const housesPerDistrict =
+    300;
 
-  // -----------------------------------------
-  // MARIA SOUTH DISTRICT
-  // -----------------------------------------
-
+  // =================================================
+  // MARIA SOUTH
+  // ==================================================
   createDistrict(
     0,
     MARIA_RADIUS -
-      DISTRICT_DEPTH / 2 -
-      20,
+      metersToUnits(470),
     Math.PI,
-    DISTRICT_HOUSE_COUNT
+    housesPerDistrict
   );
 
-  // -----------------------------------------
-  // ROSE SOUTH DISTRICT
-  // -----------------------------------------
-
+  // =================================================
+  // ROSE SOUTH
+  // ==================================================
   createDistrict(
     0,
     ROSE_RADIUS -
-      DISTRICT_DEPTH / 2 -
-      20,
+      metersToUnits(470),
     Math.PI,
-    DISTRICT_HOUSE_COUNT
+    housesPerDistrict
   );
 
-  // -----------------------------------------
-  // SINA SOUTH DISTRICT
-  // -----------------------------------------
-
+  // =================================================
+  // SINA SOUTH
+  // ==================================================
   createDistrict(
     0,
     SINA_RADIUS -
-      DISTRICT_DEPTH / 2 -
-      20,
+      metersToUnits(470),
     Math.PI,
-    DISTRICT_HOUSE_COUNT
+    housesPerDistrict
   );
 
-  // -----------------------------------------
-  // SMALL VILLAGES
-  // -----------------------------------------
-
+  // =================================================
+  // VILLAGES
+  // ==================================================
   const villages = [
-    {
-      x: -900,
-      z: 900
-    },
-
-    {
-      x: 850,
-      z: 500
-    },
-
-    {
-      x: -650,
-      z: -800
-    },
-
-    {
-      x: 1000,
-      z: -600
-    }
+    [-2500, 3000],
+    [3200, 2200],
+    [-4000, -1800],
+    [3600, -3500],
+    [-7000, 6000],
+    [6500, -6500],
+    [-10000, 8000],
+    [9000, 11000]
   ];
 
   for (
@@ -1483,12 +1344,15 @@ function createCity() {
     v < villages.length;
     v++
   ) {
-    const village =
+    const [
+      villageX,
+      villageZ
+    ] =
       villages[v];
 
     for (
       let i = 0;
-      i < 18;
+      i < 24;
       i++
     ) {
       const angle =
@@ -1498,27 +1362,21 @@ function createCity() {
 
       const radius =
         THREE.MathUtils.randFloat(
-          15,
-          90
+          metersToUnits(20),
+          metersToUnits(120)
         );
 
-      const x =
-        village.x +
-        Math.cos(angle) *
-        radius;
-
-      const z =
-        village.z +
-        Math.sin(angle) *
-        radius;
-
       createHouse(
-        x,
-        z,
+        villageX +
+          Math.cos(angle) *
+          radius,
+        villageZ +
+          Math.sin(angle) *
+          radius,
         i + v * 10,
         Math.random() *
-        Math.PI *
-        2
+          Math.PI *
+          2
       );
     }
   }
