@@ -2130,8 +2130,6 @@ function createWire() {
 
   wire.visible = false;
 
-  // 高速移動や長距離ワイヤーで
-  // 誤ってカリングされるのを防止
   wire.frustumCulled = false;
 
   scene.add(wire);
@@ -3152,6 +3150,32 @@ function updateAnchorProjectile(
 // ==================================================
 // WIRE VISUAL
 // ==================================================
+
+// --------------------------
+// VISUAL PARAMETERS
+// --------------------------
+
+// ワイヤー半径
+// ここを変更すれば太さを調整可能
+const WIRE_VISUAL_RADIUS = 0.01;
+
+// 円柱断面
+const WIRE_VISUAL_SEGMENTS = 6;
+
+// 黒色
+const WIRE_VISUAL_COLOR = 0x101214;
+
+// 透明度
+const WIRE_VISUAL_OPACITY = 1.0;
+
+// カメラ基準の射出口
+const WIRE_START_SIDE = 0.28;
+const WIRE_START_DOWN = -0.22;
+const WIRE_START_FORWARD = -0.45;
+
+// --------------------------
+// TEMP
+// --------------------------
 const wireVisualStart =
   new THREE.Vector3();
 
@@ -3168,37 +3192,44 @@ const wireVisualYAxis =
     0
   );
 
+// --------------------------
+// UPDATE
+// --------------------------
 function updateWireVisual(
   anchor
 ) {
   if (
-    anchor.state ===
-    "OFF"
+    anchor.state === "OFF"
   ) {
-    anchor.wire.visible =
-      false;
-
+    anchor.wire.visible = false;
     return;
   }
 
   /*
-   * 発射中:
-   * 射出口 → 飛行中アンカー
+   * ここが重要。
    *
-   * 接続後:
-   * 射出口 → 接続地点
+   * FIRING中はtargetPointを絶対に使わない。
+   *
+   * ワイヤーの先端 =
+   * 現在のアンカー弾の実位置
    */
-  const end =
-    anchor.state ===
-    "FIRING"
-      ? anchor.projectilePosition
-      : anchor.point;
+  let end;
 
-  // -------------------------
-  // START POSITION
-  // -------------------------
+  if (
+    anchor.state === "FIRING"
+  ) {
+    end =
+      anchor.projectilePosition;
+  } else {
+    end =
+      anchor.point;
+  }
+
+  // --------------------------
+  // START
+  // --------------------------
   wireVisualStart.set(
-    anchor.side *
+    (anchor.side ?? 0) *
       WIRE_START_SIDE,
 
     WIRE_START_DOWN,
@@ -3206,60 +3237,50 @@ function updateWireVisual(
     WIRE_START_FORWARD
   );
 
-  /*
-   * カメラローカル座標を
-   * ワールド座標へ変換。
-   *
-   * これで視点を回しても
-   * 射出口がカメラについてくる。
-   */
   camera.localToWorld(
     wireVisualStart
   );
 
-  // -------------------------
-  // DIRECTION
-  // -------------------------
+  // --------------------------
+  // CURRENT ROPE LENGTH
+  // --------------------------
   wireVisualDirection
     .subVectors(
       end,
       wireVisualStart
     );
 
+  /*
+   * このdistanceが毎フレーム、
+   * アンカーの移動に合わせて増える。
+   */
   const distance =
     wireVisualDirection.length();
 
   if (
-    distance <
-    0.001
+    distance < 0.001
   ) {
-    anchor.wire.visible =
-      false;
-
+    anchor.wire.visible = false;
     return;
   }
 
-  // -------------------------
-  // POSITION
-  // -------------------------
+  // 中点
   wireVisualMiddle
     .copy(
       wireVisualStart
     )
     .add(end)
-    .multiplyScalar(
-      0.5
-    );
+    .multiplyScalar(0.5);
 
   anchor.wire.position.copy(
     wireVisualMiddle
   );
 
   /*
-   * CylinderGeometryの高さは1。
+   * 長さは「現在のアンカー位置まで」だけ。
    *
-   * Yだけdistance倍することで、
-   * 太さを変更せず接続地点まで伸ばす。
+   * targetPointまで瞬間的に
+   * 伸ばす処理は一切しない。
    */
   anchor.wire.scale.set(
     1,
@@ -3267,9 +3288,6 @@ function updateWireVisual(
     1
   );
 
-  // -------------------------
-  // ROTATION
-  // -------------------------
   wireVisualDirection.normalize();
 
   anchor.wire.quaternion
@@ -3278,8 +3296,7 @@ function updateWireVisual(
       wireVisualDirection
     );
 
-  anchor.wire.visible =
-    true;
+  anchor.wire.visible = true;
 }
 
 // ==================================================
