@@ -141,7 +141,7 @@ const WIRE_VISUAL_RADIUS = 0.01;
 const WIRE_VISUAL_SEGMENTS = 6;
 
 // ワイヤー色
-const WIRE_VISUAL_COLOR = 000000;
+const WIRE_VISUAL_COLOR = 0xd8dde0;
 
 // 透明度
 const WIRE_VISUAL_OPACITY = 1.0;
