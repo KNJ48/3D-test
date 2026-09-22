@@ -565,10 +565,21 @@ scene.add(sun);
 // GROUND
 // ==================================================
 
-// 100km四方
+/*
+ * 等倍世界の動作確認用。
+ *
+ * Wall Mariaの直径は約960km。
+ * その外側にも土地を確保するため、
+ * 1400km四方の地面を仮配置。
+ *
+ * 将来的にはチャンク地形へ置換する。
+ */
+const WORLD_GROUND_SIZE_METERS =
+  1400000;
+
 const WORLD_GROUND_SIZE =
   metersToUnits(
-    100000
+    WORLD_GROUND_SIZE_METERS
   );
 
 const ground =
@@ -587,9 +598,22 @@ const ground =
 ground.rotation.x =
   -Math.PI / 2;
 
-ground.receiveShadow = true;
+ground.position.y = 0;
 
-scene.add(ground);
+ground.receiveShadow =
+  true;
+
+/*
+ * 超巨大Planeなので
+ * bounding sphereによる
+ * 意図しないカリングを防ぐ。
+ */
+ground.frustumCulled =
+  false;
+
+scene.add(
+  ground
+);
 
 // ==================================================
 // WORLD LISTS
