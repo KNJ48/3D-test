@@ -5047,47 +5047,112 @@ function damageFromImpact(
 // ==================================================
 // WALL JUMP
 // ==================================================
-function wallJump(
-  normalX,
-  normalZ
+const WALL_JUMP_MAX_SURFACE_ANGLE =
+ THREE.MathUtils.degToRad(
+  30
+ );
+
+// --------------------------------------------------
+// WALL JUMP ANGLE CHECK
+// --------------------------------------------------
+function canWallJumpByAngle(
+ velocityX,
+ velocityZ,
+ normalX,
+ normalZ
 ) {
-  /*
-   * 壁の法線成分だけ反転。
-   * 壁と平行な慣性は保持。
-   */
-  const dot =
-    velocity.x *
-      normalX +
-    velocity.z *
-      normalZ;
+ const horizontalSpeed =
+ Math.hypot(
+  velocityX,
+  velocityZ
+ );
 
-  const reflectedX =
-    velocity.x -
-    2 *
-      dot *
-      normalX;
+ if (
+  horizontalSpeed <
+  0.001
+ ) {
+  return false;
+ }
 
-  const reflectedZ =
-    velocity.z -
-    2 *
-      dot *
-      normalZ;
+ /*
+  * 壁面に対する進入角度を求める。
+  *
+  * 0° = 壁と完全に平行
+  * 90° = 壁へ真正面から衝突
+  */
+ const normalSpeed =
+ Math.abs(
+  velocityX *
+  normalX +
+  velocityZ *
+  normalZ
+ );
 
-  velocity.x =
-    reflectedX *
-    WALL_JUMP_BOOST;
+ const ratio =
+ THREE.MathUtils.clamp(
+  normalSpeed /
+  horizontalSpeed,
+  0,
+  1
+ );
 
-  velocity.z =
-    reflectedZ *
-    WALL_JUMP_BOOST;
+ const surfaceAngle =
+ Math.asin(
+  ratio
+ );
 
-  velocity.y =
-    Math.max(
-      velocity.y,
-      WALL_JUMP_VERTICAL_SPEED
-    );
+ return (
+  surfaceAngle <
+  WALL_JUMP_MAX_SURFACE_ANGLE
+ );
+}
 
-  grounded = false;
+// --------------------------------------------------
+// WALL JUMP
+// --------------------------------------------------
+function wallJump(
+ normalX,
+ normalZ
+) {
+ /*
+  * 壁の法線成分だけ反転。
+  *
+  * 壁と平行な慣性は保持。
+  */
+ const dot =
+ velocity.x *
+ normalX +
+ velocity.z *
+ normalZ;
+
+ const reflectedX =
+ velocity.x -
+ 2 *
+  dot *
+  normalX;
+
+ const reflectedZ =
+ velocity.z -
+ 2 *
+  dot *
+  normalZ;
+
+ velocity.x =
+ reflectedX *
+ WALL_JUMP_BOOST;
+
+ velocity.z =
+ reflectedZ *
+ WALL_JUMP_BOOST;
+
+ velocity.y =
+ Math.max(
+  velocity.y,
+  WALL_JUMP_VERTICAL_SPEED
+ );
+
+ grounded =
+ false;
 }
 
 // ==================================================
@@ -5260,151 +5325,166 @@ function collides(
 // HORIZONTAL MOVEMENT STEP
 // ==================================================
 function moveHorizontalStep(
-  delta
+ delta
 ) {
-  // =================================================
-  // X
-  // =================================================
+ // --------------------------------------------------
+ // X
+ // --------------------------------------------------
+ const nextX =
+ camera.position.clone();
 
-  const nextX =
-    camera.position.clone();
+ nextX.x +=
+ velocity.x *
+ delta;
 
-  nextX.x +=
-    velocity.x *
-    delta;
-
-  if (
-    !collides(
-      nextX
-    )
-  ) {
-    camera.position.x =
-      nextX.x;
+ if (
+  !collides(
+   nextX
+  )
+ ) {
+  camera.position.x =
+  nextX.x;
+ } else {
+  if (grounded) {
+   velocity.x = 0;
   } else {
-    /*
-     * 地上で建物へ歩いて
-     * ぶつかっただけなら、
-     * 普通に停止。
-     *
-     * ダメージ・スタン・
-     * 壁ジャンプなし。
-     */
-    if (grounded) {
-      velocity.x = 0;
-    } else {
-      const impact =
-        velocity.x;
+   const impact =
+   velocity.x;
 
-      const kmh =
-        speedToKmh(
-          impact
-        );
+   const kmh =
+   speedToKmh(
+    impact
+   );
 
-      const normalX =
-        impact > 0
-          ? -1
-          : 1;
+   const normalX =
+   impact > 0
+   ? -1
+   : 1;
 
-      if (
-        wallStunTimer > 0
-      ) {
-        velocity.x = 0;
-      } else if (
-        kmh <
-        WALL_JUMP_SAFE_KMH
-      ) {
-        wallJump(
-          normalX,
-          0
-        );
+   const angleWallJump =
+   canWallJumpByAngle(
+    velocity.x,
+    velocity.z,
+    normalX,
+    0
+   );
 
-        return true;
-      } else {
-        damageFromImpact(
-          impact
-        );
+   /*
+    * 壁面に対して30°未満なら
+    * 速度に関係なく壁キック可能。
+    *
+    * それ以外は従来どおり
+    * 30km/h未満なら壁キック。
+    */
+   if (
+    wallStunTimer > 0
+   ) {
+    velocity.x = 0;
+   } else if (
+    angleWallJump ||
+    kmh <
+    WALL_JUMP_SAFE_KMH
+   ) {
+    wallJump(
+     normalX,
+     0
+    );
 
-        if (!dead) {
-          applyWallStun(
-            kmh
-          );
-        }
+    return true;
+   } else {
+    damageFromImpact(
+     impact
+    );
 
-        velocity.x = 0;
-
-        return true;
-      }
+    if (!dead) {
+     applyWallStun(
+      kmh
+     );
     }
+
+    velocity.x = 0;
+
+    return true;
+   }
   }
+ }
 
-  // =================================================
-  // Z
-  // =================================================
+ // --------------------------------------------------
+ // Z
+ // --------------------------------------------------
+ const nextZ =
+ camera.position.clone();
 
-  const nextZ =
-    camera.position.clone();
+ nextZ.z +=
+ velocity.z *
+ delta;
 
-  nextZ.z +=
-    velocity.z *
-    delta;
-
-  if (
-    !collides(
-      nextZ
-    )
-  ) {
-    camera.position.z =
-      nextZ.z;
+ if (
+  !collides(
+   nextZ
+  )
+ ) {
+  camera.position.z =
+  nextZ.z;
+ } else {
+  if (grounded) {
+   velocity.z = 0;
   } else {
-    if (grounded) {
-      velocity.z = 0;
-    } else {
-      const impact =
-        velocity.z;
+   const impact =
+   velocity.z;
 
-      const kmh =
-        speedToKmh(
-          impact
-        );
+   const kmh =
+   speedToKmh(
+    impact
+   );
 
-      const normalZ =
-        impact > 0
-          ? -1
-          : 1;
+   const normalZ =
+   impact > 0
+   ? -1
+   : 1;
 
-      if (
-        wallStunTimer > 0
-      ) {
-        velocity.z = 0;
-      } else if (
-        kmh <
-        WALL_JUMP_SAFE_KMH
-      ) {
-        wallJump(
-          0,
-          normalZ
-        );
+   const angleWallJump =
+   canWallJumpByAngle(
+    velocity.x,
+    velocity.z,
+    0,
+    normalZ
+   );
 
-        return true;
-      } else {
-        damageFromImpact(
-          impact
-        );
+   if (
+    wallStunTimer > 0
+   ) {
+    velocity.z = 0;
+   } else if (
+    angleWallJump ||
+    kmh <
+    WALL_JUMP_SAFE_KMH
+   ) {
+    wallJump(
+     0,
+     normalZ
+    );
 
-        if (!dead) {
-          applyWallStun(
-            kmh
-          );
-        }
+    return true;
+   } else {
+    damageFromImpact(
+     impact
+    );
 
-        velocity.z = 0;
-
-        return true;
-      }
+    if (!dead) {
+     applyWallStun(
+      kmh
+     );
     }
-  }
 
-  return false;
+    velocity.z = 0;
+
+    return true;
+   }
+  }
+ }
+
+ return false;
 }
 
 // ==================================================
