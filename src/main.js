@@ -1172,6 +1172,180 @@ function updateWorldStreaming(
 }
 
 // ==================================================
+// AREA SYSTEM
+// ==================================================
+let currentAreaId = null;
+let previousAreaChunkX = null;
+let previousAreaChunkZ = null;
+let areaSystemInitialized = false;
+
+// --------------------------------------------------
+// FIND AREA
+// --------------------------------------------------
+function findAreaAtPosition(
+ position
+) {
+ /*
+  * Three.js unit
+  * ↓
+  * 実寸m
+  */
+ const xMeters =
+ position.x *
+ METERS_PER_UNIT;
+
+ const zMeters =
+ position.z *
+ METERS_PER_UNIT;
+
+ for (
+ const area
+ of WORLD_MAP.areas
+ ) {
+  // ------------------------------------------------
+  // RECTANGLE
+  // ------------------------------------------------
+  if (
+   area.type ===
+   "rectangle"
+  ) {
+   const halfWidth =
+   area.widthMeters /
+   2;
+
+   const halfDepth =
+   area.depthMeters /
+   2;
+
+   const inside =
+   xMeters >=
+   area.xMeters -
+   halfWidth &&
+
+   xMeters <=
+   area.xMeters +
+   halfWidth &&
+
+   zMeters >=
+   area.zMeters -
+   halfDepth &&
+
+   zMeters <=
+   area.zMeters +
+   halfDepth;
+
+   if (inside) {
+    return area;
+   }
+  }
+
+  // ------------------------------------------------
+  // CIRCLE
+  // ------------------------------------------------
+  if (
+   area.type ===
+   "circle"
+  ) {
+   const distance =
+   Math.hypot(
+    xMeters -
+    area.xMeters,
+
+    zMeters -
+    area.zMeters
+   );
+
+   if (
+    distance <=
+    area.radiusMeters
+   ) {
+    return area;
+   }
+  }
+ }
+
+ return null;
+}
+
+// --------------------------------------------------
+// ENTER AREA
+// --------------------------------------------------
+function enterArea(
+ area
+) {
+ if (!area) {
+  currentAreaId =
+  null;
+
+  return;
+ }
+
+ /*
+  * 同じ場所なら表示しない。
+  */
+ if (
+  currentAreaId ===
+  area.id
+ ) {
+  return;
+ }
+
+ currentAreaId =
+ area.id;
+
+ showMessage(
+  area.name
+ );
+}
+
+// --------------------------------------------------
+// UPDATE AREA
+// --------------------------------------------------
+function updateAreaSystem() {
+ const chunkX =
+ getChunkCoordinate(
+  camera.position.x
+ );
+
+ const chunkZ =
+ getChunkCoordinate(
+  camera.position.z
+ );
+
+ /*
+  * 初回、または別チャンクへ
+  * 移動した場合だけ判定。
+  */
+ if (
+  areaSystemInitialized &&
+  chunkX ===
+  previousAreaChunkX &&
+  chunkZ ===
+  previousAreaChunkZ
+ ) {
+  return;
+ }
+
+ previousAreaChunkX =
+ chunkX;
+
+ previousAreaChunkZ =
+ chunkZ;
+
+ areaSystemInitialized =
+ true;
+
+ const area =
+ findAreaAtPosition(
+  camera.position
+ );
+
+ enterArea(
+  area
+ );
+}
+
+// ==================================================
 // WORLD LISTS
 // ==================================================
 const colliders = [];
@@ -6625,49 +6799,69 @@ window.addEventListener(
 // GAME LOOP
 // ==================================================
 const clock =
-  new THREE.Clock();
+ new THREE.Clock();
 
 function animate() {
-  requestAnimationFrame(
-    animate
-  );
+ requestAnimationFrame(
+  animate
+ );
 
-  const delta =
-    Math.min(
-      clock.getDelta(),
-      0.05
-    );
+ const delta =
+ Math.min(
+  clock.getDelta(),
+  0.05
+ );
 
-  updatePlayer(
-    delta
-  );
+ // --------------------------------------------------
+ // PLAYER
+ // --------------------------------------------------
+ updatePlayer(
+  delta
+ );
 
-  updateWorldStreaming(
-    delta
-  );
+ // --------------------------------------------------
+ // WORLD
+ // --------------------------------------------------
+ updateWorldStreaming(
+  delta
+ );
 
-  updateTitanParts(
-    delta
-  );
+ updateAreaSystem();
 
-  updateBladeAnimation(
-    delta
-  );
+ // --------------------------------------------------
+ // TITAN
+ // --------------------------------------------------
+ updateTitanParts(
+  delta
+ );
 
-  updateWireVisual(
-    leftAnchor
-  );
+ // --------------------------------------------------
+ // EQUIPMENT
+ // --------------------------------------------------
+ updateBladeAnimation(
+  delta
+ );
 
-  updateWireVisual(
-    rightAnchor
-  );
+ updateWireVisual(
+  leftAnchor
+ );
 
-  updateHUD();
+ updateWireVisual(
+  rightAnchor
+ );
 
-  renderer.render(
-    scene,
-    camera
-  );
+ // --------------------------------------------------
+ // HUD
+ // --------------------------------------------------
+ updateHUD();
+
+ // --------------------------------------------------
+ // RENDER
+ // --------------------------------------------------
+ renderer.render(
+  scene,
+  camera
+ );
 }
 
 animate();
