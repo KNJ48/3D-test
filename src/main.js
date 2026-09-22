@@ -115,38 +115,25 @@ const GAS_BURST_COOLDOWN = 0.5;
 // WIRE
 // ==================================================
 
-// ワイヤー牽引開始時の初速
+// 牽引開始時の初速
 const WIRE_INITIAL_IMPULSE = 11;
 
 // 継続加速度
 const WIRE_SUSTAIN_ACCEL = 16;
 
-// アンカーそのものの射出速度
+// アンカー射出速度
 const ANCHOR_SHOT_SPEED = 150;
 
-// --------------------------
-// WIRE VISUAL PARAMETERS
-// --------------------------
-
-// ワイヤー半径。
-// テスト時は基本ここだけ変更すればOK。
-//
-// 0.005 = 極細
-// 0.010 = 細い
-// 0.015 = 見やすい
-// 0.020 = 太め
+// ワイヤー表示設定
 const WIRE_VISUAL_RADIUS = 0.01;
-
-// 円柱断面の分割数
 const WIRE_VISUAL_SEGMENTS = 6;
 
-// ワイヤー色
-const WIRE_VISUAL_COLOR = 0xd8dde0;
+// 黒
+const WIRE_VISUAL_COLOR = 0x101214;
 
-// 透明度
 const WIRE_VISUAL_OPACITY = 1.0;
 
-// 一人称カメラ基準の射出口
+// 一人称視点での射出口
 const WIRE_START_SIDE = 0.28;
 const WIRE_START_DOWN = -0.22;
 const WIRE_START_FORWARD = -0.45;
@@ -2110,15 +2097,11 @@ function createWire() {
 
   const material =
     new THREE.MeshBasicMaterial({
-      color:
-        WIRE_VISUAL_COLOR,
-
+      color: WIRE_VISUAL_COLOR,
       transparent:
         WIRE_VISUAL_OPACITY < 1,
-
       opacity:
         WIRE_VISUAL_OPACITY,
-
       toneMapped: false
     });
 
@@ -2129,7 +2112,6 @@ function createWire() {
     );
 
   wire.visible = false;
-
   wire.frustumCulled = false;
 
   scene.add(wire);
@@ -2144,8 +2126,6 @@ function createAnchor(
   side
 ) {
   return {
-    // -1 = left
-    // +1 = right
     side,
 
     state: "OFF",
@@ -3150,32 +3130,6 @@ function updateAnchorProjectile(
 // ==================================================
 // WIRE VISUAL
 // ==================================================
-
-// --------------------------
-// VISUAL PARAMETERS
-// --------------------------
-
-// ワイヤー半径
-// ここを変更すれば太さを調整可能
-const WIRE_VISUAL_RADIUS = 0.01;
-
-// 円柱断面
-const WIRE_VISUAL_SEGMENTS = 6;
-
-// 黒色
-const WIRE_VISUAL_COLOR = 0x101214;
-
-// 透明度
-const WIRE_VISUAL_OPACITY = 1.0;
-
-// カメラ基準の射出口
-const WIRE_START_SIDE = 0.28;
-const WIRE_START_DOWN = -0.22;
-const WIRE_START_FORWARD = -0.45;
-
-// --------------------------
-// TEMP
-// --------------------------
 const wireVisualStart =
   new THREE.Vector3();
 
@@ -3192,9 +3146,6 @@ const wireVisualYAxis =
     0
   );
 
-// --------------------------
-// UPDATE
-// --------------------------
 function updateWireVisual(
   anchor
 ) {
@@ -3206,34 +3157,20 @@ function updateWireVisual(
   }
 
   /*
-   * ここが重要。
+   * 発射中は現在のアンカー位置。
+   * 接続後だけ固定点を使う。
    *
-   * FIRING中はtargetPointを絶対に使わない。
-   *
-   * ワイヤーの先端 =
-   * 現在のアンカー弾の実位置
+   * targetPointには直接描画しない。
    */
-  let end;
-
-  if (
+  const end =
     anchor.state === "FIRING"
-  ) {
-    end =
-      anchor.projectilePosition;
-  } else {
-    end =
-      anchor.point;
-  }
+      ? anchor.projectilePosition
+      : anchor.point;
 
-  // --------------------------
-  // START
-  // --------------------------
   wireVisualStart.set(
     (anchor.side ?? 0) *
       WIRE_START_SIDE,
-
     WIRE_START_DOWN,
-
     WIRE_START_FORWARD
   );
 
@@ -3241,19 +3178,11 @@ function updateWireVisual(
     wireVisualStart
   );
 
-  // --------------------------
-  // CURRENT ROPE LENGTH
-  // --------------------------
-  wireVisualDirection
-    .subVectors(
-      end,
-      wireVisualStart
-    );
+  wireVisualDirection.subVectors(
+    end,
+    wireVisualStart
+  );
 
-  /*
-   * このdistanceが毎フレーム、
-   * アンカーの移動に合わせて増える。
-   */
   const distance =
     wireVisualDirection.length();
 
@@ -3264,11 +3193,8 @@ function updateWireVisual(
     return;
   }
 
-  // 中点
   wireVisualMiddle
-    .copy(
-      wireVisualStart
-    )
+    .copy(wireVisualStart)
     .add(end)
     .multiplyScalar(0.5);
 
@@ -3277,10 +3203,9 @@ function updateWireVisual(
   );
 
   /*
-   * 長さは「現在のアンカー位置まで」だけ。
-   *
-   * targetPointまで瞬間的に
-   * 伸ばす処理は一切しない。
+   * 現在のアンカー位置までしか伸ばさない。
+   * projectilePositionが進むのと
+   * 同じ速度でワイヤーが伸びて見える。
    */
   anchor.wire.scale.set(
     1,
