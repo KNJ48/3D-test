@@ -240,25 +240,16 @@ const TRAINING_RADIUS = 4;
 // ==================================================
 
 /*
- * 巨大な地理だけ1/10へ圧縮。
+ * 巨大な地理上の距離だけ
+ * 1/10スケール。
  *
- * 縮める:
- * ・ウォール同士の距離
- * ・都市同士の距離
- * ・村同士の距離
- *
- * 縮めない:
- * ・壁の高さ/厚み
- * ・家
- * ・プレイヤー
- * ・巨人
- * ・道路
- * ・ゲーム物理
+ * 壁の高さ・厚さ・家・人間・巨人・
+ * 道幅・ゲーム物理は縮小しない。
  */
 const WORLD_HORIZONTAL_SCALE = 0.1;
 
 // --------------------------
-// UNIT HELPERS
+// UNIT CONVERSION
 // --------------------------
 
 function metersToUnits(
@@ -270,6 +261,15 @@ function metersToUnits(
   );
 }
 
+/*
+ * 巨大な地理距離専用。
+ *
+ * 実距離[m]
+ * ↓
+ * 1/10
+ * ↓
+ * Three.js内部unit
+ */
 function compressedDistance(
   meters
 ) {
@@ -281,22 +281,24 @@ function compressedDistance(
 }
 
 // --------------------------
-// WALL SIZE
+// WALL PHYSICAL SIZE
 // --------------------------
 
-// 高さ50m
+// 壁高 50m。
+// 水平世界を1/10にしても
+// 壁自体の大きさは実寸。
 const CITY_WALL_HEIGHT =
   metersToUnits(
     50
   );
 
-// 厚さ8m
+// 壁厚 8m
 const CITY_WALL_THICKNESS =
   metersToUnits(
     8
   );
 
-// 門幅18m
+// 門幅 18m
 const CITY_GATE_WIDTH =
   metersToUnits(
     18
@@ -307,41 +309,33 @@ const CITY_GATE_WIDTH =
 // --------------------------
 
 /*
- * 最外周:
- *
- * 元の想定半径200km
+ * 仮想的な実距離200km
  * ↓
  * 1/10
  * ↓
  * ゲーム内半径20km
  *
- * 直径40km
+ * 最外周直径 約40km
  */
 const MARIA_RADIUS =
   compressedDistance(
     200000
   );
 
-/*
- * Wall Rose
- * ゲーム内半径13km
- */
+// ゲーム内半径 約13km
 const ROSE_RADIUS =
   compressedDistance(
     130000
   );
 
-/*
- * Wall Sina
- * ゲーム内半径6.5km
- */
+// ゲーム内半径 約6.5km
 const SINA_RADIUS =
   compressedDistance(
     65000
   );
 
 // --------------------------
-// DISTRICTS
+// DISTRICT
 // --------------------------
 
 // 市街地奥行き260m
@@ -356,94 +350,26 @@ const DISTRICT_WIDTH =
     210
   );
 
-// 道幅10m
+// メイン道路幅10m
 const CITY_ROAD_WIDTH =
   metersToUnits(
     10
   );
 
-// 市街地1個あたりの家数
+// 主要都市1地区の家数
 const DISTRICT_HOUSE_COUNT =
   110;
 
 // --------------------------
-// WORLD DETAIL
+// WORLD SETTLEMENTS
 // --------------------------
 
-// 小村の数
 const WORLD_VILLAGE_COUNT =
   14;
 
-// 一村あたり
 const VILLAGE_HOUSE_COUNT =
   16;
 
-// ------------------------------------------
-// WALL DIMENSIONS
-// ------------------------------------------
-
-// 壁高 50m
-const CITY_WALL_HEIGHT =
-  metersToUnits(50);
-
-// 壁厚 8m
-const CITY_WALL_THICKNESS =
-  metersToUnits(8);
-
-// 門幅 18m
-const CITY_GATE_WIDTH =
-  metersToUnits(18);
-
-// ------------------------------------------
-// COMPRESSED WORLD
-// ------------------------------------------
-//
-// テスト用のゲーム世界。
-// 最外周直径 約4km。
-//
-// 200km → 2km半径
-// → ゲーム内部4000units
-// ------------------------------------------
-
-const MARIA_RADIUS =
-  compressedDistance(
-    200000
-  );
-
-// RoseはMariaより内側
-const ROSE_RADIUS =
-  compressedDistance(
-    130000
-  );
-
-// Sina
-const SINA_RADIUS =
-  compressedDistance(
-    65000
-  );
-
-// ------------------------------------------
-// CITY / DISTRICT
-// ------------------------------------------
-
-// 門の前後に作る市街地の長さ
-const DISTRICT_DEPTH =
-  metersToUnits(260);
-
-// 市街地幅
-const DISTRICT_WIDTH =
-  metersToUnits(210);
-
-// メインストリート
-const CITY_ROAD_WIDTH =
-  metersToUnits(10);
-
-// 建物間の最低間隔
-const CITY_HOUSE_GAP =
-  metersToUnits(2);
-
-// 各主要地区の家数
-const DISTRICT_HOUSE_COUNT = 95;
 // ==================================================
 // SCENE
 // ==================================================
