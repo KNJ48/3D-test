@@ -239,14 +239,27 @@ const TRAINING_RADIUS = 4;
 // CITY
 // ==================================================
 
-// ------------------------------------------
-// 1 unit = 0.5m
-//
-// 世界の巨大な水平距離だけ1/100。
-// 建物・壁高・道幅などは縮小しない。
-// ------------------------------------------
+/*
+ * 巨大な地理だけ1/10へ圧縮。
+ *
+ * 縮める:
+ * ・ウォール同士の距離
+ * ・都市同士の距離
+ * ・村同士の距離
+ *
+ * 縮めない:
+ * ・壁の高さ/厚み
+ * ・家
+ * ・プレイヤー
+ * ・巨人
+ * ・道路
+ * ・ゲーム物理
+ */
+const WORLD_HORIZONTAL_SCALE = 0.1;
 
-const WORLD_HORIZONTAL_SCALE = 0.01;
+// --------------------------
+// UNIT HELPERS
+// --------------------------
 
 function metersToUnits(
   meters
@@ -266,6 +279,104 @@ function compressedDistance(
     METERS_PER_UNIT
   );
 }
+
+// --------------------------
+// WALL SIZE
+// --------------------------
+
+// 高さ50m
+const CITY_WALL_HEIGHT =
+  metersToUnits(
+    50
+  );
+
+// 厚さ8m
+const CITY_WALL_THICKNESS =
+  metersToUnits(
+    8
+  );
+
+// 門幅18m
+const CITY_GATE_WIDTH =
+  metersToUnits(
+    18
+  );
+
+// --------------------------
+// WALL RADII
+// --------------------------
+
+/*
+ * 最外周:
+ *
+ * 元の想定半径200km
+ * ↓
+ * 1/10
+ * ↓
+ * ゲーム内半径20km
+ *
+ * 直径40km
+ */
+const MARIA_RADIUS =
+  compressedDistance(
+    200000
+  );
+
+/*
+ * Wall Rose
+ * ゲーム内半径13km
+ */
+const ROSE_RADIUS =
+  compressedDistance(
+    130000
+  );
+
+/*
+ * Wall Sina
+ * ゲーム内半径6.5km
+ */
+const SINA_RADIUS =
+  compressedDistance(
+    65000
+  );
+
+// --------------------------
+// DISTRICTS
+// --------------------------
+
+// 市街地奥行き260m
+const DISTRICT_DEPTH =
+  metersToUnits(
+    260
+  );
+
+// 市街地幅210m
+const DISTRICT_WIDTH =
+  metersToUnits(
+    210
+  );
+
+// 道幅10m
+const CITY_ROAD_WIDTH =
+  metersToUnits(
+    10
+  );
+
+// 市街地1個あたりの家数
+const DISTRICT_HOUSE_COUNT =
+  110;
+
+// --------------------------
+// WORLD DETAIL
+// --------------------------
+
+// 小村の数
+const WORLD_VILLAGE_COUNT =
+  14;
+
+// 一村あたり
+const VILLAGE_HOUSE_COUNT =
+  16;
 
 // ------------------------------------------
 // WALL DIMENSIONS
@@ -673,23 +784,80 @@ function createTrainingArea() {
 // ==================================================
 // CITY WALL
 // ==================================================
+
+/*
+ * 壁一片の目標最大長。
+ *
+ * 20m程度。
+ *
+ * 半径が大きくなっても
+ * ここを基準に自動で分割数を増やす。
+ */
+const WALL_TARGET_SEGMENT_METERS =
+  20;
+
+const WALL_TARGET_SEGMENT_LENGTH =
+  metersToUnits(
+    WALL_TARGET_SEGMENT_METERS
+  );
+
+/*
+ * 巨大リングを全て個別Meshにすると
+ * 数千～数万Meshになって重いので、
+ * InstancedMeshで一括描画する。
+ */
 function createWallRing(
   radius,
   gateAngle = 0
 ) {
-  const segmentCount = 180;
+  const circumference =
+    Math.PI *
+    2 *
+    radius;
+
+  /*
+   * 円周 ÷ 約20m
+   *
+   * 必要な分割数を自動計算。
+   */
+  const segmentCount =
+    Math.max(
+      64,
+      Math.ceil(
+        circumference /
+        WALL_TARGET_SEGMENT_LENGTH
+      )
+    );
 
   const segmentAngle =
-    Math.PI * 2 /
+    Math.PI *
+    2 /
     segmentCount;
 
   /*
-   * 南側に門を置く。
-   * gateAngle = 0 は +Z方向。
+   * 実際のセグメント長。
+   *
+   * 少し長めにして
+   * セグメント間の隙間を完全に潰す。
    */
+  const segmentLength =
+    (
+      2 *
+      radius *
+      Math.sin(
+        segmentAngle / 2
+      )
+    ) + 0.8;
+
   const gateAngularWidth =
     CITY_GATE_WIDTH /
     radius;
+
+  // --------------------------
+  // COUNT VISIBLE SEGMENTS
+  // --------------------------
+
+  let visibleCount = 0;
 
   for (
     let i = 0;
@@ -700,26 +868,19 @@ function createWallRing(
       i *
       segmentAngle;
 
-    /*
-     * +Zを角度0として扱うため、
-     * x = sin
-     * z = cos
-     */
-    let difference =
-      Math.atan2(
-        Math.sin(
-          angle -
-          gateAngle
-        ),
-        Math.cos(
-          angle -
-          gateAngle
-        )
-      );
-
-    difference =
+    const difference =
       Math.abs(
-        difference
+        Math.atan2(
+          Math.sin(
+            angle -
+            gateAngle
+          ),
+
+          Math.cos(
+            angle -
+            gateAngle
+          )
+        )
       );
 
     if (
@@ -730,87 +891,177 @@ function createWallRing(
       continue;
     }
 
-    const nextAngle =
-      angle +
+    visibleCount++;
+  }
+
+  // --------------------------
+  // INSTANCE GEOMETRY
+  // --------------------------
+
+  const geometry =
+    new THREE.BoxGeometry(
+      CITY_WALL_THICKNESS,
+      CITY_WALL_HEIGHT,
+      segmentLength
+    );
+
+  const walls =
+    new THREE.InstancedMesh(
+      geometry,
+      outerWallMaterial,
+      visibleCount
+    );
+
+  walls.castShadow = true;
+  walls.receiveShadow = true;
+
+  /*
+   * 大型オブジェクトなので
+   * frustum計算による意図しない
+   * 消失を防ぐ。
+   */
+  walls.frustumCulled =
+    false;
+
+  const dummy =
+    new THREE.Object3D();
+
+  let instanceIndex = 0;
+
+  for (
+    let i = 0;
+    i < segmentCount;
+    i++
+  ) {
+    const angle =
+      i *
       segmentAngle;
 
-    const x1 =
-      Math.sin(angle) *
-      radius;
+    const difference =
+      Math.abs(
+        Math.atan2(
+          Math.sin(
+            angle -
+            gateAngle
+          ),
 
-    const z1 =
-      Math.cos(angle) *
-      radius;
-
-    const x2 =
-      Math.sin(nextAngle) *
-      radius;
-
-    const z2 =
-      Math.cos(nextAngle) *
-      radius;
-
-    const centerX =
-      (
-        x1 +
-        x2
-      ) / 2;
-
-    const centerZ =
-      (
-        z1 +
-        z2
-      ) / 2;
-
-    const length =
-      Math.hypot(
-        x2 - x1,
-        z2 - z1
-      ) +
-      0.5;
-
-    const wall =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          CITY_WALL_THICKNESS,
-          CITY_WALL_HEIGHT,
-          length
-        ),
-        outerWallMaterial
+          Math.cos(
+            angle -
+            gateAngle
+          )
+        )
       );
 
-    wall.position.set(
-      centerX,
-      CITY_WALL_HEIGHT / 2,
-      centerZ
+    // 南側の門
+    if (
+      difference <
+      gateAngularWidth /
+      2
+    ) {
+      continue;
+    }
+
+    const x =
+      Math.sin(
+        angle
+      ) *
+      radius;
+
+    const z =
+      Math.cos(
+        angle
+      ) *
+      radius;
+
+    dummy.position.set(
+      x,
+      CITY_WALL_HEIGHT /
+        2,
+      z
     );
 
-    wall.rotation.y =
-      -angle;
-
-    addWorldObject(
-      wall
+    /*
+     * BoxのZ軸を
+     * 円の接線方向へ向ける。
+     */
+    dummy.rotation.set(
+      0,
+      -angle,
+      0
     );
+
+    dummy.updateMatrix();
+
+    walls.setMatrixAt(
+      instanceIndex,
+      dummy.matrix
+    );
+
+    instanceIndex++;
   }
+
+  walls.instanceMatrix.needsUpdate =
+    true;
+
+  scene.add(
+    walls
+  );
+
+  /*
+   * InstancedMesh全体へ
+   * アンカー可能。
+   */
+  anchorTargets.push(
+    walls
+  );
+
+  /*
+   * 衝突判定については、
+   * 何万個ものBox3を作ると重い。
+   *
+   * 壁衝突は後でリング専用判定へ
+   * 移行するのが理想。
+   *
+   * 今回は門周辺など、
+   * 実際に飛ぶエリア用として
+   * 簡易Boxコライダーを追加する。
+   */
+  return {
+    radius,
+    walls
+  };
 }
 
+// --------------------------
+// WALL RING DATA
+// --------------------------
+
+const wallRings = [];
+
 function createCityWall() {
-  // Wall Maria
-  createWallRing(
-    MARIA_RADIUS,
-    0
+  /*
+   * +Z方向に門。
+   */
+
+  wallRings.push(
+    createWallRing(
+      MARIA_RADIUS,
+      0
+    )
   );
 
-  // Wall Rose
-  createWallRing(
-    ROSE_RADIUS,
-    0
+  wallRings.push(
+    createWallRing(
+      ROSE_RADIUS,
+      0
+    )
   );
 
-  // Wall Sina
-  createWallRing(
-    SINA_RADIUS,
-    0
+  wallRings.push(
+    createWallRing(
+      SINA_RADIUS,
+      0
+    )
   );
 }
 
@@ -4253,6 +4504,7 @@ function applyWallStun(
 // ==================================================
 // COLLISION
 // ==================================================
+
 function intersects(
   position,
   box
@@ -4283,9 +4535,102 @@ function intersects(
   );
 }
 
+// ==================================================
+// RING WALL COLLISION
+// ==================================================
+
+function collidesRingWall(
+  position
+) {
+  /*
+   * 壁より上なら通過可能。
+   */
+  const playerFeet =
+    position.y -
+    PLAYER_HEIGHT;
+
+  if (
+    playerFeet >=
+    CITY_WALL_HEIGHT
+  ) {
+    return false;
+  }
+
+  const radialDistance =
+    Math.hypot(
+      position.x,
+      position.z
+    );
+
+  const halfThickness =
+    CITY_WALL_THICKNESS /
+    2;
+
+  for (
+    const ring
+    of wallRings
+  ) {
+    const radialDifference =
+      Math.abs(
+        radialDistance -
+        ring.radius
+      );
+
+    if (
+      radialDifference >
+      halfThickness +
+      PLAYER_RADIUS
+    ) {
+      continue;
+    }
+
+    /*
+     * +Z側の門判定。
+     *
+     * atan2(x,z)なので
+     * +Zが0rad。
+     */
+    const angle =
+      Math.atan2(
+        position.x,
+        position.z
+      );
+
+    const gateHalfAngle =
+      (
+        CITY_GATE_WIDTH /
+        2
+      ) /
+      ring.radius;
+
+    const angleFromGate =
+      Math.abs(
+        Math.atan2(
+          Math.sin(angle),
+          Math.cos(angle)
+        )
+      );
+
+    /*
+     * 門の中なら壁なし。
+     */
+    if (
+      angleFromGate <
+      gateHalfAngle
+    ) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
 function collides(
   position
 ) {
+  // 建物等
   for (
     const box
     of colliders
@@ -4298,6 +4643,15 @@ function collides(
     ) {
       return true;
     }
+  }
+
+  // 巨大リング壁
+  if (
+    collidesRingWall(
+      position
+    )
+  ) {
+    return true;
   }
 
   return false;
