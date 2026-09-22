@@ -566,54 +566,610 @@ scene.add(sun);
 // ==================================================
 
 /*
- * 等倍世界の動作確認用。
+ * 巨大Planeは廃止。
  *
- * Wall Mariaの直径は約960km。
- * その外側にも土地を確保するため、
- * 1400km四方の地面を仮配置。
- *
- * 将来的にはチャンク地形へ置換する。
+ * 実際の地面はWORLD STREAMINGが
+ * プレイヤー周辺だけ生成する。
  */
-const WORLD_GROUND_SIZE_METERS =
-  1400000;
+const groundChunkMaterial =
+  new THREE.MeshStandardMaterial({
+    map: groundTexture,
+    roughness: 0.95,
+    color: 0x8fa667
+  });
 
-const WORLD_GROUND_SIZE =
-  metersToUnits(
-    WORLD_GROUND_SIZE_METERS
-  );
-
-const ground =
-  new THREE.Mesh(
-    new THREE.PlaneGeometry(
-      WORLD_GROUND_SIZE,
-      WORLD_GROUND_SIZE
-    ),
-    new THREE.MeshStandardMaterial({
-      map: groundTexture,
-      roughness: 0.95,
-      color: 0x8fa667
-    })
-  );
-
-ground.rotation.x =
-  -Math.PI / 2;
-
-ground.position.y = 0;
-
-ground.receiveShadow =
-  true;
+// ==================================================
+// WORLD STREAMING
+// ==================================================
 
 /*
- * 超巨大Planeなので
- * bounding sphereによる
- * 意図しないカリングを防ぐ。
+ * 1チャンク = 500m × 500m
  */
-ground.frustumCulled =
-  false;
+const CHUNK_SIZE_METERS = 500;
 
-scene.add(
-  ground
-);
+const CHUNK_SIZE =
+  CHUNK_SIZE_METERS /
+  METERS_PER_UNIT;
+
+/*
+ * 現在の描画距離。
+ *
+ * 後でESC設定から変更可能にする。
+ */
+let renderDistanceKm = 3;
+
+/*
+ * 描画距離より少し外側まで
+ * 先に準備する。
+ */
+const CHUNK_PREFETCH_EXTRA_KM = 1;
+
+/*
+ * この距離を超えたチャンクは破棄。
+ *
+ * 描画距離より広くすることで、
+ * 境界付近で生成/削除を
+ * 繰り返すのを防ぐ。
+ */
+const CHUNK_UNLOAD_EXTRA_KM = 1.5;
+
+/*
+ * プレイヤーの何秒先まで
+ * 移動方向を先読みするか。
+ */
+const CHUNK_LOOK_AHEAD_SECONDS = 8;
+
+/*
+ * 1フレームで世界生成に
+ * 使用してよい最大時間。
+ */
+const STREAMING_BUDGET_MS = 2;
+
+/*
+ * 現在ロードされているチャンク。
+ *
+ * key:
+ * "x,z"
+ */
+const loadedChunks =
+  new Map();
+
+/*
+ * 現在生成予約済みのチャンク。
+ *
+ * 同じチャンクを何度も
+ * キューへ追加しないため。
+ */
+const queuedChunks =
+  new Set();
+
+/*
+ * 少しずつ処理する生成キュー。
+ */
+const chunkGenerationQueue =
+  [];
+
+// --------------------------
+// HELPERS
+// --------------------------
+
+function getChunkKey(
+  chunkX,
+  chunkZ
+) {
+  return (
+    `${chunkX},${chunkZ}`
+  );
+}
+
+function getChunkCoordinate(
+  worldUnits
+) {
+  return Math.floor(
+    worldUnits /
+    CHUNK_SIZE
+  );
+}
+
+function getChunkCenter(
+  chunkX,
+  chunkZ,
+  target
+) {
+  target.set(
+    (
+      chunkX +
+      0.5
+    ) *
+      CHUNK_SIZE,
+
+    0,
+
+    (
+      chunkZ +
+      0.5
+    ) *
+      CHUNK_SIZE
+  );
+
+  return target;
+}
+
+// --------------------------
+// CREATE CHUNK
+// --------------------------
+
+function createGroundChunk(
+  chunkX,
+  chunkZ
+) {
+  const key =
+    getChunkKey(
+      chunkX,
+      chunkZ
+    );
+
+  if (
+    loadedChunks.has(
+      key
+    )
+  ) {
+    return;
+  }
+
+  const geometry =
+    new THREE.PlaneGeometry(
+      CHUNK_SIZE,
+      CHUNK_SIZE
+    );
+
+  /*
+   * 各チャンクで同じ地面模様を
+   * 繰り返すため、
+   * テクスチャをclone。
+   */
+  const material =
+    groundChunkMaterial.clone();
+
+  if (
+    groundTexture
+  ) {
+    const texture =
+      groundTexture.clone();
+
+    texture.needsUpdate =
+      true;
+
+    texture.wrapS =
+      THREE.RepeatWrapping;
+
+    texture.wrapT =
+      THREE.RepeatWrapping;
+
+    /*
+     * 500mチャンク。
+     * 10mごとに1タイル。
+     */
+    const repeats =
+      CHUNK_SIZE_METERS /
+      10;
+
+    texture.repeat.set(
+      repeats,
+      repeats
+    );
+
+    material.map =
+      texture;
+  }
+
+  const mesh =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  mesh.rotation.x =
+    -Math.PI / 2;
+
+  mesh.position.set(
+    (
+      chunkX +
+      0.5
+    ) *
+      CHUNK_SIZE,
+
+    0,
+
+    (
+      chunkZ +
+      0.5
+    ) *
+      CHUNK_SIZE
+  );
+
+  mesh.receiveShadow =
+    true;
+
+  scene.add(mesh);
+
+  loadedChunks.set(
+    key,
+    {
+      chunkX,
+      chunkZ,
+      mesh
+    }
+  );
+}
+
+// --------------------------
+// DESTROY CHUNK
+// --------------------------
+
+function destroyGroundChunk(
+  key,
+  chunk
+) {
+  scene.remove(
+    chunk.mesh
+  );
+
+  chunk.mesh.geometry
+    .dispose();
+
+  if (
+    chunk.mesh.material.map &&
+    chunk.mesh.material.map !==
+      groundTexture
+  ) {
+    chunk.mesh.material.map
+      .dispose();
+  }
+
+  chunk.mesh.material
+    .dispose();
+
+  loadedChunks.delete(
+    key
+  );
+}
+
+// --------------------------
+// QUEUE CHUNK
+// --------------------------
+
+function queueGroundChunk(
+  chunkX,
+  chunkZ,
+  priority
+) {
+  const key =
+    getChunkKey(
+      chunkX,
+      chunkZ
+    );
+
+  if (
+    loadedChunks.has(
+      key
+    ) ||
+    queuedChunks.has(
+      key
+    )
+  ) {
+    return;
+  }
+
+  queuedChunks.add(
+    key
+  );
+
+  chunkGenerationQueue.push({
+    key,
+    chunkX,
+    chunkZ,
+    priority
+  });
+}
+
+// --------------------------
+// REQUEST SURROUNDINGS
+// --------------------------
+
+const chunkTempCenter =
+  new THREE.Vector3();
+
+const chunkFuturePosition =
+  new THREE.Vector3();
+
+function requestWorldChunks() {
+  /*
+   * 現在位置。
+   */
+  const playerX =
+    camera.position.x;
+
+  const playerZ =
+    camera.position.z;
+
+  /*
+   * 速度から数秒後の
+   * 予測位置を出す。
+   */
+  chunkFuturePosition
+    .copy(
+      camera.position
+    )
+    .addScaledVector(
+      velocity,
+      CHUNK_LOOK_AHEAD_SECONDS
+    );
+
+  const currentChunkX =
+    getChunkCoordinate(
+      playerX
+    );
+
+  const currentChunkZ =
+    getChunkCoordinate(
+      playerZ
+    );
+
+  const futureChunkX =
+    getChunkCoordinate(
+      chunkFuturePosition.x
+    );
+
+  const futureChunkZ =
+    getChunkCoordinate(
+      chunkFuturePosition.z
+    );
+
+  const requestDistanceMeters =
+    (
+      renderDistanceKm +
+      CHUNK_PREFETCH_EXTRA_KM
+    ) *
+    1000;
+
+  const requestDistanceUnits =
+    requestDistanceMeters /
+    METERS_PER_UNIT;
+
+  const chunkRadius =
+    Math.ceil(
+      requestDistanceUnits /
+      CHUNK_SIZE
+    );
+
+  /*
+   * 現在地と未来位置の間を
+   * カバーする。
+   */
+  const minChunkX =
+    Math.min(
+      currentChunkX,
+      futureChunkX
+    ) -
+    chunkRadius;
+
+  const maxChunkX =
+    Math.max(
+      currentChunkX,
+      futureChunkX
+    ) +
+    chunkRadius;
+
+  const minChunkZ =
+    Math.min(
+      currentChunkZ,
+      futureChunkZ
+    ) -
+    chunkRadius;
+
+  const maxChunkZ =
+    Math.max(
+      currentChunkZ,
+      futureChunkZ
+    ) +
+    chunkRadius;
+
+  for (
+    let x = minChunkX;
+    x <= maxChunkX;
+    x++
+  ) {
+    for (
+      let z = minChunkZ;
+      z <= maxChunkZ;
+      z++
+    ) {
+      getChunkCenter(
+        x,
+        z,
+        chunkTempCenter
+      );
+
+      /*
+       * 現在位置からの距離。
+       */
+      const currentDistance =
+        Math.hypot(
+          chunkTempCenter.x -
+            playerX,
+
+          chunkTempCenter.z -
+            playerZ
+        );
+
+      /*
+       * 未来位置からの距離。
+       */
+      const futureDistance =
+        Math.hypot(
+          chunkTempCenter.x -
+            chunkFuturePosition.x,
+
+          chunkTempCenter.z -
+            chunkFuturePosition.z
+        );
+
+      /*
+       * 現在または未来位置の
+       * どちらかに近ければ必要。
+       */
+      const distance =
+        Math.min(
+          currentDistance,
+          futureDistance
+        );
+
+      if (
+        distance >
+        requestDistanceUnits
+      ) {
+        continue;
+      }
+
+      queueGroundChunk(
+        x,
+        z,
+        distance
+      );
+    }
+  }
+
+  /*
+   * 近いチャンクから先に作る。
+   */
+  chunkGenerationQueue.sort(
+    (a, b) =>
+      a.priority -
+      b.priority
+  );
+}
+
+// --------------------------
+// PROCESS QUEUE
+// --------------------------
+
+function processChunkQueue() {
+  const startTime =
+    performance.now();
+
+  while (
+    chunkGenerationQueue.length >
+    0
+  ) {
+    const job =
+      chunkGenerationQueue.shift();
+
+    queuedChunks.delete(
+      job.key
+    );
+
+    createGroundChunk(
+      job.chunkX,
+      job.chunkZ
+    );
+
+    /*
+     * 2ms使ったら
+     * 次フレームへ回す。
+     */
+    if (
+      performance.now() -
+      startTime >=
+      STREAMING_BUDGET_MS
+    ) {
+      break;
+    }
+  }
+}
+
+// --------------------------
+// UNLOAD
+// --------------------------
+
+function unloadFarChunks() {
+  const unloadDistanceMeters =
+    (
+      renderDistanceKm +
+      CHUNK_UNLOAD_EXTRA_KM
+    ) *
+    1000;
+
+  const unloadDistanceUnits =
+    unloadDistanceMeters /
+    METERS_PER_UNIT;
+
+  for (
+    const [
+      key,
+      chunk
+    ]
+    of loadedChunks
+  ) {
+    getChunkCenter(
+      chunk.chunkX,
+      chunk.chunkZ,
+      chunkTempCenter
+    );
+
+    const distance =
+      Math.hypot(
+        chunkTempCenter.x -
+          camera.position.x,
+
+        chunkTempCenter.z -
+          camera.position.z
+      );
+
+    if (
+      distance >
+      unloadDistanceUnits
+    ) {
+      destroyGroundChunk(
+        key,
+        chunk
+      );
+    }
+  }
+}
+
+// --------------------------
+// WORLD STREAMING UPDATE
+// --------------------------
+
+let chunkRequestTimer = 0;
+
+function updateWorldStreaming(
+  delta
+) {
+  /*
+   * 必要チャンク探索自体は
+   * 毎フレームする必要なし。
+   */
+  chunkRequestTimer -=
+    delta;
+
+  if (
+    chunkRequestTimer <= 0
+  ) {
+    chunkRequestTimer =
+      0.25;
+
+    requestWorldChunks();
+
+    unloadFarChunks();
+  }
+
+  /*
+   * 実生成は毎フレーム少しずつ。
+   */
+  processChunkQueue();
+}
 
 // ==================================================
 // WORLD LISTS
@@ -6052,6 +6608,10 @@ function animate() {
     );
 
   updatePlayer(
+    delta
+  );
+
+  updateWorldStreaming(
     delta
   );
 
