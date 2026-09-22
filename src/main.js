@@ -6278,91 +6278,122 @@ function anchorSymbol(
 // HUD UPDATE
 // ==================================================
 function updateHUD() {
-  const speedMps =
-    velocity.length() *
-    METERS_PER_UNIT;
+ // --------------------------------------------------
+ // SPEED
+ // --------------------------------------------------
+ const speedMps =
+ velocity.length() *
+ METERS_PER_UNIT;
 
-  const speedKmh =
-    speedMps *
-    3.6;
+ const speedKmh =
+ speedMps *
+ 3.6;
 
-  const verticalMps =
-    velocity.y *
-    METERS_PER_UNIT;
+ const verticalMps =
+ velocity.y *
+ METERS_PER_UNIT;
 
-  debugHUD.textContent =
-    `Speed: ${speedMps.toFixed(1)} m/s\n` +
-    `       ${speedKmh.toFixed(0)} km/h\n` +
-    `Vertical: ${verticalMps.toFixed(1)} m/s\n` +
-    `Titan: ${
-      titanAlive
-        ? "ALIVE"
-        : "DOWN"
-    }`;
+ // --------------------------------------------------
+ // CURRENT CHUNK
+ // --------------------------------------------------
+ const currentChunkX =
+ getChunkCoordinate(
+ camera.position.x
+ );
 
-  leftHUD.textContent =
-    `Q L ${anchorSymbol(
-      leftAnchor
-    )}`;
+ const currentChunkZ =
+ getChunkCoordinate(
+ camera.position.z
+ );
 
-  rightHUD.textContent =
-    `${anchorSymbol(
-      rightAnchor
-    )} R R`;
+ // --------------------------------------------------
+ // DEBUG HUD
+ // --------------------------------------------------
+ debugHUD.textContent =
+ `Speed: ${speedMps.toFixed(1)} m/s\n` +
+ ` ${speedKmh.toFixed(0)} km/h\n` +
+ `Chunk: ${currentChunkX}, ${currentChunkZ}\n` +
+ `Vertical: ${verticalMps.toFixed(1)} m/s\n` +
+ `Titan: ${
+ titanAlive
+ ? "ALIVE"
+ : "DOWN"
+ }`;
 
-  leftHUD.style.color =
-    leftAnchor.state ===
-    "OFF"
-      ? "#777"
-      : "#fff";
+ // --------------------------------------------------
+ // ANCHOR HUD
+ // --------------------------------------------------
+ leftHUD.textContent =
+ `Q L ${anchorSymbol(
+ leftAnchor
+ )}`;
 
-  rightHUD.style.color =
-    rightAnchor.state ===
-    "OFF"
-      ? "#777"
-      : "#fff";
+ rightHUD.textContent =
+ `${anchorSymbol(
+ rightAnchor
+ )} R R`;
 
-  if (
-    wallStunTimer > 0
-  ) {
-    statusHUD.textContent =
-      `STUN ${wallStunTimer.toFixed(1)}s`;
+ leftHUD.style.color =
+ leftAnchor.state ===
+ "OFF"
+ ? "#777"
+ : "#fff";
 
-    statusHUD.style.opacity =
-      "1";
-  } else {
-    statusHUD.textContent =
-      "";
+ rightHUD.style.color =
+ rightAnchor.state ===
+ "OFF"
+ ? "#777"
+ : "#fff";
 
-    statusHUD.style.opacity =
-      "0";
-  }
+ // --------------------------------------------------
+ // STUN HUD
+ // --------------------------------------------------
+ if (
+ wallStunTimer > 0
+ ) {
+ statusHUD.textContent =
+ `STUN ${wallStunTimer.toFixed(1)}s`;
 
-  hpBar.label.textContent =
-    `HP ${Math.ceil(
-      health
-    )} / ${MAX_HEALTH}`;
+ statusHUD.style.opacity =
+ "1";
+ } else {
+ statusHUD.textContent =
+ "";
 
-  hpBar.fill.style.width =
-    `${
-      health /
-        MAX_HEALTH *
-        100
-    }%`;
+ statusHUD.style.opacity =
+ "0";
+ }
 
-  gasBar.label.textContent =
-    `GAS ${Math.ceil(
-      gas
-    )} / ${MAX_GAS}`;
+ // --------------------------------------------------
+ // HP
+ // --------------------------------------------------
+ hpBar.label.textContent =
+ `HP ${Math.ceil(
+ health
+ )} / ${MAX_HEALTH}`;
 
-  gasBar.fill.style.width =
-    `${
-      gas /
-        MAX_GAS *
-        100
-    }%`;
+ hpBar.fill.style.width =
+ `${
+ health /
+ MAX_HEALTH *
+ 100
+ }%`;
+
+ // --------------------------------------------------
+ // GAS
+ // --------------------------------------------------
+ gasBar.label.textContent =
+ `GAS ${Math.ceil(
+ gas
+ )} / ${MAX_GAS}`;
+
+ gasBar.fill.style.width =
+ `${
+ gas /
+ MAX_GAS *
+ 100
+ }%`;
 }
-
 // ==================================================
 // STUN UPDATE
 // ==================================================
