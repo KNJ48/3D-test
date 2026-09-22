@@ -2204,150 +2204,71 @@ function calculateAnchorLaunch(
   outputVelocity
 ) {
   /*
-   * アンカー初速 =
-   * プレイヤーの発射瞬間の速度
-   * +
-   * 射出速度
+   * 接続予定地点は絶対に変えない。
    *
-   * 発射後はこの速度で固定。
-   *
-   * 慣性込みでも指定したtargetPointへ
-   * 到達する射出方向を逆算する。
+   * プレイヤーの慣性は
+   * 「接続地点方向への速度成分」
+   * としてのみアンカー速度へ反映する。
    */
 
-  tempTravel.subVectors(
-    targetPoint,
-    camera.position
-  );
-
-  const shotSpeedSq =
-    ANCHOR_SHOT_SPEED *
-    ANCHOR_SHOT_SPEED;
-
-  const a =
-    velocity.lengthSq() -
-    shotSpeedSq;
-
-  const b =
-    -2 *
-    tempTravel.dot(
-      velocity
-    );
-
-  const c =
-    tempTravel.lengthSq();
-
-  let time = -1;
-
-  if (
-    Math.abs(a) <
-    0.000001
-  ) {
-    if (
-      Math.abs(b) >
-      0.000001
-    ) {
-      const t =
-        -c / b;
-
-      if (
-        t > 0
-      ) {
-        time = t;
-      }
-    }
-  } else {
-    const discriminant =
-      b * b -
-      4 * a * c;
-
-    if (
-      discriminant < 0
-    ) {
-      return -1;
-    }
-
-    const root =
-      Math.sqrt(
-        discriminant
-      );
-
-    const t1 =
-      (
-        -b - root
-      ) /
-      (
-        2 * a
-      );
-
-    const t2 =
-      (
-        -b + root
-      ) /
-      (
-        2 * a
-      );
-
-    if (
-      t1 > 0 &&
-      t2 > 0
-    ) {
-      time =
-        Math.min(
-          t1,
-          t2
-        );
-    } else if (
-      t1 > 0
-    ) {
-      time = t1;
-    } else if (
-      t2 > 0
-    ) {
-      time = t2;
-    }
-  }
-
-  if (
-    time <= 0 ||
-    !Number.isFinite(
-      time
-    )
-  ) {
-    return -1;
-  }
-
   tempAimDirection
-    .copy(
-      targetPoint
-    )
-    .addScaledVector(
-      velocity,
-      -time
-    )
-    .sub(
+    .subVectors(
+      targetPoint,
       camera.position
     );
 
+  const distance =
+    tempAimDirection.length();
+
   if (
-    tempAimDirection.lengthSq() <
-    0.000001
+    distance < 0.001
   ) {
     return -1;
   }
 
   tempAimDirection.normalize();
 
-  outputVelocity
-    .copy(
-      velocity
-    )
-    .addScaledVector(
-      tempAimDirection,
-      ANCHOR_SHOT_SPEED
+  /*
+   * プレイヤー速度のうち、
+   * アンカー方向へ向かっている成分。
+   *
+   * 正 = 接続地点へ向かっている
+   * 負 = 接続地点から離れている
+   */
+  const inheritedSpeed =
+    velocity.dot(
+      tempAimDirection
     );
 
-  return time;
+  /*
+   * アンカーのワールド上の速度。
+   *
+   * 最低速度も確保する。
+   */
+  const finalSpeed =
+    Math.max(
+      ANCHOR_SHOT_SPEED * 0.25,
+
+      ANCHOR_SHOT_SPEED +
+      inheritedSpeed
+    );
+
+  outputVelocity
+    .copy(
+      tempAimDirection
+    )
+    .multiplyScalar(
+      finalSpeed
+    );
+
+  /*
+   * 予想到達時間。
+   * AUTOの未来位置計算にも使える。
+   */
+  return (
+    distance /
+    finalSpeed
+  );
 }
 
 // ==================================================
@@ -3075,124 +2996,96 @@ function updateAnchorProjectile(
   delta
 ) {
   if (
-    anchor.state !== "FIRING"
+    anchor.state !==
+    "FIRING"
   ) {
     return;
   }
 
-  const speed =
+  /*
+   * 現在のアンカー位置から
+   * 最初に確定したtargetPointへ。
+   */
+  projectileDirection
+    .subVectors(
+      anchor.targetPoint,
+      anchor.projectilePosition
+    );
+
+  const remaining =
+    projectileDirection.length();
+
+  if (
+    remaining < 0.001
+  ) {
+    connectAnchor(
+      anchor,
+      anchor.targetPoint,
+      anchor.target
+    );
+
+    return;
+  }
+
+  projectileDirection.normalize();
+
+  /*
+   * 発射時に決定した速度の
+   * 大きさだけを利用する。
+   *
+   * 方向は常に固定接続点方向。
+   */
+  const projectileSpeed =
     anchor.projectileVelocity.length();
 
-  if (
-    speed < 0.001
-  ) {
-    releaseAnchor(anchor);
-    return;
-  }
+  const travel =
+    projectileSpeed *
+    delta;
 
   /*
-   * このフレームでアンカー弾が
-   * 実際に移動する距離。
+   * このフレームで接続点へ
+   * 到達する場合。
    */
-  const travelDistance =
-    speed * delta;
-
-  projectileDirection
-    .copy(
-      anchor.projectileVelocity
-    )
-    .normalize();
-
-  /*
-   * Raycastは見た目ではなく、
-   * このフレーム中に壁を
-   * 貫通しなかったかの判定だけ。
-   */
-  anchorProjectileRay.set(
-    anchor.projectilePosition,
-    projectileDirection
-  );
-
-  anchorProjectileRay.far =
-    travelDistance;
-
-  const hits =
-    anchorProjectileRay
-      .intersectObjects(
-        anchorTargets,
-        false
-      );
-
   if (
-    hits.length > 0
+    travel >= remaining
   ) {
-    const hit =
-      hits[0];
-
-    /*
-     * 実際に壁へ到達。
-     */
     anchor.projectilePosition.copy(
-      hit.point
+      anchor.targetPoint
     );
 
-    anchor.projectileMesh.position.copy(
-      hit.point
-    );
+    if (
+      anchor.projectileMesh
+    ) {
+      anchor.projectileMesh.position.copy(
+        anchor.targetPoint
+      );
+    }
 
     connectAnchor(
       anchor,
-      hit.point,
-      hit.object
+      anchor.targetPoint,
+      anchor.target
     );
 
     return;
   }
 
   /*
-   * 本当に速度×時間だけ移動。
+   * 接続点へ向かって
+   * 実速度分だけ進む。
    */
   anchor.projectilePosition
     .addScaledVector(
-      anchor.projectileVelocity,
-      delta
+      projectileDirection,
+      travel
     );
-
-  anchor.projectileMesh.position.copy(
-    anchor.projectilePosition
-  );
-
-  /*
-   * アンカー弾の先端を
-   * 飛行方向へ向ける。
-   *
-   * ConeGeometryはY方向なので
-   * Y軸→飛行方向へ回転。
-   */
-  anchor.projectileMesh.quaternion
-    .setFromUnitVectors(
-      new THREE.Vector3(
-        0,
-        1,
-        0
-      ),
-      projectileDirection
-    );
-
-  /*
-   * 最大射程。
-   */
-  const travelled =
-    anchor.projectilePosition
-      .distanceTo(
-        anchor.launchPosition
-      );
 
   if (
-    travelled >
-    AUTO_MAX_DISTANCE * 1.5
+    anchor.projectileMesh
   ) {
-    releaseAnchor(anchor);
+    anchor.projectileMesh.position.copy(
+      anchor.projectilePosition
+    );
   }
 }
 
