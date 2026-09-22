@@ -128,7 +128,8 @@ const ANCHOR_SHOT_SPEED = 150;
 // WIRE VISUAL PARAMETERS
 // --------------------------
 
-// ワイヤー半径
+// ワイヤー半径。
+// テスト時は基本ここだけ変更すればOK。
 //
 // 0.005 = 極細
 // 0.010 = 細い
@@ -140,22 +141,14 @@ const WIRE_VISUAL_RADIUS = 0.01;
 const WIRE_VISUAL_SEGMENTS = 6;
 
 // ワイヤー色
-// ほぼ黒。完全な0x000000より
-// 輪郭を認識しやすい程度に少し明るくしている。
-const WIRE_VISUAL_COLOR = 0x101214;
+const WIRE_VISUAL_COLOR = 0xd8dde0;
 
 // 透明度
 const WIRE_VISUAL_OPACITY = 1.0;
 
 // 一人称カメラ基準の射出口
-
-// 左右への距離
 const WIRE_START_SIDE = 0.28;
-
-// カメラより下
 const WIRE_START_DOWN = -0.22;
-
-// カメラより前
 const WIRE_START_FORWARD = -0.45;
 
 // ==================================================
@@ -171,16 +164,15 @@ const AUTO_ANGLE_STEP = 2;
 // AUTOアンカー最大探索距離
 const AUTO_MAX_DISTANCE = 350;
 
-// 停止・低速時でも最低5m先
-const AUTO_MIN_FORWARD_METERS = 5;
-
-// 現在速度で1.5秒進む距離より
-// 手前の物体にはAUTOで撃たない
-//
-// 10m/s → 15m
-// 20m/s → 30m
-// 50m/s → 75m
+// 現在速度で何秒進むかを
+// AUTOの先読み距離として使う
 const AUTO_MIN_FORWARD_TIME = 1.5;
+
+// 速度による先読み距離に
+// さらに追加する前方距離
+//
+// 停止中でも最低15m先を狙う。
+const AUTO_FORWARD_EXTRA_METERS = 15;
 
 // 左右の奥行き差が20%以内なら
 // 同じ建物列とみなす
@@ -190,7 +182,7 @@ const AUTO_DEPTH_TOLERANCE = 0.20;
 const AUTO_MIN_SEPARATION = 5;
 
 // 平均奥行きがこの値以内なら
-// 同程度の奥行きとして比較
+// 同程度の列として深度差で比較
 const AUTO_DEPTH_PRIORITY_EPSILON = 2;
 
 // ==================================================
@@ -2468,10 +2460,8 @@ function collectAutoAnchorCandidates(
 
   autoForward.normalize();
 
-  /*
-   * カメラ自身の「上」。
-   * これを軸に左右へレイを振る。
-   */
+  // カメラ基準の上方向。
+  // これを軸として左右へ探索する。
   autoUp
     .set(
       0,
@@ -2487,46 +2477,47 @@ function collectAutoAnchorCandidates(
   // MINIMUM FORWARD DISTANCE
   // -------------------------
 
-  /*
-   * 現在の実速度 m/s。
-   */
+  // 現在速度をm/sへ変換
   const speedMps =
     velocity.length() *
     METERS_PER_UNIT;
 
   /*
-   * AUTOが狙っていい最低奥行き。
+   * AUTOで狙える最低奥行き。
    *
-   * 速度10m/sなら:
+   * 速度 × 1.5秒
+   * +
+   * 15m
    *
-   * 10 × 1.5 = 15m
+   * 例:
    *
-   * 停止時でも最低5m先。
+   * 停止
+   * 0 × 1.5 + 15
+   * = 15m
+   *
+   * 10m/s
+   * 10 × 1.5 + 15
+   * = 30m
+   *
+   * 20m/s
+   * 20 × 1.5 + 15
+   * = 45m
    */
   const minimumForwardMeters =
-    Math.max(
-      AUTO_MIN_FORWARD_METERS,
+    speedMps *
+    AUTO_MIN_FORWARD_TIME +
+    AUTO_FORWARD_EXTRA_METERS;
 
-      speedMps *
-      AUTO_MIN_FORWARD_TIME
-    );
-
-  /*
-   * meter → internal unit
-   */
+  // meter → internal unit
   const minimumForwardUnits =
     minimumForwardMeters /
     METERS_PER_UNIT;
 
-  /*
-   * 同じMeshを角度違いで
-   * 大量に候補登録しない。
-   */
   const seenObjects =
     new Set();
 
   // -------------------------
-  // SEARCH
+  // LEFT / RIGHT SEARCH
   // -------------------------
   for (
     let angleDeg =
@@ -2544,10 +2535,6 @@ function collectAutoAnchorCandidates(
         side
       );
 
-    /*
-     * 視線方向から
-     * 左または右へ徐々に開く。
-     */
     autoDirection
       .copy(
         autoForward
@@ -2599,16 +2586,17 @@ function collectAutoAnchorCandidates(
     );
 
     /*
-     * 視線方向への奥行き。
+     * 視線方向へどれだけ
+     * 前にあるか。
      *
-     * 単純な直線距離ではない。
+     * 斜め方向の直線距離ではない。
      */
     const depth =
       autoOffset.dot(
         autoForward
       );
 
-    // 後ろ・真横は不採用
+    // 背後・真横
     if (
       depth <= 0
     ) {
@@ -2616,10 +2604,8 @@ function collectAutoAnchorCandidates(
     }
 
     /*
-     * 今回追加した重要条件。
-     *
-     * 現在速度 × 1.5秒より
-     * 手前の物体はAUTO対象外。
+     * 速度×1.5秒 + 15mより
+     * 手前ならAUTO対象外。
      */
     if (
       depth <
@@ -2629,7 +2615,7 @@ function collectAutoAnchorCandidates(
     }
 
     // -------------------------
-    // ANCHOR TRAVEL
+    // PROJECTILE TRAVEL
     // -------------------------
     const testVelocity =
       new THREE.Vector3();
@@ -2646,10 +2632,9 @@ function collectAutoAnchorCandidates(
       continue;
     }
 
-    /*
-     * アンカーが届く頃の
-     * プレイヤー予測位置。
-     */
+    // -------------------------
+    // FUTURE PLAYER
+    // -------------------------
     tempFuturePlayer
       .copy(
         camera.position
@@ -2672,7 +2657,7 @@ function collectAutoAnchorCandidates(
 
     /*
      * アンカーが届く頃には
-     * 既に通り過ぎている場所も除外。
+     * もう通り過ぎる場所も除外。
      */
     if (
       velocity.length() > 3 &&
@@ -2692,8 +2677,6 @@ function collectAutoAnchorCandidates(
       object:
         hit.object,
 
-      // 左右ペアリングに使う
-      // 視線方向の奥行き
       depth,
 
       angleDeg,
