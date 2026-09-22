@@ -547,8 +547,12 @@ scene.add(sun);
 // ==================================================
 // GROUND
 // ==================================================
+
+// 100km四方
 const WORLD_GROUND_SIZE =
-  12000;
+  metersToUnits(
+    100000
+  );
 
 const ground =
   new THREE.Mesh(
@@ -559,7 +563,7 @@ const ground =
     new THREE.MeshStandardMaterial({
       map: groundTexture,
       roughness: 0.95,
-      color: 0x92a867
+      color: 0x8fa667
     })
   );
 
@@ -711,283 +715,83 @@ function createTrainingArea() {
 // CITY WALL
 // ==================================================
 
-/*
- * 壁一片の目標最大長。
- *
- * 20m程度。
- *
- * 半径が大きくなっても
- * ここを基準に自動で分割数を増やす。
- */
-const WALL_TARGET_SEGMENT_METERS =
-  20;
+const wallRings = [];
 
-const WALL_TARGET_SEGMENT_LENGTH =
-  metersToUnits(
-    WALL_TARGET_SEGMENT_METERS
-  );
-
-/*
- * 巨大リングを全て個別Meshにすると
- * 数千～数万Meshになって重いので、
- * InstancedMeshで一括描画する。
- */
 function createWallRing(
   radius,
-  gateAngle = 0
+  name
 ) {
-  const circumference =
-    Math.PI *
-    2 *
-    radius;
-
   /*
-   * 円周 ÷ 約20m
+   * 1個の連続したCylinder側面。
    *
-   * 必要な分割数を自動計算。
+   * Boxを並べないので
+   * 壁に隙間は発生しない。
    */
-  const segmentCount =
-    Math.max(
-      64,
-      Math.ceil(
-        circumference /
-        WALL_TARGET_SEGMENT_LENGTH
-      )
-    );
-
-  const segmentAngle =
-    Math.PI *
-    2 /
-    segmentCount;
-
-  /*
-   * 実際のセグメント長。
-   *
-   * 少し長めにして
-   * セグメント間の隙間を完全に潰す。
-   */
-  const segmentLength =
-    (
-      2 *
-      radius *
-      Math.sin(
-        segmentAngle / 2
-      )
-    ) + 0.8;
-
-  const gateAngularWidth =
-    CITY_GATE_WIDTH /
-    radius;
-
-  // --------------------------
-  // COUNT VISIBLE SEGMENTS
-  // --------------------------
-
-  let visibleCount = 0;
-
-  for (
-    let i = 0;
-    i < segmentCount;
-    i++
-  ) {
-    const angle =
-      i *
-      segmentAngle;
-
-    const difference =
-      Math.abs(
-        Math.atan2(
-          Math.sin(
-            angle -
-            gateAngle
-          ),
-
-          Math.cos(
-            angle -
-            gateAngle
-          )
-        )
-      );
-
-    if (
-      difference <
-      gateAngularWidth /
-      2
-    ) {
-      continue;
-    }
-
-    visibleCount++;
-  }
-
-  // --------------------------
-  // INSTANCE GEOMETRY
-  // --------------------------
-
   const geometry =
-    new THREE.BoxGeometry(
-      CITY_WALL_THICKNESS,
+    new THREE.CylinderGeometry(
+      radius,
+      radius,
       CITY_WALL_HEIGHT,
-      segmentLength
+      256,
+      1,
+      true
     );
 
-  const walls =
-    new THREE.InstancedMesh(
+  const wall =
+    new THREE.Mesh(
       geometry,
-      outerWallMaterial,
-      visibleCount
+      outerWallMaterial
     );
 
-  walls.castShadow = true;
-  walls.receiveShadow = true;
+  wall.position.y =
+    CITY_WALL_HEIGHT / 2;
+
+  wall.castShadow = true;
+  wall.receiveShadow = true;
 
   /*
-   * 大型オブジェクトなので
-   * frustum計算による意図しない
-   * 消失を防ぐ。
+   * 内側からも外側からも
+   * 壁面が見えるようにする。
    */
-  walls.frustumCulled =
+  wall.material.side =
+    THREE.DoubleSide;
+
+  wall.frustumCulled =
     false;
 
-  const dummy =
-    new THREE.Object3D();
+  wall.userData.wallName =
+    name;
 
-  let instanceIndex = 0;
-
-  for (
-    let i = 0;
-    i < segmentCount;
-    i++
-  ) {
-    const angle =
-      i *
-      segmentAngle;
-
-    const difference =
-      Math.abs(
-        Math.atan2(
-          Math.sin(
-            angle -
-            gateAngle
-          ),
-
-          Math.cos(
-            angle -
-            gateAngle
-          )
-        )
-      );
-
-    // 南側の門
-    if (
-      difference <
-      gateAngularWidth /
-      2
-    ) {
-      continue;
-    }
-
-    const x =
-      Math.sin(
-        angle
-      ) *
-      radius;
-
-    const z =
-      Math.cos(
-        angle
-      ) *
-      radius;
-
-    dummy.position.set(
-      x,
-      CITY_WALL_HEIGHT /
-        2,
-      z
-    );
-
-    /*
-     * BoxのZ軸を
-     * 円の接線方向へ向ける。
-     */
-    dummy.rotation.set(
-      0,
-      -angle,
-      0
-    );
-
-    dummy.updateMatrix();
-
-    walls.setMatrixAt(
-      instanceIndex,
-      dummy.matrix
-    );
-
-    instanceIndex++;
-  }
-
-  walls.instanceMatrix.needsUpdate =
-    true;
-
-  scene.add(
-    walls
-  );
+  scene.add(wall);
 
   /*
-   * InstancedMesh全体へ
    * アンカー可能。
    */
   anchorTargets.push(
-    walls
+    wall
   );
 
-  /*
-   * 衝突判定については、
-   * 何万個ものBox3を作ると重い。
-   *
-   * 壁衝突は後でリング専用判定へ
-   * 移行するのが理想。
-   *
-   * 今回は門周辺など、
-   * 実際に飛ぶエリア用として
-   * 簡易Boxコライダーを追加する。
-   */
-  return {
+  wallRings.push({
     radius,
-    walls
-  };
+    mesh: wall,
+    name
+  });
 }
 
-// --------------------------
-// WALL RING DATA
-// --------------------------
-
-const wallRings = [];
-
 function createCityWall() {
-  /*
-   * +Z方向に門。
-   */
-
-  wallRings.push(
-    createWallRing(
-      MARIA_RADIUS,
-      0
-    )
+  createWallRing(
+    MARIA_RADIUS,
+    "MARIA"
   );
 
-  wallRings.push(
-    createWallRing(
-      ROSE_RADIUS,
-      0
-    )
+  createWallRing(
+    ROSE_RADIUS,
+    "ROSE"
   );
 
-  wallRings.push(
-    createWallRing(
-      SINA_RADIUS,
-      0
-    )
+  createWallRing(
+    SINA_RADIUS,
+    "SINA"
   );
 }
 
@@ -4469,6 +4273,94 @@ function collidesRingWall(
   position
 ) {
   /*
+   * 壁より完全に上なら
+   * リング壁とは衝突しない。
+   */
+  const feet =
+    position.y -
+    PLAYER_HEIGHT;
+
+  if (
+    feet >=
+    CITY_WALL_HEIGHT
+  ) {
+    return false;
+  }
+
+  const radius =
+    Math.hypot(
+      position.x,
+      position.z
+    );
+
+  const collisionThickness =
+    CITY_WALL_THICKNESS /
+      2 +
+    PLAYER_RADIUS;
+
+  for (
+    const ring
+    of wallRings
+  ) {
+    const difference =
+      Math.abs(
+        radius -
+        ring.radius
+      );
+
+    if (
+      difference <=
+      collisionThickness
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function collides(
+  position
+) {
+  /*
+   * 建物等のBox衝突。
+   */
+  for (
+    const box
+    of colliders
+  ) {
+    if (
+      intersects(
+        position,
+        box
+      )
+    ) {
+      return true;
+    }
+  }
+
+  /*
+   * 3重壁。
+   */
+  if (
+    collidesRingWall(
+      position
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+// ==================================================
+// RING WALL COLLISION
+// ==================================================
+
+function collidesRingWall(
+  position
+) {
+  /*
    * 壁より上なら通過可能。
    */
   const playerFeet =
@@ -4589,9 +4481,10 @@ function collides(
 function moveHorizontalStep(
   delta
 ) {
-  // -------------------------
+  // =================================================
   // X
-  // -------------------------
+  // =================================================
+
   const nextX =
     camera.position.clone();
 
@@ -4607,54 +4500,66 @@ function moveHorizontalStep(
     camera.position.x =
       nextX.x;
   } else {
-    const impact =
-      velocity.x;
-
-    const kmh =
-      speedToKmh(
-        impact
-      );
-
-    const normalX =
-      impact > 0
-        ? -1
-        : 1;
-
-    if (
-      wallStunTimer > 0
-    ) {
+    /*
+     * 地上で建物へ歩いて
+     * ぶつかっただけなら、
+     * 普通に停止。
+     *
+     * ダメージ・スタン・
+     * 壁ジャンプなし。
+     */
+    if (grounded) {
       velocity.x = 0;
-    } else if (
-      !grounded &&
-      kmh <
-        WALL_JUMP_SAFE_KMH
-    ) {
-      wallJump(
-        normalX,
-        0
-      );
-
-      return true;
     } else {
-      damageFromImpact(
-        impact
-      );
+      const impact =
+        velocity.x;
 
-      if (!dead) {
-        applyWallStun(
-          kmh
+      const kmh =
+        speedToKmh(
+          impact
         );
+
+      const normalX =
+        impact > 0
+          ? -1
+          : 1;
+
+      if (
+        wallStunTimer > 0
+      ) {
+        velocity.x = 0;
+      } else if (
+        kmh <
+        WALL_JUMP_SAFE_KMH
+      ) {
+        wallJump(
+          normalX,
+          0
+        );
+
+        return true;
+      } else {
+        damageFromImpact(
+          impact
+        );
+
+        if (!dead) {
+          applyWallStun(
+            kmh
+          );
+        }
+
+        velocity.x = 0;
+
+        return true;
       }
-
-      velocity.x = 0;
-
-      return true;
     }
   }
 
-  // -------------------------
+  // =================================================
   // Z
-  // -------------------------
+  // =================================================
+
   const nextZ =
     camera.position.clone();
 
@@ -4670,48 +4575,51 @@ function moveHorizontalStep(
     camera.position.z =
       nextZ.z;
   } else {
-    const impact =
-      velocity.z;
-
-    const kmh =
-      speedToKmh(
-        impact
-      );
-
-    const normalZ =
-      impact > 0
-        ? -1
-        : 1;
-
-    if (
-      wallStunTimer > 0
-    ) {
+    if (grounded) {
       velocity.z = 0;
-    } else if (
-      !grounded &&
-      kmh <
-        WALL_JUMP_SAFE_KMH
-    ) {
-      wallJump(
-        0,
-        normalZ
-      );
-
-      return true;
     } else {
-      damageFromImpact(
-        impact
-      );
+      const impact =
+        velocity.z;
 
-      if (!dead) {
-        applyWallStun(
-          kmh
+      const kmh =
+        speedToKmh(
+          impact
         );
+
+      const normalZ =
+        impact > 0
+          ? -1
+          : 1;
+
+      if (
+        wallStunTimer > 0
+      ) {
+        velocity.z = 0;
+      } else if (
+        kmh <
+        WALL_JUMP_SAFE_KMH
+      ) {
+        wallJump(
+          0,
+          normalZ
+        );
+
+        return true;
+      } else {
+        damageFromImpact(
+          impact
+        );
+
+        if (!dead) {
+          applyWallStun(
+            kmh
+          );
+        }
+
+        velocity.z = 0;
+
+        return true;
       }
-
-      velocity.z = 0;
-
-      return true;
     }
   }
 
