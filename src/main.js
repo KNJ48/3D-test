@@ -3460,51 +3460,53 @@ function createAnchorProjectileMesh() {
 // CREATE ANCHOR
 // ==================================================
 function createAnchor(
-  side
+ side
 ) {
-  return {
-    side,
+ return {
+  side,
 
-    state: "OFF",
+  state: "OFF",
 
-    connected: false,
+  connected: false,
 
-    targetPoint:
-      new THREE.Vector3(),
+  targetPoint:
+  new THREE.Vector3(),
 
-    point:
-      new THREE.Vector3(),
+  point:
+  new THREE.Vector3(),
 
-    projectilePosition:
-      new THREE.Vector3(),
+  projectilePosition:
+  new THREE.Vector3(),
 
-    projectileVelocity:
-      new THREE.Vector3(),
+  projectileVelocity:
+  new THREE.Vector3(),
 
-    launchPosition:
-      new THREE.Vector3(),
+  launchPosition:
+  new THREE.Vector3(),
 
-    target: null,
+  target: null,
 
-    length: 0,
+  length: 0,
 
-    pulling: false,
+  pulling: false,
 
-    impulseApplied: false,
+  impulseApplied: false,
 
-    wire:
-      createWire(),
+  ropeLocked: false,
 
-    projectileMesh:
-      createAnchorProjectileMesh()
-  };
+  wire:
+  createWire(),
+
+  projectileMesh:
+  createAnchorProjectileMesh()
+ };
 }
 
 const leftAnchor =
-  createAnchor(-1);
+ createAnchor(-1);
 
 const rightAnchor =
-  createAnchor(1);
+ createAnchor(1);
 
 // ==================================================
 // ANCHOR LAUNCH SOLVER
@@ -4585,65 +4587,143 @@ function updateWireGas(
 // WIRE PHYSICS
 // ==================================================
 function updateWire(
-  anchor,
-  delta,
-  gasAvailable
+ anchor,
+ delta,
+ gasAvailable
 ) {
-  if (
-    !anchor.connected ||
-    !keys["KeyW"] ||
-    !gasAvailable
-  ) {
-    anchor.pulling =
-      false;
-
-    anchor.impulseApplied =
-      false;
-
-    return;
-  }
-
-  wireDirection.subVectors(
-    anchor.point,
-    camera.position
-  );
-
-  if (
-    wireDirection.lengthSq() <
-    0.001
-  ) {
-    return;
-  }
-
-  wireDirection.normalize();
-
-  if (
-    !anchor.impulseApplied
-  ) {
-    velocity.addScaledVector(
-      wireDirection,
-      WIRE_INITIAL_IMPULSE
-    );
-
-    anchor.impulseApplied =
-      true;
-
-    anchor.length =
-      camera.position.distanceTo(
-        anchor.point
-      );
-  }
-
+ // --------------------------------------------------
+ // NOT CONNECTED
+ // --------------------------------------------------
+ if (
+  !anchor.connected
+ ) {
   anchor.pulling =
-    true;
+  false;
 
+  anchor.impulseApplied =
+  false;
+
+  anchor.ropeLocked =
+  false;
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // CTRL = ROPE LOCK
+ // --------------------------------------------------
+ const ropeLockInput =
+ keys["ControlLeft"] ||
+ keys["ControlRight"];
+
+ if (ropeLockInput) {
+  /*
+   * Ctrlを押した瞬間だけ、
+   * 現在距離を固定ロープ長として記録。
+   */
+  if (
+   !anchor.ropeLocked
+  ) {
+   anchor.length =
+   camera.position.distanceTo(
+    anchor.point
+   );
+
+   anchor.ropeLocked =
+   true;
+  }
+
+  /*
+   * 巻き取り加速はしない。
+   *
+   * pulling=true にすることで
+   * ROPE CONSTRAINT のみ有効化。
+   */
+  anchor.pulling =
+  true;
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // RELEASE ROPE LOCK
+ // --------------------------------------------------
+ if (
+  anchor.ropeLocked
+ ) {
+  anchor.ropeLocked =
+  false;
+
+  anchor.impulseApplied =
+  false;
+ }
+
+ // --------------------------------------------------
+ // NO PULL INPUT
+ // --------------------------------------------------
+ if (
+  !keys["KeyW"] ||
+  !gasAvailable
+ ) {
+  anchor.pulling =
+  false;
+
+  anchor.impulseApplied =
+  false;
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // WIRE DIRECTION
+ // --------------------------------------------------
+ wireDirection.subVectors(
+  anchor.point,
+  camera.position
+ );
+
+ if (
+  wireDirection.lengthSq() <
+  0.001
+ ) {
+  return;
+ }
+
+ wireDirection.normalize();
+
+ // --------------------------------------------------
+ // INITIAL IMPULSE
+ // --------------------------------------------------
+ if (
+  !anchor.impulseApplied
+ ) {
   velocity.addScaledVector(
-    wireDirection,
-    WIRE_SUSTAIN_ACCEL *
-      delta
+   wireDirection,
+   WIRE_INITIAL_IMPULSE
   );
 
-  limitWireSafetySpeed();
+  anchor.impulseApplied =
+  true;
+
+  anchor.length =
+  camera.position.distanceTo(
+   anchor.point
+  );
+ }
+
+ // --------------------------------------------------
+ // SUSTAINED PULL
+ // --------------------------------------------------
+ anchor.pulling =
+ true;
+
+ velocity.addScaledVector(
+  wireDirection,
+  WIRE_SUSTAIN_ACCEL *
+  delta
+ );
+
+ limitWireSafetySpeed();
 }
 
 // ==================================================
