@@ -4609,17 +4609,23 @@ function updateWire(
   return;
  }
 
- // --------------------------------------------------
- // CTRL = ROPE LOCK
- // --------------------------------------------------
- const ropeLockInput =
- keys["ControlLeft"] ||
- keys["ControlRight"];
+// --------------------------------------------------
+// SHIFT INPUT
+// --------------------------------------------------
+const ctrlHeld =
+ keys["ShiftLeft"] ||
+ keys["ShiftRight"];
 
- if (ropeLockInput) {
+ // --------------------------------------------------
+ // ROPE LOCK
+ // --------------------------------------------------
+ if (ctrlHeld) {
   /*
-   * Ctrlを押した瞬間だけ、
-   * 現在距離を固定ロープ長として記録。
+   * Ctrlを押した最初のフレームだけ
+   * 現在のアンカーとの距離を保存。
+   *
+   * 以降はCtrlを離すまで
+   * lengthを絶対に変更しない。
    */
   if (
    !anchor.ropeLocked
@@ -4634,19 +4640,19 @@ function updateWire(
   }
 
   /*
-   * 巻き取り加速はしない。
-   *
-   * pulling=true にすることで
-   * ROPE CONSTRAINT のみ有効化。
+   * ガス牽引は完全停止。
    */
   anchor.pulling =
-  true;
+  false;
+
+  anchor.impulseApplied =
+  false;
 
   return;
  }
 
  // --------------------------------------------------
- // RELEASE ROPE LOCK
+ // UNLOCK
  // --------------------------------------------------
  if (
   anchor.ropeLocked
@@ -4659,7 +4665,7 @@ function updateWire(
  }
 
  // --------------------------------------------------
- // NO PULL INPUT
+ // NO PULL
  // --------------------------------------------------
  if (
   !keys["KeyW"] ||
@@ -4730,58 +4736,92 @@ function updateWire(
 // ROPE CONSTRAINT
 // ==================================================
 function constrainRope(
-  anchor
+ anchor
 ) {
-  if (
-    !anchor.connected ||
-    !anchor.pulling
-  ) {
-    return;
-  }
+ // --------------------------------------------------
+ // ACTIVE CHECK
+ // --------------------------------------------------
+ /*
+  * 通常牽引中
+  * または
+  * Ctrlロック中
+  *
+  * のどちらかなら拘束する。
+  */
+ if (
+  !anchor.connected ||
+  (
+   !anchor.pulling &&
+   !anchor.ropeLocked
+  )
+ ) {
+  return;
+ }
 
-  ropeOutward.subVectors(
-    camera.position,
-    anchor.point
+ // --------------------------------------------------
+ // ROPE VECTOR
+ // --------------------------------------------------
+ ropeOutward.subVectors(
+  camera.position,
+  anchor.point
+ );
+
+ const distance =
+ ropeOutward.length();
+
+ if (
+  distance <
+  0.001
+ ) {
+  return;
+ }
+
+ ropeOutward.normalize();
+
+ // --------------------------------------------------
+ // POSITION CONSTRAINT
+ // --------------------------------------------------
+ if (
+  distance >
+  anchor.length
+ ) {
+  /*
+   * プレイヤーを
+   * ロープ球面上へ戻す。
+   */
+  camera.position
+  .copy(
+   anchor.point
+  )
+  .addScaledVector(
+   ropeOutward,
+   anchor.length
   );
+ }
 
-  const distance =
-    ropeOutward.length();
+ // --------------------------------------------------
+ // VELOCITY CONSTRAINT
+ // --------------------------------------------------
+ const outwardVelocity =
+ velocity.dot(
+  ropeOutward
+ );
 
-  if (
-    distance < 0.001
-  ) {
-    return;
-  }
-
-  ropeOutward.normalize();
-
-  if (
-    distance >
-    anchor.length
-  ) {
-    camera.position
-      .copy(
-        anchor.point
-      )
-      .addScaledVector(
-        ropeOutward,
-        anchor.length
-      );
-  }
-
-  const outwardVelocity =
-    velocity.dot(
-      ropeOutward
-    );
-
-  if (
-    outwardVelocity > 0
-  ) {
-    velocity.addScaledVector(
-      ropeOutward,
-      -outwardVelocity
-    );
-  }
+ if (
+  outwardVelocity > 0
+ ) {
+  /*
+   * ロープを伸ばそうとする
+   * 速度成分だけ除去。
+   *
+   * 接線方向の速度は残るので
+   * 振り子運動になる。
+   */
+  velocity.addScaledVector(
+   ropeOutward,
+   -outwardVelocity
+  );
+ }
 }
 
 // ==================================================
