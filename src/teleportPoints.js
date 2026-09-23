@@ -6864,6 +6864,91 @@ document.body.appendChild(
 );
 
 // ==================================================
+// MAP TEST
+// ==================================================
+const mapTestScreen =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ mapTestScreen.style,
+ {
+  position: "fixed",
+  inset: "0",
+
+  display: "none",
+
+  alignItems: "center",
+  justifyContent: "center",
+
+  background:
+   "rgba(10,30,15,.95)",
+
+  color: "white",
+
+  fontFamily:
+   "Arial",
+
+  fontSize: "48px",
+
+  fontWeight: "bold",
+
+  zIndex: "10000"
+ }
+);
+
+mapTestScreen.textContent =
+ "MAP TEST";
+
+document.body.appendChild(
+ mapTestScreen
+);
+
+let mapTestOpen =
+ false;
+
+// --------------------------------------------------
+// TOGGLE
+// --------------------------------------------------
+function toggleMapTest() {
+ mapTestOpen =
+  !mapTestOpen;
+
+ mapTestScreen.style.display =
+  mapTestOpen
+  ? "flex"
+  : "none";
+
+ if (
+  mapTestOpen &&
+  document.pointerLockElement
+ ) {
+  document.exitPointerLock();
+ }
+}
+
+// --------------------------------------------------
+// INPUT
+// --------------------------------------------------
+window.addEventListener(
+ "keydown",
+ event => {
+  if (
+   event.code !==
+   "KeyM" ||
+   event.repeat
+  ) {
+   return;
+  }
+
+  event.preventDefault();
+
+  toggleMapTest();
+ }
+);
+
+// ==================================================
 // WORLD MAP SYSTEM
 // ==================================================
 const worldMapContext =
