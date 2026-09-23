@@ -4,7 +4,7 @@
 export const TELEPORT_POINTS = [
 
  // --------------------------------------------------
- // WALL MARIA DISTRICTS
+ // WALL MARIA
  // --------------------------------------------------
  {
   id: "shiganshina",
@@ -39,7 +39,7 @@ export const TELEPORT_POINTS = [
  },
 
  // --------------------------------------------------
- // WALL ROSE DISTRICTS
+ // WALL ROSE
  // --------------------------------------------------
  {
   id: "trost",
@@ -74,7 +74,7 @@ export const TELEPORT_POINTS = [
  },
 
  // --------------------------------------------------
- // WALL SINA DISTRICTS
+ // WALL SINA
  // --------------------------------------------------
  {
   id: "ermih",
@@ -123,16 +123,8 @@ export const TELEPORT_POINTS = [
  },
 
  // --------------------------------------------------
- // LANDMARKS
+ // VILLAGES
  // --------------------------------------------------
- {
-  id: "utgard",
-  name: "ウトガルド城",
-  category: "ランドマーク",
-  xMeters: -145000,
-  zMeters: 150000
- },
-
  {
   id: "ragako",
   name: "ラガコ村",
@@ -147,5 +139,16 @@ export const TELEPORT_POINTS = [
   category: "村",
   xMeters: -130000,
   zMeters: 80000
+ },
+
+ // --------------------------------------------------
+ // LANDMARKS
+ // --------------------------------------------------
+ {
+  id: "utgard",
+  name: "ウトガルド城",
+  category: "ランドマーク",
+  xMeters: -145000,
+  zMeters: 150000
  }
 ];
