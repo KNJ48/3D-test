@@ -1,8 +1,15 @@
+// ==================================================
+// IMPORTS
+// ==================================================
 import * as THREE from "three";
 
 import {
-  WORLD_MAP
+ WORLD_MAP
 } from "./worldMap.js";
+
+import {
+ TELEPORT_POINTS
+} from "./teleportPoints.js";
 
 // ==================================================
 // WORLD SCALE
@@ -6276,7 +6283,7 @@ window.addEventListener(
  event => {
 
  // --------------------------------------------------
- // WORLD MAP
+ // M = WORLD MAP
  // --------------------------------------------------
  if (
   event.code ===
@@ -6290,9 +6297,9 @@ window.addEventListener(
   return;
  }
 
- /*
-  * マップ表示中。
-  */
+ // --------------------------------------------------
+ // MAP OPEN
+ // --------------------------------------------------
  if (
   worldMapOpen
  ) {
@@ -6309,7 +6316,7 @@ window.addEventListener(
  }
 
  // --------------------------------------------------
- // TELEPORT MENU
+ // T = TELEPORT
  // --------------------------------------------------
  if (
   event.code ===
@@ -6323,6 +6330,9 @@ window.addEventListener(
   return;
  }
 
+ // --------------------------------------------------
+ // TELEPORT OPEN
+ // --------------------------------------------------
  if (
   teleportMenuOpen
  ) {
@@ -6731,9 +6741,9 @@ Object.assign(
   display: "none",
 
   background:
-  "rgba(8,12,10,.94)",
+   "rgba(8,12,10,.96)",
 
-  zIndex: "900",
+  zIndex: "10000",
 
   overflow: "hidden",
 
@@ -6755,10 +6765,14 @@ Object.assign(
  worldMapCanvas.style,
  {
   position: "absolute",
-  inset: "0",
+
+  left: "0",
+  top: "0",
 
   width: "100%",
-  height: "100%"
+  height: "100%",
+
+  display: "block"
  }
 );
 
@@ -6788,19 +6802,18 @@ Object.assign(
   color: "white",
 
   fontFamily:
-  "Arial",
+   "Arial",
 
   fontSize:
-  "28px",
+   "28px",
 
   fontWeight:
-  "bold",
-
-  textShadow:
-  "0 2px 5px black",
+   "bold",
 
   pointerEvents:
-  "none"
+   "none",
+
+  zIndex: "2"
  }
 );
 
@@ -6830,13 +6843,15 @@ Object.assign(
   color: "#ccc",
 
   fontFamily:
-  "monospace",
+   "monospace",
 
   fontSize:
-  "15px",
+   "15px",
 
   pointerEvents:
-  "none"
+   "none",
+
+  zIndex: "2"
  }
 );
 
@@ -6878,65 +6893,24 @@ let worldMapLastMouseY =
  0;
 
 // --------------------------------------------------
-// RESIZE CANVAS
-// --------------------------------------------------
-function resizeWorldMapCanvas() {
- const pixelRatio =
-  Math.min(
-   window.devicePixelRatio,
-   2
-  );
-
- const width =
-  window.innerWidth;
-
- const height =
-  window.innerHeight;
-
- worldMapCanvas.width =
-  width *
-  pixelRatio;
-
- worldMapCanvas.height =
-  height *
-  pixelRatio;
-
- worldMapContext.setTransform(
-  pixelRatio,
-  0,
-  0,
-  pixelRatio,
-  0,
-  0
- );
-
- drawWorldMap();
-}
-
-// --------------------------------------------------
 // WORLD TO MAP
 // --------------------------------------------------
 function worldToMap(
  xMeters,
  zMeters
 ) {
- /*
-  * ズーム1の状態で
-  * Mariaが画面内に収まる倍率。
-  */
  const mariaRadius =
   WORLD_MAP.walls.maria
   .radiusMeters;
 
- const availableSize =
-  Math.min(
-   window.innerWidth,
-   window.innerHeight
-  ) *
-  0.78;
-
  const baseScale =
-  availableSize /
+  (
+   Math.min(
+    window.innerWidth,
+    window.innerHeight
+   ) *
+   0.78
+  ) /
   (
    mariaRadius *
    2
@@ -6972,6 +6946,10 @@ function drawMapWall(
  wall,
  color
 ) {
+ if (!wall) {
+  return;
+ }
+
  const center =
   worldToMap(
    0,
@@ -6989,25 +6967,20 @@ function drawMapWall(
   center.y,
   radius,
   0,
-  Math.PI *
-  2
+  Math.PI * 2
  );
 
  worldMapContext.strokeStyle =
   color;
 
  worldMapContext.lineWidth =
-  Math.max(
-   2,
-   4 *
-   worldMapZoom
-  );
+  4;
 
  worldMapContext.stroke();
 }
 
 // --------------------------------------------------
-// DRAW TELEPORT POINT
+// DRAW POINT
 // --------------------------------------------------
 function drawMapPoint(
  point
@@ -7018,22 +6991,14 @@ function drawMapPoint(
    point.zMeters
   );
 
- const radius =
-  Math.max(
-   3,
-   5 *
-   worldMapZoom
-  );
-
  worldMapContext.beginPath();
 
  worldMapContext.arc(
   position.x,
   position.y,
-  radius,
+  5,
   0,
-  Math.PI *
-  2
+  Math.PI * 2
  );
 
  worldMapContext.fillStyle =
@@ -7041,67 +7006,42 @@ function drawMapPoint(
 
  worldMapContext.fill();
 
- /*
-  * かなり縮小している時は
-  * 地名を非表示。
-  */
  if (
-  worldMapZoom <
-  0.65
+  worldMapZoom >=
+  0.7
  ) {
-  return;
+  worldMapContext.fillStyle =
+   "white";
+
+  worldMapContext.font =
+   "13px Arial";
+
+  worldMapContext.textAlign =
+   "left";
+
+  worldMapContext.textBaseline =
+   "middle";
+
+  worldMapContext.fillText(
+   point.name,
+   position.x + 10,
+   position.y
+  );
  }
-
- worldMapContext.font =
-  `${Math.max(
-   11,
-   13 *
-   Math.min(
-    worldMapZoom,
-    1.6
-   )
-  )}px Arial`;
-
- worldMapContext.fillStyle =
-  "white";
-
- worldMapContext.textAlign =
-  "left";
-
- worldMapContext.textBaseline =
-  "middle";
-
- worldMapContext.fillText(
-  point.name,
-  position.x +
-  radius +
-  6,
-  position.y
- );
 }
 
 // --------------------------------------------------
 // DRAW PLAYER
 // --------------------------------------------------
 function drawMapPlayer() {
- const playerXMeters =
-  camera.position.x *
-  METERS_PER_UNIT;
-
- const playerZMeters =
-  camera.position.z *
-  METERS_PER_UNIT;
-
  const position =
   worldToMap(
-   playerXMeters,
-   playerZMeters
-  );
+   camera.position.x *
+   METERS_PER_UNIT,
 
- // ------------------------------------------------
- // DIRECTION
- // ------------------------------------------------
- const size = 10;
+   camera.position.z *
+   METERS_PER_UNIT
+  );
 
  worldMapContext.save();
 
@@ -7110,9 +7050,6 @@ function drawMapPlayer() {
   position.y
  );
 
- /*
-  * yaw=0 はゲーム内で-Z方向。
-  */
  worldMapContext.rotate(
   -yaw
  );
@@ -7121,22 +7058,22 @@ function drawMapPlayer() {
 
  worldMapContext.moveTo(
   0,
-  -size
+  -12
  );
 
  worldMapContext.lineTo(
-  size * 0.65,
-  size
+  8,
+  10
  );
 
  worldMapContext.lineTo(
   0,
-  size * 0.6
+  6
  );
 
  worldMapContext.lineTo(
-  -size * 0.65,
-  size
+  -8,
+  10
  );
 
  worldMapContext.closePath();
@@ -7154,7 +7091,7 @@ function drawMapPlayer() {
 // --------------------------------------------------
 function drawWorldMap() {
  if (
-  !worldMapContext
+  !worldMapOpen
  ) {
   return;
  }
@@ -7176,7 +7113,7 @@ function drawWorldMap() {
  // BACKGROUND
  // ------------------------------------------------
  worldMapContext.fillStyle =
-  "#162019";
+  "#18271d";
 
  worldMapContext.fillRect(
   0,
@@ -7190,29 +7127,34 @@ function drawWorldMap() {
  // ------------------------------------------------
  drawMapWall(
   WORLD_MAP.walls.maria,
-  "#ded6bf"
+  "#eeeecc"
  );
 
  drawMapWall(
   WORLD_MAP.walls.rose,
-  "#c7c0aa"
+  "#d4cfb5"
  );
 
  drawMapWall(
   WORLD_MAP.walls.sina,
-  "#aaa48f"
+  "#bdb79f"
  );
 
  // ------------------------------------------------
- // TELEPORT POINTS
+ // TP POINTS
  // ------------------------------------------------
- for (
-  const point
-  of TELEPORT_POINTS
+ if (
+  typeof TELEPORT_POINTS !==
+  "undefined"
  ) {
-  drawMapPoint(
-   point
-  );
+  for (
+   const point
+   of TELEPORT_POINTS
+  ) {
+   drawMapPoint(
+    point
+   );
+  }
  }
 
  // ------------------------------------------------
@@ -7222,22 +7164,32 @@ function drawWorldMap() {
 }
 
 // --------------------------------------------------
-// OPEN MAP
+// RESIZE MAP
+// --------------------------------------------------
+function resizeWorldMapCanvas() {
+ /*
+  * まず安定性優先でCSS pixelと
+  * canvas pixelを1:1にする。
+  */
+ worldMapCanvas.width =
+  window.innerWidth;
+
+ worldMapCanvas.height =
+  window.innerHeight;
+
+ drawWorldMap();
+}
+
+// --------------------------------------------------
+// OPEN
 // --------------------------------------------------
 function openWorldMap() {
- if (
-  worldMapOpen
- ) {
-  return;
- }
-
  worldMapOpen =
   true;
 
- /*
-  * TPメニューが開いていたら閉じる。
-  */
  if (
+  typeof teleportMenuOpen !==
+  "undefined" &&
   teleportMenuOpen
  ) {
   closeTeleportMenu();
@@ -7253,10 +7205,12 @@ function openWorldMap() {
   "block";
 
  resizeWorldMapCanvas();
+
+ drawWorldMap();
 }
 
 // --------------------------------------------------
-// CLOSE MAP
+// CLOSE
 // --------------------------------------------------
 function closeWorldMap() {
  worldMapOpen =
@@ -7270,7 +7224,7 @@ function closeWorldMap() {
 }
 
 // --------------------------------------------------
-// TOGGLE MAP
+// TOGGLE
 // --------------------------------------------------
 function toggleWorldMap() {
  if (
@@ -7296,58 +7250,21 @@ worldMapHUD.addEventListener(
 
   event.preventDefault();
 
-  const oldZoom =
-   worldMapZoom;
-
   if (
    event.deltaY < 0
   ) {
    worldMapZoom *=
-    1.18;
+    1.2;
   } else {
    worldMapZoom /=
-    1.18;
+    1.2;
   }
 
   worldMapZoom =
    THREE.MathUtils.clamp(
     worldMapZoom,
-    0.35,
-    20
-   );
-
-  /*
-   * マウスが指している場所を
-   * なるべく動かさずズームする。
-   */
-  const mouseX =
-   event.clientX -
-   window.innerWidth /
-   2 -
-   worldMapPanX;
-
-  const mouseY =
-   event.clientY -
-   window.innerHeight /
-   2 -
-   worldMapPanY;
-
-  const ratio =
-   worldMapZoom /
-   oldZoom;
-
-  worldMapPanX -=
-   mouseX *
-   (
-    ratio -
-    1
-   );
-
-  worldMapPanY -=
-   mouseY *
-   (
-    ratio -
-    1
+    0.3,
+    30
    );
 
   drawWorldMap();
@@ -7396,19 +7313,13 @@ window.addEventListener(
    return;
   }
 
-  const moveX =
+  worldMapPanX +=
    event.clientX -
    worldMapLastMouseX;
 
-  const moveY =
+  worldMapPanY +=
    event.clientY -
    worldMapLastMouseY;
-
-  worldMapPanX +=
-   moveX;
-
-  worldMapPanY +=
-   moveY;
 
   worldMapLastMouseX =
    event.clientX;
