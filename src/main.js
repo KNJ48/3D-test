@@ -1346,6 +1346,205 @@ function updateAreaSystem() {
 }
 
 // ==================================================
+// TELEPORT SYSTEM
+// ==================================================
+let teleportMenuOpen =
+ false;
+
+let teleportSelection =
+ 0;
+
+// --------------------------------------------------
+// TELEPORT
+// --------------------------------------------------
+function teleportToPoint(
+ point
+) {
+ if (!point) {
+  return;
+ }
+
+ // ------------------------------------------------
+ // RELEASE WIRES
+ // ------------------------------------------------
+ releaseAnchor(
+  leftAnchor
+ );
+
+ releaseAnchor(
+  rightAnchor
+ );
+
+ // ------------------------------------------------
+ // RESET MOVEMENT
+ // ------------------------------------------------
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ wallStunTimer =
+ 0;
+
+ grounded =
+ true;
+
+ // ------------------------------------------------
+ // POSITION
+ // ------------------------------------------------
+ camera.position.set(
+  metersToUnits(
+   point.xMeters
+  ),
+
+  PLAYER_HEIGHT,
+
+  metersToUnits(
+   point.zMeters
+  )
+ );
+
+ // ------------------------------------------------
+ // RESET AREA CHECK
+ // ------------------------------------------------
+ previousAreaChunkX =
+ null;
+
+ previousAreaChunkZ =
+ null;
+
+ areaSystemInitialized =
+ false;
+
+ // ------------------------------------------------
+ // STREAMING
+ // ------------------------------------------------
+ /*
+  * 遠距離TPすると古い生成予約が
+  * 残っている可能性があるため削除。
+  */
+ chunkGenerationQueue.length =
+ 0;
+
+ queuedChunks.clear();
+
+ chunkRequestTimer =
+ 0;
+
+ // ------------------------------------------------
+ // MESSAGE
+ // ------------------------------------------------
+ showMessage(
+  point.name
+ );
+}
+
+// --------------------------------------------------
+// NEXT POINT
+// --------------------------------------------------
+function selectNextTeleport() {
+ teleportSelection++;
+
+ if (
+  teleportSelection >=
+  TELEPORT_POINTS.length
+ ) {
+  teleportSelection =
+  0;
+ }
+
+ updateTeleportMenu();
+}
+
+// --------------------------------------------------
+// PREVIOUS POINT
+// --------------------------------------------------
+function selectPreviousTeleport() {
+ teleportSelection--;
+
+ if (
+  teleportSelection < 0
+ ) {
+  teleportSelection =
+  TELEPORT_POINTS.length -
+  1;
+ }
+
+ updateTeleportMenu();
+}
+
+// --------------------------------------------------
+// OPEN MENU
+// --------------------------------------------------
+function openTeleportMenu() {
+ teleportMenuOpen =
+ true;
+
+ teleportHUD.style.display =
+ "block";
+
+ updateTeleportMenu();
+}
+
+// --------------------------------------------------
+// CLOSE MENU
+// --------------------------------------------------
+function closeTeleportMenu() {
+ teleportMenuOpen =
+ false;
+
+ teleportHUD.style.display =
+ "none";
+}
+
+// --------------------------------------------------
+// CONFIRM
+// --------------------------------------------------
+function confirmTeleport() {
+ const point =
+ TELEPORT_POINTS[
+  teleportSelection
+ ];
+
+ if (!point) {
+  return;
+ }
+
+ teleportToPoint(
+  point
+ );
+
+ closeTeleportMenu();
+}
+
+// --------------------------------------------------
+// UPDATE MENU
+// --------------------------------------------------
+function updateTeleportMenu() {
+ const point =
+ TELEPORT_POINTS[
+  teleportSelection
+ ];
+
+ if (!point) {
+  teleportHUD.textContent =
+  "NO TELEPORT POINTS";
+
+  return;
+ }
+
+ teleportHUD.textContent =
+ `TELEPORT\n\n` +
+ `${point.category}\n` +
+ `▶ ${point.name}\n\n` +
+ `${teleportSelection + 1} / ${TELEPORT_POINTS.length}\n\n` +
+ `↑ ↓ : SELECT\n` +
+ `ENTER : TELEPORT\n` +
+ `T : CLOSE`;
+}
+
+// ==================================================
 // WORLD LISTS
 // ==================================================
 const colliders = [];
@@ -6073,101 +6272,183 @@ function respawn() {
 // KEYBOARD
 // ==================================================
 window.addEventListener(
-  "keydown",
-  event => {
-    if (
-      event.code ===
-      "Escape"
-    ) {
-      return;
-    }
+ "keydown",
+ event => {
 
-    // -------------------------
-    // SPACE
-    // -------------------------
-    if (
-      event.code ===
-      "Space"
-    ) {
-      event.preventDefault();
-
-      if (
-        !keys["Space"]
-      ) {
-        spacePressed =
-          true;
-
-        const now =
-          performance.now() /
-          1000;
-
-        const doubleTap =
-          now -
-          lastSpaceTapTime <
-          GAS_DOUBLE_TAP_WINDOW;
-
-        if (
-          doubleTap &&
-          !grounded &&
-          !dead &&
-          wallStunTimer <= 0
-        ) {
-          const fired =
-            gasBurst();
-
-          if (fired) {
-            lastSpaceTapTime =
-              -Infinity;
-          } else {
-            lastSpaceTapTime =
-              now;
-          }
-        } else {
-          lastSpaceTapTime =
-            now;
-        }
-      }
-    }
-
-    // -------------------------
-    // Q = LEFT MANUAL
-    // -------------------------
-    if (
-      event.code ===
-        "KeyQ" &&
-      !keys["KeyQ"] &&
-      wallStunTimer <= 0
-    ) {
-      toggleManualAnchor(
-        leftAnchor
-      );
-    }
-
-    // -------------------------
-    // R = RIGHT MANUAL
-    // -------------------------
-    if (
-      event.code ===
-        "KeyR" &&
-      !keys["KeyR"] &&
-      wallStunTimer <= 0
-    ) {
-      toggleManualAnchor(
-        rightAnchor
-      );
-    }
-
-    keys[event.code] =
-      true;
+ // --------------------------------------------------
+ // TELEPORT MENU
+ // --------------------------------------------------
+ if (
+  event.code ===
+  "KeyT" &&
+  !event.repeat
+ ) {
+  if (
+   teleportMenuOpen
+  ) {
+   closeTeleportMenu();
+  } else {
+   openTeleportMenu();
   }
+
+  event.preventDefault();
+
+  return;
+ }
+
+ if (
+  teleportMenuOpen
+ ) {
+  if (
+   event.code ===
+   "ArrowDown"
+  ) {
+   selectNextTeleport();
+
+   event.preventDefault();
+
+   return;
+  }
+
+  if (
+   event.code ===
+   "ArrowUp"
+  ) {
+   selectPreviousTeleport();
+
+   event.preventDefault();
+
+   return;
+  }
+
+  if (
+   event.code ===
+   "Enter"
+  ) {
+   confirmTeleport();
+
+   event.preventDefault();
+
+   return;
+  }
+
+  if (
+   event.code ===
+   "Escape"
+  ) {
+   closeTeleportMenu();
+
+   event.preventDefault();
+
+   return;
+  }
+
+  /*
+   * メニューを開いている間は
+   * プレイヤー入力へ渡さない。
+   */
+  return;
+ }
+
+ // --------------------------------------------------
+ // ESCAPE
+ // --------------------------------------------------
+ if (
+  event.code ===
+  "Escape"
+ ) {
+  return;
+ }
+
+ // --------------------------------------------------
+ // SPACE
+ // --------------------------------------------------
+ if (
+  event.code ===
+  "Space"
+ ) {
+  event.preventDefault();
+
+  if (
+   !keys["Space"]
+  ) {
+   spacePressed =
+   true;
+
+   const now =
+   performance.now() /
+   1000;
+
+   const doubleTap =
+   now -
+   lastSpaceTapTime <
+   GAS_DOUBLE_TAP_WINDOW;
+
+   if (
+    doubleTap &&
+    !grounded &&
+    !dead &&
+    wallStunTimer <= 0
+   ) {
+    const fired =
+    gasBurst();
+
+    if (fired) {
+     lastSpaceTapTime =
+     -Infinity;
+    } else {
+     lastSpaceTapTime =
+     now;
+    }
+   } else {
+    lastSpaceTapTime =
+    now;
+   }
+  }
+ }
+
+ // --------------------------------------------------
+ // Q = LEFT MANUAL
+ // --------------------------------------------------
+ if (
+  event.code ===
+  "KeyQ" &&
+  !keys["KeyQ"] &&
+  wallStunTimer <= 0
+ ) {
+  toggleManualAnchor(
+   leftAnchor
+  );
+ }
+
+ // --------------------------------------------------
+ // R = RIGHT MANUAL
+ // --------------------------------------------------
+ if (
+  event.code ===
+  "KeyR" &&
+  !keys["KeyR"] &&
+  wallStunTimer <= 0
+ ) {
+  toggleManualAnchor(
+   rightAnchor
+  );
+ }
+
+ keys[event.code] =
+ true;
+ }
 );
 
+// --------------------------------------------------
+// KEY UP
+// --------------------------------------------------
 window.addEventListener(
-  "keyup",
-  event => {
-    keys[event.code] =
-      false;
-  }
+ "keyup",
+ event => {
+  keys[event.code] =
+  false;
+ }
 );
 
 // ==================================================
@@ -6374,6 +6655,73 @@ function showMessage(
       1000
     );
 }
+
+// ==================================================
+// TELEPORT HUD
+// ==================================================
+const teleportHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ teleportHUD.style,
+ {
+  position: "fixed",
+
+  left: "50%",
+  top: "50%",
+
+  transform:
+  "translate(-50%,-50%)",
+
+  minWidth: "360px",
+
+  padding:
+  "28px 40px",
+
+  display: "none",
+
+  color: "white",
+
+  background:
+  "rgba(0,0,0,.78)",
+
+  border:
+  "2px solid rgba(255,255,255,.7)",
+
+  fontFamily:
+  "monospace",
+
+  fontSize:
+  "20px",
+
+  fontWeight:
+  "bold",
+
+  lineHeight:
+  "1.5",
+
+  textAlign:
+  "center",
+
+  whiteSpace:
+  "pre",
+
+  textShadow:
+  "0 2px 4px black",
+
+  pointerEvents:
+  "none",
+
+  zIndex:
+  "180"
+ }
+);
+
+document.body.appendChild(
+ teleportHUD
+);
 
 // ==================================================
 // CROSSHAIR
