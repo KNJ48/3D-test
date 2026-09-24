@@ -11,6 +11,12 @@ import {
  TELEPORT_POINTS
 } from "./teleportPoints.js";
 
+import {
+ getTerrainHeightMeters,
+ getTerrainSeed,
+ setTerrainSeed
+} from "./terrainGenerator.js";
+
 // ==================================================
 // WORLD SCALE
 // ==================================================
@@ -799,590 +805,914 @@ const groundChunkMaterial =
 /*
  * 1チャンク = 500m × 500m
  */
-const CHUNK_SIZE_METERS = 500;
+const CHUNK_SIZE_METERS =
+ 500;
 
 const CHUNK_SIZE =
-  CHUNK_SIZE_METERS /
-  METERS_PER_UNIT;
+ CHUNK_SIZE_METERS /
+ METERS_PER_UNIT;
 
+// --------------------------------------------------
+// TERRAIN QUALITY
+// --------------------------------------------------
 /*
- * 現在の描画距離。
+ * 500mチャンクを
+ * 32 × 32 に分割。
  *
- * 後でESC設定から変更可能にする。
+ * つまり地形頂点間隔は
+ * 約15.6m。
  */
-let renderDistanceKm = 3;
+const TERRAIN_SEGMENTS =
+ 32;
 
+// --------------------------------------------------
+// RENDER DISTANCE
+// --------------------------------------------------
 /*
- * 描画距離より少し外側まで
- * 先に準備する。
- */
-const CHUNK_PREFETCH_EXTRA_KM = 1;
-
-/*
- * この距離を超えたチャンクは破棄。
+ * 描画距離。
  *
- * 描画距離より広くすることで、
- * 境界付近で生成/削除を
- * 繰り返すのを防ぐ。
+ * 後でESC設定から
+ * 変更可能にする。
  */
-const CHUNK_UNLOAD_EXTRA_KM = 1.5;
+let renderDistanceKm =
+ 3;
 
+// --------------------------------------------------
+// PREFETCH
+// --------------------------------------------------
 /*
- * プレイヤーの何秒先まで
- * 移動方向を先読みするか。
+ * 描画距離の少し外側まで
+ * あらかじめ生成。
  */
-const CHUNK_LOOK_AHEAD_SECONDS = 8;
+const CHUNK_PREFETCH_EXTRA_KM =
+ 1;
 
+// --------------------------------------------------
+// UNLOAD
+// --------------------------------------------------
 /*
- * 1フレームで世界生成に
- * 使用してよい最大時間。
- */
-const STREAMING_BUDGET_MS = 2;
-
-/*
- * 現在ロードされているチャンク。
+ * 描画距離よりさらに外へ
+ * 出たチャンクを破棄。
  *
+ * 境界付近でロード/アンロードを
+ * 繰り返さないため余裕を持たせる。
+ */
+const CHUNK_UNLOAD_EXTRA_KM =
+ 1.5;
+
+// --------------------------------------------------
+// LOOK AHEAD
+// --------------------------------------------------
+/*
+ * 高速立体機動に対応するため
+ * 移動方向の未来位置も先読み。
+ */
+const CHUNK_LOOK_AHEAD_SECONDS =
+ 8;
+
+// --------------------------------------------------
+// STREAMING BUDGET
+// --------------------------------------------------
+/*
+ * 1フレームあたり
+ * 世界生成へ使用してよい
+ * 最大時間。
+ */
+const STREAMING_BUDGET_MS =
+ 2;
+
+// --------------------------------------------------
+// LOADED CHUNKS
+// --------------------------------------------------
+/*
  * key:
- * "x,z"
+ *
+ * "chunkX,chunkZ"
  */
 const loadedChunks =
-  new Map();
+ new Map();
 
+// --------------------------------------------------
+// QUEUED CHUNKS
+// --------------------------------------------------
 /*
- * 現在生成予約済みのチャンク。
+ * 生成予約済みチャンク。
  *
  * 同じチャンクを何度も
- * キューへ追加しないため。
+ * queueへ入れるのを防ぐ。
  */
 const queuedChunks =
-  new Set();
+ new Set();
 
-/*
- * 少しずつ処理する生成キュー。
- */
+// --------------------------------------------------
+// GENERATION QUEUE
+// --------------------------------------------------
 const chunkGenerationQueue =
-  [];
+ [];
 
-// --------------------------
+// --------------------------------------------------
 // HELPERS
-// --------------------------
-
+// --------------------------------------------------
 function getChunkKey(
-  chunkX,
-  chunkZ
+ chunkX,
+ chunkZ
 ) {
-  return (
-    `${chunkX},${chunkZ}`
-  );
+ return (
+  `${chunkX},${chunkZ}`
+ );
 }
 
 function getChunkCoordinate(
-  worldUnits
+ worldUnits
 ) {
-  return Math.floor(
-    worldUnits /
-    CHUNK_SIZE
-  );
+ return Math.floor(
+  worldUnits /
+  CHUNK_SIZE
+ );
 }
 
 function getChunkCenter(
-  chunkX,
-  chunkZ,
-  target
+ chunkX,
+ chunkZ,
+ target
 ) {
-  target.set(
-    (
-      chunkX +
-      0.5
-    ) *
-      CHUNK_SIZE,
+ target.set(
+  (
+   chunkX +
+   0.5
+  ) *
+  CHUNK_SIZE,
 
-    0,
+  0,
 
-    (
-      chunkZ +
-      0.5
-    ) *
-      CHUNK_SIZE
-  );
+  (
+   chunkZ +
+   0.5
+  ) *
+  CHUNK_SIZE
+ );
 
-  return target;
+ return target;
 }
 
-// --------------------------
-// CREATE CHUNK
-// --------------------------
-
-function createGroundChunk(
-  chunkX,
-  chunkZ
+// --------------------------------------------------
+// TERRAIN HEIGHT IN UNITS
+// --------------------------------------------------
+function getTerrainHeightUnits(
+ worldXUnits,
+ worldZUnits
 ) {
-  const key =
-    getChunkKey(
-      chunkX,
-      chunkZ
-    );
+ const worldXMeters =
+  worldXUnits *
+  METERS_PER_UNIT;
 
-  if (
-    loadedChunks.has(
-      key
-    )
-  ) {
-    return;
-  }
+ const worldZMeters =
+  worldZUnits *
+  METERS_PER_UNIT;
 
-  const geometry =
-    new THREE.PlaneGeometry(
-      CHUNK_SIZE,
-      CHUNK_SIZE
-    );
+ const heightMeters =
+  getTerrainHeightMeters(
+   worldXMeters,
+   worldZMeters
+  );
+
+ return (
+  heightMeters /
+  METERS_PER_UNIT
+ );
+}
+
+// --------------------------------------------------
+// CREATE CHUNK
+// --------------------------------------------------
+function createGroundChunk(
+ chunkX,
+ chunkZ
+) {
+ const key =
+  getChunkKey(
+   chunkX,
+   chunkZ
+  );
+
+ if (
+  loadedChunks.has(
+   key
+  )
+ ) {
+  return;
+ }
+
+ // ------------------------------------------------
+ // CHUNK CENTER
+ // ------------------------------------------------
+ const chunkCenterX =
+  (
+   chunkX +
+   0.5
+  ) *
+  CHUNK_SIZE;
+
+ const chunkCenterZ =
+  (
+   chunkZ +
+   0.5
+  ) *
+  CHUNK_SIZE;
+
+ // ------------------------------------------------
+ // GEOMETRY
+ // ------------------------------------------------
+ /*
+  * PlaneGeometryは生成時点では
+  * XY平面。
+  *
+  * 最後に-Xへ90°回転して
+  * XZ地面にする。
+  */
+ const geometry =
+  new THREE.PlaneGeometry(
+   CHUNK_SIZE,
+   CHUNK_SIZE,
+
+   TERRAIN_SEGMENTS,
+   TERRAIN_SEGMENTS
+  );
+
+ const positions =
+  geometry.attributes
+  .position;
+
+ // ------------------------------------------------
+ // TERRAIN VERTICES
+ // ------------------------------------------------
+ for (
+  let i = 0;
+  i <
+  positions.count;
+  i++
+ ) {
+  const localX =
+   positions.getX(
+    i
+   );
+
+  const localPlaneY =
+   positions.getY(
+    i
+   );
 
   /*
-   * 各チャンクで同じ地面模様を
-   * 繰り返すため、
-   * テクスチャをclone。
+   * Planeを-Xへ90°回すので、
+   *
+   * local X
+   *      ↓
+   * world X
+   *
+   * local Y
+   *      ↓
+   * world -Z
    */
-  const material =
-    groundChunkMaterial.clone();
+  const worldX =
+   chunkCenterX +
+   localX;
 
-  if (
-    groundTexture
-  ) {
-    const texture =
-      groundTexture.clone();
+  const worldZ =
+   chunkCenterZ -
+   localPlaneY;
 
-    texture.needsUpdate =
-      true;
+  const height =
+   getTerrainHeightUnits(
+    worldX,
+    worldZ
+   );
 
-    texture.wrapS =
-      THREE.RepeatWrapping;
+  /*
+   * 回転前PlaneのZを
+   * 高さとして設定。
+   */
+  positions.setZ(
+   i,
+   height
+  );
+ }
 
-    texture.wrapT =
-      THREE.RepeatWrapping;
+ positions.needsUpdate =
+  true;
 
-    /*
-     * 500mチャンク。
-     * 10mごとに1タイル。
-     */
-    const repeats =
-      CHUNK_SIZE_METERS /
-      10;
+ // ------------------------------------------------
+ // NORMALS
+ // ------------------------------------------------
+ /*
+  * 起伏を付けたので
+  * 法線を再計算。
+  *
+  * 太陽光が丘に沿って
+  * 自然に当たるようになる。
+  */
+ geometry.computeVertexNormals();
 
-    texture.repeat.set(
-      repeats,
-      repeats
-    );
+ geometry.computeBoundingBox();
+ geometry.computeBoundingSphere();
 
-    material.map =
-      texture;
-  }
+ // ------------------------------------------------
+ // MATERIAL
+ // ------------------------------------------------
+ const material =
+  groundChunkMaterial.clone();
 
-  const mesh =
-    new THREE.Mesh(
-      geometry,
-      material
-    );
+ // ------------------------------------------------
+ // GROUND TEXTURE
+ // ------------------------------------------------
+ if (
+  groundTexture
+ ) {
+  const texture =
+   groundTexture.clone();
 
-  mesh.rotation.x =
-    -Math.PI / 2;
+  texture.needsUpdate =
+   true;
 
-  mesh.position.set(
-    (
-      chunkX +
-      0.5
-    ) *
-      CHUNK_SIZE,
+  texture.wrapS =
+   THREE.RepeatWrapping;
 
-    0,
+  texture.wrapT =
+   THREE.RepeatWrapping;
 
-    (
-      chunkZ +
-      0.5
-    ) *
-      CHUNK_SIZE
+  /*
+   * 500mチャンク。
+   *
+   * 草テクスチャ1枚を
+   * 約10m四方として扱う。
+   */
+  const repeats =
+   CHUNK_SIZE_METERS /
+   10;
+
+  texture.repeat.set(
+   repeats,
+   repeats
   );
 
-  mesh.receiveShadow =
-    true;
+  material.map =
+   texture;
+ }
 
-  scene.add(mesh);
-
-  loadedChunks.set(
-    key,
-    {
-      chunkX,
-      chunkZ,
-      mesh
-    }
+ // ------------------------------------------------
+ // MESH
+ // ------------------------------------------------
+ const mesh =
+  new THREE.Mesh(
+   geometry,
+   material
   );
-}
 
-// --------------------------
-// DESTROY CHUNK
-// --------------------------
+ mesh.rotation.x =
+  -Math.PI /
+  2;
 
-function destroyGroundChunk(
+ mesh.position.set(
+  chunkCenterX,
+  0,
+  chunkCenterZ
+ );
+
+ mesh.receiveShadow =
+  true;
+
+ /*
+  * 地形チャンクは通常の
+  * frustum cullingを使用。
+  */
+ mesh.frustumCulled =
+  true;
+
+ // ------------------------------------------------
+ // CHUNK DATA
+ // ------------------------------------------------
+ mesh.userData.chunkX =
+  chunkX;
+
+ mesh.userData.chunkZ =
+  chunkZ;
+
+ mesh.userData.chunkKey =
+  key;
+
+ mesh.userData.terrainSeed =
+  getTerrainSeed();
+
+ // ------------------------------------------------
+ // ADD
+ // ------------------------------------------------
+ scene.add(
+  mesh
+ );
+
+ loadedChunks.set(
   key,
-  chunk
-) {
-  scene.remove(
-    chunk.mesh
-  );
+  {
+   chunkX,
+   chunkZ,
 
-  chunk.mesh.geometry
-    .dispose();
+   mesh,
 
-  if (
-    chunk.mesh.material.map &&
-    chunk.mesh.material.map !==
-      groundTexture
-  ) {
-    chunk.mesh.material.map
-      .dispose();
+   terrainSeed:
+    getTerrainSeed()
   }
-
-  chunk.mesh.material
-    .dispose();
-
-  loadedChunks.delete(
-    key
-  );
+ );
 }
 
-// --------------------------
-// QUEUE CHUNK
-// --------------------------
+// --------------------------------------------------
+// DESTROY CHUNK
+// --------------------------------------------------
+function destroyGroundChunk(
+ key,
+ chunk
+) {
+ if (
+  !chunk ||
+  !chunk.mesh
+ ) {
+  loadedChunks.delete(
+   key
+  );
 
+  return;
+ }
+
+ // ------------------------------------------------
+ // REMOVE
+ // ------------------------------------------------
+ scene.remove(
+  chunk.mesh
+ );
+
+ // ------------------------------------------------
+ // GEOMETRY
+ // ------------------------------------------------
+ if (
+  chunk.mesh.geometry
+ ) {
+  chunk.mesh.geometry
+  .dispose();
+ }
+
+ // ------------------------------------------------
+ // MATERIAL
+ // ------------------------------------------------
+ const material =
+  chunk.mesh.material;
+
+ if (material) {
+  if (
+   material.map &&
+   material.map !==
+   groundTexture
+  ) {
+   material.map.dispose();
+  }
+
+  material.dispose();
+ }
+
+ // ------------------------------------------------
+ // DELETE
+ // ------------------------------------------------
+ loadedChunks.delete(
+  key
+ );
+}
+
+// --------------------------------------------------
+// QUEUE CHUNK
+// --------------------------------------------------
 function queueGroundChunk(
+ chunkX,
+ chunkZ,
+ priority
+) {
+ const key =
+  getChunkKey(
+   chunkX,
+   chunkZ
+  );
+
+ if (
+  loadedChunks.has(
+   key
+  ) ||
+  queuedChunks.has(
+   key
+  )
+ ) {
+  return;
+ }
+
+ queuedChunks.add(
+  key
+ );
+
+ chunkGenerationQueue.push({
+  key,
+
   chunkX,
   chunkZ,
+
   priority
-) {
-  const key =
-    getChunkKey(
-      chunkX,
-      chunkZ
-    );
-
-  if (
-    loadedChunks.has(
-      key
-    ) ||
-    queuedChunks.has(
-      key
-    )
-  ) {
-    return;
-  }
-
-  queuedChunks.add(
-    key
-  );
-
-  chunkGenerationQueue.push({
-    key,
-    chunkX,
-    chunkZ,
-    priority
-  });
+ });
 }
 
-// --------------------------
-// REQUEST SURROUNDINGS
-// --------------------------
-
+// --------------------------------------------------
+// TEMP VECTORS
+// --------------------------------------------------
 const chunkTempCenter =
-  new THREE.Vector3();
+ new THREE.Vector3();
 
 const chunkFuturePosition =
-  new THREE.Vector3();
+ new THREE.Vector3();
 
+// --------------------------------------------------
+// REQUEST SURROUNDINGS
+// --------------------------------------------------
 function requestWorldChunks() {
-  /*
-   * 現在位置。
-   */
-  const playerX =
-    camera.position.x;
+ // ------------------------------------------------
+ // CURRENT POSITION
+ // ------------------------------------------------
+ const playerX =
+  camera.position.x;
 
-  const playerZ =
-    camera.position.z;
+ const playerZ =
+  camera.position.z;
 
-  /*
-   * 速度から数秒後の
-   * 予測位置を出す。
-   */
-  chunkFuturePosition
-    .copy(
-      camera.position
-    )
-    .addScaledVector(
-      velocity,
-      CHUNK_LOOK_AHEAD_SECONDS
-    );
+ // ------------------------------------------------
+ // FUTURE POSITION
+ // ------------------------------------------------
+ /*
+  * 高速移動時は現在位置だけでなく
+  * 数秒先もロード対象にする。
+  *
+  * Y速度はチャンク探索には
+  * 実質関係ない。
+  */
+ chunkFuturePosition.set(
+  camera.position.x +
+  velocity.x *
+  CHUNK_LOOK_AHEAD_SECONDS,
 
-  const currentChunkX =
-    getChunkCoordinate(
-      playerX
-    );
+  0,
 
-  const currentChunkZ =
-    getChunkCoordinate(
-      playerZ
-    );
+  camera.position.z +
+  velocity.z *
+  CHUNK_LOOK_AHEAD_SECONDS
+ );
 
-  const futureChunkX =
-    getChunkCoordinate(
-      chunkFuturePosition.x
-    );
-
-  const futureChunkZ =
-    getChunkCoordinate(
-      chunkFuturePosition.z
-    );
-
-  const requestDistanceMeters =
-    (
-      renderDistanceKm +
-      CHUNK_PREFETCH_EXTRA_KM
-    ) *
-    1000;
-
-  const requestDistanceUnits =
-    requestDistanceMeters /
-    METERS_PER_UNIT;
-
-  const chunkRadius =
-    Math.ceil(
-      requestDistanceUnits /
-      CHUNK_SIZE
-    );
-
-  /*
-   * 現在地と未来位置の間を
-   * カバーする。
-   */
-  const minChunkX =
-    Math.min(
-      currentChunkX,
-      futureChunkX
-    ) -
-    chunkRadius;
-
-  const maxChunkX =
-    Math.max(
-      currentChunkX,
-      futureChunkX
-    ) +
-    chunkRadius;
-
-  const minChunkZ =
-    Math.min(
-      currentChunkZ,
-      futureChunkZ
-    ) -
-    chunkRadius;
-
-  const maxChunkZ =
-    Math.max(
-      currentChunkZ,
-      futureChunkZ
-    ) +
-    chunkRadius;
-
-  for (
-    let x = minChunkX;
-    x <= maxChunkX;
-    x++
-  ) {
-    for (
-      let z = minChunkZ;
-      z <= maxChunkZ;
-      z++
-    ) {
-      getChunkCenter(
-        x,
-        z,
-        chunkTempCenter
-      );
-
-      /*
-       * 現在位置からの距離。
-       */
-      const currentDistance =
-        Math.hypot(
-          chunkTempCenter.x -
-            playerX,
-
-          chunkTempCenter.z -
-            playerZ
-        );
-
-      /*
-       * 未来位置からの距離。
-       */
-      const futureDistance =
-        Math.hypot(
-          chunkTempCenter.x -
-            chunkFuturePosition.x,
-
-          chunkTempCenter.z -
-            chunkFuturePosition.z
-        );
-
-      /*
-       * 現在または未来位置の
-       * どちらかに近ければ必要。
-       */
-      const distance =
-        Math.min(
-          currentDistance,
-          futureDistance
-        );
-
-      if (
-        distance >
-        requestDistanceUnits
-      ) {
-        continue;
-      }
-
-      queueGroundChunk(
-        x,
-        z,
-        distance
-      );
-    }
-  }
-
-  /*
-   * 近いチャンクから先に作る。
-   */
-  chunkGenerationQueue.sort(
-    (a, b) =>
-      a.priority -
-      b.priority
+ // ------------------------------------------------
+ // CHUNK COORDINATES
+ // ------------------------------------------------
+ const currentChunkX =
+  getChunkCoordinate(
+   playerX
   );
-}
 
-// --------------------------
-// PROCESS QUEUE
-// --------------------------
+ const currentChunkZ =
+  getChunkCoordinate(
+   playerZ
+  );
 
-function processChunkQueue() {
-  const startTime =
-    performance.now();
+ const futureChunkX =
+  getChunkCoordinate(
+   chunkFuturePosition.x
+  );
 
-  while (
-    chunkGenerationQueue.length >
-    0
-  ) {
-    const job =
-      chunkGenerationQueue.shift();
+ const futureChunkZ =
+  getChunkCoordinate(
+   chunkFuturePosition.z
+  );
 
-    queuedChunks.delete(
-      job.key
-    );
+ // ------------------------------------------------
+ // REQUEST DISTANCE
+ // ------------------------------------------------
+ const requestDistanceMeters =
+  (
+   renderDistanceKm +
+   CHUNK_PREFETCH_EXTRA_KM
+  ) *
+  1000;
 
-    createGroundChunk(
-      job.chunkX,
-      job.chunkZ
-    );
+ const requestDistanceUnits =
+  requestDistanceMeters /
+  METERS_PER_UNIT;
 
-    /*
-     * 2ms使ったら
-     * 次フレームへ回す。
-     */
-    if (
-      performance.now() -
-      startTime >=
-      STREAMING_BUDGET_MS
-    ) {
-      break;
-    }
-  }
-}
+ const chunkRadius =
+  Math.ceil(
+   requestDistanceUnits /
+   CHUNK_SIZE
+  );
 
-// --------------------------
-// UNLOAD
-// --------------------------
+ // ------------------------------------------------
+ // SEARCH RANGE
+ // ------------------------------------------------
+ /*
+  * 現在位置から未来位置まで
+  * 丸ごと覆う矩形を探索。
+  */
+ const minChunkX =
+  Math.min(
+   currentChunkX,
+   futureChunkX
+  ) -
+  chunkRadius;
 
-function unloadFarChunks() {
-  const unloadDistanceMeters =
-    (
-      renderDistanceKm +
-      CHUNK_UNLOAD_EXTRA_KM
-    ) *
-    1000;
+ const maxChunkX =
+  Math.max(
+   currentChunkX,
+   futureChunkX
+  ) +
+  chunkRadius;
 
-  const unloadDistanceUnits =
-    unloadDistanceMeters /
-    METERS_PER_UNIT;
+ const minChunkZ =
+  Math.min(
+   currentChunkZ,
+   futureChunkZ
+  ) -
+  chunkRadius;
 
+ const maxChunkZ =
+  Math.max(
+   currentChunkZ,
+   futureChunkZ
+  ) +
+  chunkRadius;
+
+ // ------------------------------------------------
+ // FIND NEEDED CHUNKS
+ // ------------------------------------------------
+ for (
+  let x = minChunkX;
+  x <= maxChunkX;
+  x++
+ ) {
   for (
-    const [
-      key,
-      chunk
-    ]
-    of loadedChunks
+   let z = minChunkZ;
+   z <= maxChunkZ;
+   z++
   ) {
-    getChunkCenter(
-      chunk.chunkX,
-      chunk.chunkZ,
-      chunkTempCenter
+   getChunkCenter(
+    x,
+    z,
+    chunkTempCenter
+   );
+
+   // -----------------------------------------------
+   // DISTANCE FROM CURRENT POSITION
+   // -----------------------------------------------
+   const currentDistance =
+    Math.hypot(
+     chunkTempCenter.x -
+     playerX,
+
+     chunkTempCenter.z -
+     playerZ
     );
 
-    const distance =
-      Math.hypot(
-        chunkTempCenter.x -
-          camera.position.x,
+   // -----------------------------------------------
+   // DISTANCE FROM FUTURE POSITION
+   // -----------------------------------------------
+   const futureDistance =
+    Math.hypot(
+     chunkTempCenter.x -
+     chunkFuturePosition.x,
 
-        chunkTempCenter.z -
-          camera.position.z
-      );
+     chunkTempCenter.z -
+     chunkFuturePosition.z
+    );
 
-    if (
-      distance >
-      unloadDistanceUnits
-    ) {
-      destroyGroundChunk(
-        key,
-        chunk
-      );
-    }
+   /*
+    * 現在地か未来位置の
+    * どちらかに近ければ必要。
+    */
+   const distance =
+    Math.min(
+     currentDistance,
+     futureDistance
+    );
+
+   if (
+    distance >
+    requestDistanceUnits
+   ) {
+    continue;
+   }
+
+   queueGroundChunk(
+    x,
+    z,
+    distance
+   );
   }
+ }
+
+ // ------------------------------------------------
+ // PRIORITY
+ // ------------------------------------------------
+ /*
+  * プレイヤーへ近いものから
+  * 作る。
+  */
+ chunkGenerationQueue.sort(
+  (a, b) =>
+   a.priority -
+   b.priority
+ );
 }
 
-// --------------------------
-// WORLD STREAMING UPDATE
-// --------------------------
+// --------------------------------------------------
+// PROCESS QUEUE
+// --------------------------------------------------
+function processChunkQueue() {
+ const startTime =
+  performance.now();
 
-let chunkRequestTimer = 0;
+ while (
+  chunkGenerationQueue.length >
+  0
+ ) {
+  const job =
+   chunkGenerationQueue.shift();
 
-function updateWorldStreaming(
-  delta
-) {
+  queuedChunks.delete(
+   job.key
+  );
+
   /*
-   * 必要チャンク探索自体は
-   * 毎フレームする必要なし。
+   * Queueへ入ってから実生成までに
+   * 既に別処理でロードされている
+   * 可能性も考慮。
    */
-  chunkRequestTimer -=
-    delta;
+  if (
+   !loadedChunks.has(
+    job.key
+   )
+  ) {
+   createGroundChunk(
+    job.chunkX,
+    job.chunkZ
+   );
+  }
+
+  // ------------------------------------------------
+  // FRAME BUDGET
+  // ------------------------------------------------
+  if (
+   performance.now() -
+   startTime >=
+   STREAMING_BUDGET_MS
+  ) {
+   break;
+  }
+ }
+}
+
+// --------------------------------------------------
+// UNLOAD FAR CHUNKS
+// --------------------------------------------------
+function unloadFarChunks() {
+ const unloadDistanceMeters =
+  (
+   renderDistanceKm +
+   CHUNK_UNLOAD_EXTRA_KM
+  ) *
+  1000;
+
+ const unloadDistanceUnits =
+  unloadDistanceMeters /
+  METERS_PER_UNIT;
+
+ /*
+  * Mapを反復中にdeleteしても
+  * JavaScriptでは動作するが、
+  * Array化しておく方が
+  * 後の拡張でも安全。
+  */
+ for (
+  const [
+   key,
+   chunk
+  ]
+  of Array.from(
+   loadedChunks
+  )
+ ) {
+  getChunkCenter(
+   chunk.chunkX,
+   chunk.chunkZ,
+   chunkTempCenter
+  );
+
+  const distance =
+   Math.hypot(
+    chunkTempCenter.x -
+    camera.position.x,
+
+    chunkTempCenter.z -
+    camera.position.z
+   );
 
   if (
-    chunkRequestTimer <= 0
+   distance >
+   unloadDistanceUnits
   ) {
-    chunkRequestTimer =
-      0.25;
-
-    requestWorldChunks();
-
-    unloadFarChunks();
+   destroyGroundChunk(
+    key,
+    chunk
+   );
   }
+ }
+}
 
-  /*
-   * 実生成は毎フレーム少しずつ。
-   */
-  processChunkQueue();
+// --------------------------------------------------
+// CLEAR ALL GROUND CHUNKS
+// --------------------------------------------------
+/*
+ * Seed変更や、
+ * 将来のワールド再生成で使用。
+ */
+function clearAllGroundChunks() {
+ for (
+  const [
+   key,
+   chunk
+  ]
+  of Array.from(
+   loadedChunks
+  )
+ ) {
+  destroyGroundChunk(
+   key,
+   chunk
+  );
+ }
+
+ chunkGenerationQueue.length =
+  0;
+
+ queuedChunks.clear();
+}
+
+// --------------------------------------------------
+// REBUILD GROUND CHUNKS
+// --------------------------------------------------
+function rebuildGroundChunks() {
+ clearAllGroundChunks();
+
+ /*
+  * 次のupdateで即座に
+  * 周囲チャンクを要求。
+  */
+ chunkRequestTimer =
+  0;
+}
+
+// --------------------------------------------------
+// WORLD STREAMING UPDATE
+// --------------------------------------------------
+let chunkRequestTimer =
+ 0;
+
+function updateWorldStreaming(
+ delta
+) {
+ // ------------------------------------------------
+ // REQUEST
+ // ------------------------------------------------
+ /*
+  * 必要チャンク探索そのものは
+  * 毎フレーム行わない。
+  */
+ chunkRequestTimer -=
+  delta;
+
+ if (
+  chunkRequestTimer <=
+  0
+ ) {
+  chunkRequestTimer =
+   0.25;
+
+  requestWorldChunks();
+
+  unloadFarChunks();
+ }
+
+ // ------------------------------------------------
+ // GENERATE
+ // ------------------------------------------------
+ /*
+  * 実際の生成処理だけは
+  * 毎フレーム少しずつ進める。
+  */
+ processChunkQueue();
 }
 
 // ==================================================
@@ -5795,17 +6125,237 @@ function moveHorizontal(
 // VERTICAL MOVEMENT
 // ==================================================
 function moveVertical(
-  delta
+ delta
 ) {
-  const oldY =
-    camera.position.y;
+ const oldY =
+  camera.position.y;
 
-  const next =
-    camera.position.clone();
+ const next =
+  camera.position.clone();
 
-  next.y +=
-    velocity.y *
-    delta;
+ next.y +=
+  velocity.y *
+  delta;
+
+ // --------------------------------------------------
+ // TERRAIN HEIGHT
+ // --------------------------------------------------
+ const groundHeightMeters =
+  getTerrainHeightMeters(
+   camera.position.x *
+   METERS_PER_UNIT,
+
+   camera.position.z *
+   METERS_PER_UNIT
+  );
+
+ const groundHeight =
+  groundHeightMeters /
+  METERS_PER_UNIT;
+
+ const playerGroundY =
+  groundHeight +
+  PLAYER_HEIGHT;
+
+ // --------------------------------------------------
+ // TERRAIN
+ // --------------------------------------------------
+ if (
+  next.y <=
+  playerGroundY
+ ) {
+  if (
+   velocity.y < 0
+  ) {
+   damageFromImpact(
+    velocity.y,
+    "ground"
+   );
+  }
+
+  if (dead) {
+   return;
+  }
+
+  camera.position.y =
+   playerGroundY;
+
+  velocity.y =
+   0;
+
+  grounded =
+   true;
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // LAND ON RING WALL
+ // --------------------------------------------------
+ if (
+  velocity.y <= 0
+ ) {
+  const radialDistance =
+   Math.hypot(
+    camera.position.x,
+    camera.position.z
+   );
+
+  for (
+   const ring
+   of wallRings
+  ) {
+   const onWallHorizontally =
+    radialDistance >=
+    ring.innerRadius -
+    PLAYER_RADIUS &&
+    radialDistance <=
+    ring.outerRadius +
+    PLAYER_RADIUS;
+
+   if (
+    !onWallHorizontally
+   ) {
+    continue;
+   }
+
+   const oldFeet =
+    oldY -
+    PLAYER_HEIGHT;
+
+   const newFeet =
+    next.y -
+    PLAYER_HEIGHT;
+
+   if (
+    oldFeet >=
+    CITY_WALL_HEIGHT &&
+    newFeet <=
+    CITY_WALL_HEIGHT
+   ) {
+    damageFromImpact(
+     velocity.y,
+     "stone"
+    );
+
+    if (dead) {
+     return;
+    }
+
+    camera.position.y =
+     CITY_WALL_HEIGHT +
+     PLAYER_HEIGHT;
+
+    velocity.y =
+     0;
+
+    grounded =
+     true;
+
+    return;
+   }
+  }
+ }
+
+ // --------------------------------------------------
+ // NORMAL BUILDING MOVEMENT
+ // --------------------------------------------------
+ if (
+  !collides(
+   next
+  )
+ ) {
+  camera.position.y =
+   next.y;
+
+  grounded =
+   false;
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // LAND ON BUILDING
+ // --------------------------------------------------
+ if (
+  velocity.y <= 0
+ ) {
+  for (
+   const box
+   of colliders
+  ) {
+   const horizontal =
+    camera.position.x +
+    PLAYER_RADIUS >
+    box.min.x &&
+
+    camera.position.x -
+    PLAYER_RADIUS <
+    box.max.x &&
+
+    camera.position.z +
+    PLAYER_RADIUS >
+    box.min.z &&
+
+    camera.position.z -
+    PLAYER_RADIUS <
+    box.max.z;
+
+   if (
+    !horizontal
+   ) {
+    continue;
+   }
+
+   const oldFeet =
+    oldY -
+    PLAYER_HEIGHT;
+
+   const newFeet =
+    next.y -
+    PLAYER_HEIGHT;
+
+   if (
+    oldFeet >=
+    box.max.y &&
+    newFeet <=
+    box.max.y
+   ) {
+    damageFromImpact(
+     velocity.y,
+     "building"
+    );
+
+    if (dead) {
+     return;
+    }
+
+    camera.position.y =
+     box.max.y +
+     PLAYER_HEIGHT;
+
+    velocity.y =
+     0;
+
+    grounded =
+     true;
+
+    return;
+   }
+  }
+ }
+
+ // --------------------------------------------------
+ // CEILING
+ // --------------------------------------------------
+ damageFromImpact(
+  velocity.y,
+  "building"
+ );
+
+ velocity.y =
+  0;
+}
 
   // =================================================
   // GROUND
@@ -6909,6 +7459,222 @@ document.body.appendChild(
 );
 
 // ==================================================
+// SETTINGS HUD
+// ==================================================
+const settingsHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ settingsHUD.style,
+ {
+  position: "fixed",
+  inset: "0",
+
+  display: "none",
+
+  alignItems: "center",
+  justifyContent: "center",
+
+  background:
+   "rgba(0,0,0,.78)",
+
+  color: "white",
+
+  fontFamily:
+   "Arial",
+
+  zIndex: "11000"
+ }
+);
+
+// --------------------------------------------------
+// PANEL
+// --------------------------------------------------
+const settingsPanel =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ settingsPanel.style,
+ {
+  width: "440px",
+
+  padding: "32px",
+
+  background:
+   "rgba(25,30,28,.98)",
+
+  border:
+   "1px solid #777",
+
+  borderRadius:
+   "8px"
+ }
+);
+
+settingsHUD.appendChild(
+ settingsPanel
+);
+
+// --------------------------------------------------
+// TITLE
+// --------------------------------------------------
+const settingsTitle =
+ document.createElement(
+  "div"
+ );
+
+settingsTitle.textContent =
+ "SETTINGS";
+
+Object.assign(
+ settingsTitle.style,
+ {
+  fontSize: "32px",
+  fontWeight: "bold",
+  marginBottom: "26px"
+ }
+);
+
+settingsPanel.appendChild(
+ settingsTitle
+);
+
+// --------------------------------------------------
+// TERRAIN SEED LABEL
+// --------------------------------------------------
+const terrainSeedLabel =
+ document.createElement(
+  "div"
+ );
+
+terrainSeedLabel.textContent =
+ "WORLD / TERRAIN SEED";
+
+terrainSeedLabel.style.marginBottom =
+ "8px";
+
+settingsPanel.appendChild(
+ terrainSeedLabel
+);
+
+// --------------------------------------------------
+// TERRAIN SEED INPUT
+// --------------------------------------------------
+const terrainSeedInput =
+ document.createElement(
+  "input"
+ );
+
+terrainSeedInput.type =
+ "number";
+
+Object.assign(
+ terrainSeedInput.style,
+ {
+  width: "100%",
+
+  boxSizing:
+   "border-box",
+
+  padding: "10px",
+
+  marginBottom: "12px",
+
+  color: "white",
+
+  background:
+   "#101412",
+
+  border:
+   "1px solid #666",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "18px"
+ }
+);
+
+settingsPanel.appendChild(
+ terrainSeedInput
+);
+
+// --------------------------------------------------
+// APPLY BUTTON
+// --------------------------------------------------
+const terrainSeedApply =
+ document.createElement(
+  "button"
+ );
+
+terrainSeedApply.textContent =
+ "APPLY SEED";
+
+Object.assign(
+ terrainSeedApply.style,
+ {
+  width: "100%",
+
+  padding: "12px",
+
+  color: "white",
+
+  background:
+   "#416b4a",
+
+  border:
+   "1px solid #8fa",
+
+  cursor: "pointer",
+
+  fontSize: "16px",
+
+  fontWeight: "bold"
+ }
+);
+
+settingsPanel.appendChild(
+ terrainSeedApply
+);
+
+// --------------------------------------------------
+// HELP
+// --------------------------------------------------
+const settingsHelp =
+ document.createElement(
+  "div"
+ );
+
+settingsHelp.textContent =
+ "ESC : CLOSE";
+
+Object.assign(
+ settingsHelp.style,
+ {
+  marginTop: "25px",
+
+  color: "#aaa",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "14px"
+ }
+);
+
+settingsPanel.appendChild(
+ settingsHelp
+);
+
+document.body.appendChild(
+ settingsHUD
+);
+
+// ==================================================
 // TELEPORT SYSTEM
 // ==================================================
 let teleportMenuOpen =
@@ -7881,6 +8647,203 @@ window.addEventListener(
 );
 
 // ==================================================
+// SETTINGS SYSTEM
+// ==================================================
+let settingsOpen =
+ false;
+
+// --------------------------------------------------
+// OPEN SETTINGS
+// --------------------------------------------------
+function openSettings() {
+ if (
+  settingsOpen
+ ) {
+  return;
+ }
+
+ if (
+  worldMapOpen
+ ) {
+  closeWorldMap();
+ }
+
+ if (
+  teleportMenuOpen
+ ) {
+  closeTeleportMenu();
+ }
+
+ settingsOpen =
+  true;
+
+ if (
+  document.pointerLockElement
+ ) {
+  document.exitPointerLock();
+ }
+
+ for (
+  const code
+  of Object.keys(
+   keys
+  )
+ ) {
+  keys[code] =
+   false;
+ }
+
+ spacePressed =
+  false;
+
+ terrainSeedInput.value =
+  getTerrainSeed();
+
+ settingsHUD.style.display =
+  "flex";
+
+ terrainSeedInput.focus();
+ terrainSeedInput.select();
+}
+
+// --------------------------------------------------
+// CLOSE SETTINGS
+// --------------------------------------------------
+function closeSettings() {
+ settingsOpen =
+  false;
+
+ settingsHUD.style.display =
+  "none";
+}
+
+// --------------------------------------------------
+// REBUILD TERRAIN
+// --------------------------------------------------
+function rebuildTerrain() {
+ // ------------------------------------------------
+ // DESTROY LOADED CHUNKS
+ // ------------------------------------------------
+ for (
+  const [
+   key,
+   chunk
+  ]
+  of Array.from(
+   loadedChunks
+  )
+ ) {
+  destroyGroundChunk(
+   key,
+   chunk
+  );
+ }
+
+ // ------------------------------------------------
+ // CLEAR QUEUE
+ // ------------------------------------------------
+ chunkGenerationQueue.length =
+  0;
+
+ queuedChunks.clear();
+
+ // ------------------------------------------------
+ // REQUEST IMMEDIATELY
+ // ------------------------------------------------
+ chunkRequestTimer =
+  0;
+
+ /*
+  * プレイヤーを新しい地面の
+  * 高さへ移動。
+  */
+ const groundMeters =
+  getTerrainHeightMeters(
+   camera.position.x *
+   METERS_PER_UNIT,
+
+   camera.position.z *
+   METERS_PER_UNIT
+  );
+
+ camera.position.y =
+  groundMeters /
+  METERS_PER_UNIT +
+  PLAYER_HEIGHT;
+
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ grounded =
+  true;
+}
+
+// --------------------------------------------------
+// APPLY SEED
+// --------------------------------------------------
+function applyTerrainSeed() {
+ const value =
+  Number(
+   terrainSeedInput.value
+  );
+
+ if (
+  !Number.isFinite(
+   value
+  )
+ ) {
+  return;
+ }
+
+ setTerrainSeed(
+  value
+ );
+
+ rebuildTerrain();
+
+ terrainSeedInput.value =
+  getTerrainSeed();
+
+ showMessage(
+  `WORLD SEED ${getTerrainSeed()}`
+ );
+}
+
+// --------------------------------------------------
+// APPLY BUTTON
+// --------------------------------------------------
+terrainSeedApply.addEventListener(
+ "click",
+ () => {
+  applyTerrainSeed();
+ }
+);
+
+// --------------------------------------------------
+// ENTER IN INPUT
+// --------------------------------------------------
+terrainSeedInput.addEventListener(
+ "keydown",
+ event => {
+  if (
+   event.code ===
+   "Enter"
+  ) {
+   event.preventDefault();
+
+   applyTerrainSeed();
+  }
+
+  /*
+   * ESCはwindow側へ渡す。
+   */
+ }
+);
+
+// ==================================================
 // KEYBOARD
 // ==================================================
 window.addEventListener(
@@ -7888,16 +8851,19 @@ window.addEventListener(
  event => {
 
  // --------------------------------------------------
- // M = WORLD MAP
+ // SETTINGS OPEN
  // --------------------------------------------------
  if (
-  event.code ===
-  "KeyM" &&
-  !event.repeat
+  settingsOpen
  ) {
-  event.preventDefault();
+  if (
+   event.code ===
+   "Escape"
+  ) {
+   event.preventDefault();
 
-  toggleWorldMap();
+   closeSettings();
+  }
 
   return;
  }
@@ -7921,21 +8887,6 @@ window.addEventListener(
  }
 
  // --------------------------------------------------
- // T = TELEPORT
- // --------------------------------------------------
- if (
-  event.code ===
-  "KeyT" &&
-  !event.repeat
- ) {
-  event.preventDefault();
-
-  toggleTeleportMenu();
-
-  return;
- }
-
- // --------------------------------------------------
  // TELEPORT MENU OPEN
  // --------------------------------------------------
  if (
@@ -7954,12 +8905,46 @@ window.addEventListener(
  }
 
  // --------------------------------------------------
- // ESCAPE
+ // ESC = SETTINGS
  // --------------------------------------------------
  if (
   event.code ===
   "Escape"
  ) {
+  event.preventDefault();
+
+  openSettings();
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // M = WORLD MAP
+ // --------------------------------------------------
+ if (
+  event.code ===
+   "KeyM" &&
+  !event.repeat
+ ) {
+  event.preventDefault();
+
+  toggleWorldMap();
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // T = TELEPORT
+ // --------------------------------------------------
+ if (
+  event.code ===
+   "KeyT" &&
+  !event.repeat
+ ) {
+  event.preventDefault();
+
+  toggleTeleportMenu();
+
   return;
  }
 
@@ -8015,7 +9000,7 @@ window.addEventListener(
  // --------------------------------------------------
  if (
   event.code ===
-  "KeyQ" &&
+   "KeyQ" &&
   !keys["KeyQ"] &&
   wallStunTimer <= 0
  ) {
@@ -8029,7 +9014,7 @@ window.addEventListener(
  // --------------------------------------------------
  if (
   event.code ===
-  "KeyR" &&
+   "KeyR" &&
   !keys["KeyR"] &&
   wallStunTimer <= 0
  ) {
