@@ -1,154 +1,123 @@
 // ==================================================
+// IMPORTS
+// ==================================================
+import {
+ WORLD_MAP
+} from "./worldMap.js";
+
+// ==================================================
 // TELEPORT POINTS
 // ==================================================
-export const TELEPORT_POINTS = [
+export const TELEPORT_POINTS =
+ [];
 
- // --------------------------------------------------
- // WALL MARIA
- // --------------------------------------------------
- {
-  id: "shiganshina",
-  name: "シガンシナ区",
-  category: "ウォール・マリア",
-  xMeters: 0,
-  zMeters: 477000
- },
+// --------------------------------------------------
+// ADD POINT
+// --------------------------------------------------
+function addTeleportPoint(
+ data,
+ category
+) {
+ TELEPORT_POINTS.push({
+  id:
+   data.id,
 
- {
-  id: "utopia",
-  name: "ユトピア区",
-  category: "ウォール・マリア",
-  xMeters: 0,
-  zMeters: -477000
- },
+  name:
+   data.name,
 
- {
-  id: "quinta",
-  name: "クインタ区",
-  category: "ウォール・マリア",
-  xMeters: -477000,
-  zMeters: 0
- },
+  category,
 
- {
-  id: "karanes",
-  name: "カラネス区",
-  category: "ウォール・マリア",
-  xMeters: 477000,
-  zMeters: 0
- },
+  xMeters:
+   data.entranceX ??
+   data.xMeters,
 
- // --------------------------------------------------
- // WALL ROSE
- // --------------------------------------------------
- {
-  id: "trost",
-  name: "トロスト区",
-  category: "ウォール・ローゼ",
-  xMeters: 0,
-  zMeters: 377000
- },
+  zMeters:
+   data.entranceZ ??
+   data.zMeters,
 
- {
-  id: "orvud",
-  name: "オルブド区",
-  category: "ウォール・ローゼ",
-  xMeters: 0,
-  zMeters: -377000
- },
+  targetX:
+   data.xMeters,
 
- {
-  id: "krolva",
-  name: "クロルバ区",
-  category: "ウォール・ローゼ",
-  xMeters: -377000,
-  zMeters: 0
- },
+  targetZ:
+   data.zMeters
+ });
+}
 
- {
-  id: "stohess",
-  name: "ストヘス区",
-  category: "ウォール・ローゼ",
-  xMeters: 377000,
-  zMeters: 0
- },
+// --------------------------------------------------
+// DISTRICTS
+// --------------------------------------------------
+for (
+ const district
+ of WORLD_MAP.districts
+) {
+ const wall =
+  WORLD_MAP.walls[
+   district.wall
+  ];
 
- // --------------------------------------------------
- // WALL SINA
- // --------------------------------------------------
- {
-  id: "ermih",
-  name: "エルミハ区",
-  category: "ウォール・シーナ",
-  xMeters: 0,
-  zMeters: 247000
- },
+ addTeleportPoint(
+  district,
 
- {
-  id: "yalkell",
-  name: "ヤルケル区",
-  category: "ウォール・シーナ",
-  xMeters: -247000,
-  zMeters: 0
- },
+  wall
+  ? wall.name
+  : "地区"
+ );
+}
 
- // --------------------------------------------------
- // CAPITAL
- // --------------------------------------------------
- {
-  id: "mitras",
-  name: "王都ミットラス",
-  category: "王都",
-  xMeters: 0,
-  zMeters: 0
- },
+// --------------------------------------------------
+// FORESTS
+// --------------------------------------------------
+for (
+ const forest
+ of WORLD_MAP.forests
+) {
+ addTeleportPoint(
+  forest,
+  "森林"
+ );
+}
 
- // --------------------------------------------------
- // FORESTS
- // --------------------------------------------------
- {
-  id: "giant_forest_sw",
-  name: "巨大樹の森・南西入口",
-  category: "森林",
-  xMeters: -150000,
-  zMeters: 385000
- },
+// --------------------------------------------------
+// VILLAGES
+// --------------------------------------------------
+for (
+ const village
+ of WORLD_MAP.villages
+) {
+ addTeleportPoint(
+  village,
+  "村"
+ );
+}
 
- {
-  id: "giant_forest_se",
-  name: "巨大樹の森・南東入口",
-  category: "森林",
-  xMeters: 190000,
-  zMeters: 305000
- },
+// --------------------------------------------------
+// LANDMARKS
+// --------------------------------------------------
+for (
+ const landmark
+ of WORLD_MAP.landmarks
+) {
+ let category =
+  "ランドマーク";
 
- // --------------------------------------------------
- // VILLAGES
- // --------------------------------------------------
- {
-  id: "ragako",
-  name: "ラガコ村",
-  category: "村",
-  xMeters: -80000,
-  zMeters: 185000
- },
-
- {
-  id: "dauper",
-  name: "ダウパー村",
-  category: "村",
-  xMeters: -130000,
-  zMeters: 80000
- },
-
- // --------------------------------------------------
- // LANDMARKS
- // --------------------------------------------------
- {
-  id: "utgard",
-  name: "ウトガルド城",
-  category: "ランドマーク",
-  xMeters: -145000,
-  zMeters: 150000
+ if (
+  landmark.type ===
+  "capital"
+ ) {
+  category =
+   "王都";
  }
-];
+
+ if (
+  landmark.type ===
+  "castle"
+ ) {
+  category =
+   "城";
+ }
+
+ addTeleportPoint(
+  landmark,
+  category
+ );
+}
