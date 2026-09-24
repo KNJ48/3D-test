@@ -1,8 +1,15 @@
+// ==================================================
+// IMPORTS
+// ==================================================
 import * as THREE from "three";
 
 import {
-  WORLD_MAP
+ WORLD_MAP
 } from "./worldMap.js";
+
+import {
+ TELEPORT_POINTS
+} from "./teleportPoints.js";
 
 // ==================================================
 // WORLD SCALE
@@ -1343,205 +1350,6 @@ function updateAreaSystem() {
  enterArea(
   area
  );
-}
-
-// ==================================================
-// TELEPORT SYSTEM
-// ==================================================
-let teleportMenuOpen =
- false;
-
-let teleportSelection =
- 0;
-
-// --------------------------------------------------
-// TELEPORT
-// --------------------------------------------------
-function teleportToPoint(
- point
-) {
- if (!point) {
-  return;
- }
-
- // ------------------------------------------------
- // RELEASE WIRES
- // ------------------------------------------------
- releaseAnchor(
-  leftAnchor
- );
-
- releaseAnchor(
-  rightAnchor
- );
-
- // ------------------------------------------------
- // RESET MOVEMENT
- // ------------------------------------------------
- velocity.set(
-  0,
-  0,
-  0
- );
-
- wallStunTimer =
- 0;
-
- grounded =
- true;
-
- // ------------------------------------------------
- // POSITION
- // ------------------------------------------------
- camera.position.set(
-  metersToUnits(
-   point.xMeters
-  ),
-
-  PLAYER_HEIGHT,
-
-  metersToUnits(
-   point.zMeters
-  )
- );
-
- // ------------------------------------------------
- // RESET AREA CHECK
- // ------------------------------------------------
- previousAreaChunkX =
- null;
-
- previousAreaChunkZ =
- null;
-
- areaSystemInitialized =
- false;
-
- // ------------------------------------------------
- // STREAMING
- // ------------------------------------------------
- /*
-  * 遠距離TPすると古い生成予約が
-  * 残っている可能性があるため削除。
-  */
- chunkGenerationQueue.length =
- 0;
-
- queuedChunks.clear();
-
- chunkRequestTimer =
- 0;
-
- // ------------------------------------------------
- // MESSAGE
- // ------------------------------------------------
- showMessage(
-  point.name
- );
-}
-
-// --------------------------------------------------
-// NEXT POINT
-// --------------------------------------------------
-function selectNextTeleport() {
- teleportSelection++;
-
- if (
-  teleportSelection >=
-  TELEPORT_POINTS.length
- ) {
-  teleportSelection =
-  0;
- }
-
- updateTeleportMenu();
-}
-
-// --------------------------------------------------
-// PREVIOUS POINT
-// --------------------------------------------------
-function selectPreviousTeleport() {
- teleportSelection--;
-
- if (
-  teleportSelection < 0
- ) {
-  teleportSelection =
-  TELEPORT_POINTS.length -
-  1;
- }
-
- updateTeleportMenu();
-}
-
-// --------------------------------------------------
-// OPEN MENU
-// --------------------------------------------------
-function openTeleportMenu() {
- teleportMenuOpen =
- true;
-
- teleportHUD.style.display =
- "block";
-
- updateTeleportMenu();
-}
-
-// --------------------------------------------------
-// CLOSE MENU
-// --------------------------------------------------
-function closeTeleportMenu() {
- teleportMenuOpen =
- false;
-
- teleportHUD.style.display =
- "none";
-}
-
-// --------------------------------------------------
-// CONFIRM
-// --------------------------------------------------
-function confirmTeleport() {
- const point =
- TELEPORT_POINTS[
-  teleportSelection
- ];
-
- if (!point) {
-  return;
- }
-
- teleportToPoint(
-  point
- );
-
- closeTeleportMenu();
-}
-
-// --------------------------------------------------
-// UPDATE MENU
-// --------------------------------------------------
-function updateTeleportMenu() {
- const point =
- TELEPORT_POINTS[
-  teleportSelection
- ];
-
- if (!point) {
-  teleportHUD.textContent =
-  "NO TELEPORT POINTS";
-
-  return;
- }
-
- teleportHUD.textContent =
- `TELEPORT\n\n` +
- `${point.category}\n` +
- `▶ ${point.name}\n\n` +
- `${teleportSelection + 1} / ${TELEPORT_POINTS.length}\n\n` +
- `↑ ↓ : SELECT\n` +
- `ENTER : TELEPORT\n` +
- `T : CLOSE`;
 }
 
 // ==================================================
@@ -6269,6 +6077,1678 @@ function respawn() {
 }
 
 // ==================================================
+// DEBUG HUD
+// ==================================================
+const debugHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ debugHUD.style,
+ {
+  position: "fixed",
+  left: "15px",
+  top: "15px",
+  color: "white",
+  fontFamily: "monospace",
+  fontSize: "18px",
+  fontWeight: "bold",
+  whiteSpace: "pre",
+  textShadow:
+   "0 1px 4px black",
+  pointerEvents: "none",
+  zIndex: "100"
+ }
+);
+
+document.body.appendChild(
+ debugHUD
+);
+
+// ==================================================
+// MESSAGE HUD
+// ==================================================
+const messageHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ messageHUD.style,
+ {
+  position: "fixed",
+  left: "50%",
+  top: "35%",
+
+  transform:
+   "translate(-50%,-50%)",
+
+  color: "white",
+
+  fontFamily: "Arial",
+  fontSize: "38px",
+  fontWeight: "bold",
+
+  textShadow:
+   "0 3px 8px black",
+
+  opacity: "0",
+
+  transition:
+   "opacity .35s",
+
+  pointerEvents: "none",
+
+  zIndex: "150"
+ }
+);
+
+document.body.appendChild(
+ messageHUD
+);
+
+let messageTimeout =
+ null;
+
+// --------------------------------------------------
+// SHOW MESSAGE
+// --------------------------------------------------
+function showMessage(
+ text
+) {
+ messageHUD.textContent =
+  text;
+
+ messageHUD.style.opacity =
+  "1";
+
+ if (
+  messageTimeout
+ ) {
+  clearTimeout(
+   messageTimeout
+  );
+ }
+
+ messageTimeout =
+  setTimeout(
+   () => {
+    messageHUD.style.opacity =
+     "0";
+   },
+   2500
+  );
+}
+
+// ==================================================
+// CROSSHAIR
+// ==================================================
+const crosshair =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ crosshair.style,
+ {
+  position: "fixed",
+
+  left: "50%",
+  top: "50%",
+
+  width: "6px",
+  height: "6px",
+
+  background: "white",
+
+  borderRadius: "50%",
+
+  transform:
+   "translate(-50%,-50%)",
+
+  boxShadow:
+   "0 0 3px black",
+
+  pointerEvents: "none",
+
+  zIndex: "100"
+ }
+);
+
+document.body.appendChild(
+ crosshair
+);
+
+// ==================================================
+// ANCHOR HUD
+// ==================================================
+const anchorHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ anchorHUD.style,
+ {
+  position: "fixed",
+
+  left: "50%",
+  top: "54%",
+
+  transform:
+   "translateX(-50%)",
+
+  display: "flex",
+
+  gap: "50px",
+
+  color: "white",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "18px",
+  fontWeight: "bold",
+
+  textShadow:
+   "0 1px 4px black",
+
+  pointerEvents: "none",
+
+  zIndex: "100"
+ }
+);
+
+// --------------------------------------------------
+// LEFT / RIGHT
+// --------------------------------------------------
+const leftHUD =
+ document.createElement(
+  "span"
+ );
+
+const rightHUD =
+ document.createElement(
+  "span"
+ );
+
+anchorHUD.append(
+ leftHUD,
+ rightHUD
+);
+
+document.body.appendChild(
+ anchorHUD
+);
+
+// ==================================================
+// SMALL STATUS HUD
+// ==================================================
+const statusHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ statusHUD.style,
+ {
+  position: "fixed",
+
+  left: "50%",
+  top: "58%",
+
+  transform:
+   "translateX(-50%)",
+
+  color: "#ffcc66",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "15px",
+  fontWeight: "bold",
+
+  textShadow:
+   "0 1px 3px black",
+
+  pointerEvents: "none",
+
+  opacity: "0",
+
+  zIndex: "100"
+ }
+);
+
+document.body.appendChild(
+ statusHUD
+);
+
+// ==================================================
+// RESOURCES
+// ==================================================
+const resources =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ resources.style,
+ {
+  position: "fixed",
+
+  right: "25px",
+  bottom: "25px",
+
+  width: "300px",
+
+  color: "white",
+
+  fontFamily: "Arial",
+
+  fontWeight: "bold",
+
+  textShadow:
+   "0 1px 3px black",
+
+  pointerEvents: "none",
+
+  zIndex: "100"
+ }
+);
+
+document.body.appendChild(
+ resources
+);
+
+// --------------------------------------------------
+// CREATE BAR
+// --------------------------------------------------
+function createBar(
+ color
+) {
+ const wrapper =
+  document.createElement(
+   "div"
+  );
+
+ wrapper.style.marginTop =
+  "12px";
+
+ const label =
+  document.createElement(
+   "div"
+  );
+
+ const background =
+  document.createElement(
+   "div"
+  );
+
+ Object.assign(
+  background.style,
+  {
+   height: "18px",
+
+   border:
+    "2px solid white",
+
+   background:
+    "rgba(0,0,0,.6)",
+
+   overflow: "hidden"
+  }
+ );
+
+ const fill =
+  document.createElement(
+   "div"
+  );
+
+ fill.style.height =
+  "100%";
+
+ fill.style.background =
+  color;
+
+ background.appendChild(
+  fill
+ );
+
+ wrapper.append(
+  label,
+  background
+ );
+
+ resources.appendChild(
+  wrapper
+ );
+
+ return {
+  label,
+  fill
+ };
+}
+
+// --------------------------------------------------
+// HP / GAS
+// --------------------------------------------------
+const hpBar =
+ createBar(
+  "#e53935"
+ );
+
+const gasBar =
+ createBar(
+  "#29b6f6"
+ );
+
+// ==================================================
+// DEATH SCREEN
+// ==================================================
+const deathScreen =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ deathScreen.style,
+ {
+  position: "fixed",
+
+  inset: "0",
+
+  display: "none",
+
+  alignItems: "center",
+  justifyContent: "center",
+
+  background:
+   "rgba(100,0,0,.45)",
+
+  color: "white",
+
+  font:
+   "bold 64px Arial",
+
+  zIndex: "5000"
+ }
+);
+
+deathScreen.textContent =
+ "YOU DIED";
+
+document.body.appendChild(
+ deathScreen
+);
+
+// ==================================================
+// TELEPORT HUD
+// ==================================================
+const teleportHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ teleportHUD.style,
+ {
+  position: "fixed",
+
+  inset: "0",
+
+  display: "none",
+
+  background:
+   "rgba(0,0,0,.82)",
+
+  color: "white",
+
+  fontFamily:
+   "Arial, sans-serif",
+
+  overflowY: "auto",
+
+  padding: "60px",
+
+  boxSizing:
+   "border-box",
+
+  zIndex: "9000"
+ }
+);
+
+// --------------------------------------------------
+// TITLE
+// --------------------------------------------------
+const teleportTitle =
+ document.createElement(
+  "div"
+ );
+
+teleportTitle.textContent =
+ "TELEPORT";
+
+Object.assign(
+ teleportTitle.style,
+ {
+  fontSize: "40px",
+
+  fontWeight: "bold",
+
+  marginBottom: "10px"
+ }
+);
+
+teleportHUD.appendChild(
+ teleportTitle
+);
+
+// --------------------------------------------------
+// HELP
+// --------------------------------------------------
+const teleportHelp =
+ document.createElement(
+  "div"
+ );
+
+teleportHelp.textContent =
+ "移動先をクリック / T または ESC で閉じる";
+
+Object.assign(
+ teleportHelp.style,
+ {
+  color: "#bbb",
+
+  fontSize: "16px",
+
+  marginBottom: "32px"
+ }
+);
+
+teleportHUD.appendChild(
+ teleportHelp
+);
+
+// --------------------------------------------------
+// LIST
+// --------------------------------------------------
+const teleportList =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ teleportList.style,
+ {
+  display: "flex",
+
+  flexDirection:
+   "column",
+
+  gap: "24px",
+
+  maxWidth: "700px"
+ }
+);
+
+teleportHUD.appendChild(
+ teleportList
+);
+
+document.body.appendChild(
+ teleportHUD
+);
+
+// ==================================================
+// WORLD MAP HUD
+// ==================================================
+const worldMapHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldMapHUD.style,
+ {
+  position: "fixed",
+
+  inset: "0",
+
+  display: "none",
+
+  background:
+   "rgb(18,31,22)",
+
+  overflow: "hidden",
+
+  cursor: "grab",
+
+  userSelect: "none",
+
+  zIndex: "10000"
+ }
+);
+
+// --------------------------------------------------
+// MAP CANVAS
+// --------------------------------------------------
+const worldMapCanvas =
+ document.createElement(
+  "canvas"
+ );
+
+Object.assign(
+ worldMapCanvas.style,
+ {
+  position: "absolute",
+
+  left: "0",
+  top: "0",
+
+  width: "100%",
+  height: "100%",
+
+  display: "block"
+ }
+);
+
+worldMapHUD.appendChild(
+ worldMapCanvas
+);
+
+// --------------------------------------------------
+// TITLE
+// --------------------------------------------------
+const worldMapTitle =
+ document.createElement(
+  "div"
+ );
+
+worldMapTitle.textContent =
+ "PARADIS ISLAND";
+
+Object.assign(
+ worldMapTitle.style,
+ {
+  position: "absolute",
+
+  left: "30px",
+  top: "25px",
+
+  color: "white",
+
+  fontFamily: "Arial",
+
+  fontSize: "30px",
+
+  fontWeight: "bold",
+
+  textShadow:
+   "0 2px 5px black",
+
+  pointerEvents: "none",
+
+  zIndex: "2"
+ }
+);
+
+worldMapHUD.appendChild(
+ worldMapTitle
+);
+
+// --------------------------------------------------
+// HELP
+// --------------------------------------------------
+const worldMapHelp =
+ document.createElement(
+  "div"
+ );
+
+worldMapHelp.textContent =
+ "M / ESC : CLOSE    WHEEL : ZOOM    DRAG : MOVE";
+
+Object.assign(
+ worldMapHelp.style,
+ {
+  position: "absolute",
+
+  left: "30px",
+  bottom: "25px",
+
+  color: "#ccc",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "15px",
+
+  textShadow:
+   "0 1px 3px black",
+
+  pointerEvents: "none",
+
+  zIndex: "2"
+ }
+);
+
+worldMapHUD.appendChild(
+ worldMapHelp
+);
+
+// --------------------------------------------------
+// ZOOM DISPLAY
+// --------------------------------------------------
+const worldMapZoomHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldMapZoomHUD.style,
+ {
+  position: "absolute",
+
+  right: "30px",
+  bottom: "25px",
+
+  color: "#ccc",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "15px",
+
+  pointerEvents: "none",
+
+  zIndex: "2"
+ }
+);
+
+worldMapZoomHUD.textContent =
+ "ZOOM 1.00x";
+
+worldMapHUD.appendChild(
+ worldMapZoomHUD
+);
+
+document.body.appendChild(
+ worldMapHUD
+);
+
+// ==================================================
+// TELEPORT SYSTEM
+// ==================================================
+let teleportMenuOpen =
+ false;
+
+// --------------------------------------------------
+// TELEPORT TO POINT
+// --------------------------------------------------
+function teleportToPoint(
+ point
+) {
+ if (!point) {
+  return;
+ }
+
+ // ------------------------------------------------
+ // RELEASE ANCHORS
+ // ------------------------------------------------
+ releaseAnchor(
+  leftAnchor
+ );
+
+ releaseAnchor(
+  rightAnchor
+ );
+
+ // ------------------------------------------------
+ // RESET PLAYER
+ // ------------------------------------------------
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ wallStunTimer =
+  0;
+
+ grounded =
+  true;
+
+ // ------------------------------------------------
+ // MOVE PLAYER
+ // ------------------------------------------------
+ camera.position.set(
+  metersToUnits(
+   point.xMeters
+  ),
+
+  PLAYER_HEIGHT,
+
+  metersToUnits(
+   point.zMeters
+  )
+ );
+
+ // ------------------------------------------------
+ // RESET AREA SYSTEM
+ // ------------------------------------------------
+ /*
+  * AREA SYSTEMが導入済みなら
+  * TP先で再判定させる。
+  */
+ if (
+  typeof previousAreaChunkX !==
+  "undefined"
+ ) {
+  previousAreaChunkX =
+   null;
+
+  previousAreaChunkZ =
+   null;
+
+  areaSystemInitialized =
+   false;
+ }
+
+ // ------------------------------------------------
+ // RESET STREAMING QUEUE
+ // ------------------------------------------------
+ chunkGenerationQueue.length =
+  0;
+
+ queuedChunks.clear();
+
+ chunkRequestTimer =
+  0;
+
+ // ------------------------------------------------
+ // CLOSE
+ // ------------------------------------------------
+ closeTeleportMenu();
+
+ // ------------------------------------------------
+ // MESSAGE
+ // ------------------------------------------------
+ showMessage(
+  point.name
+ );
+}
+
+// --------------------------------------------------
+// BUILD TELEPORT MENU
+// --------------------------------------------------
+function buildTeleportMenu() {
+ teleportList.replaceChildren();
+
+ // ------------------------------------------------
+ // EMPTY
+ // ------------------------------------------------
+ if (
+  TELEPORT_POINTS.length ===
+  0
+ ) {
+  const empty =
+   document.createElement(
+    "div"
+   );
+
+  empty.textContent =
+   "TP地点が登録されていません";
+
+  empty.style.color =
+   "#ff7777";
+
+  teleportList.appendChild(
+   empty
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // GROUP BY CATEGORY
+ // ------------------------------------------------
+ const categories =
+  new Map();
+
+ for (
+  const point
+  of TELEPORT_POINTS
+ ) {
+  const category =
+   point.category ||
+   "その他";
+
+  if (
+   !categories.has(
+    category
+   )
+  ) {
+   categories.set(
+    category,
+    []
+   );
+  }
+
+  categories
+  .get(
+   category
+  )
+  .push(
+   point
+  );
+ }
+
+ // ------------------------------------------------
+ // CATEGORY SECTIONS
+ // ------------------------------------------------
+ for (
+  const [
+   category,
+   points
+  ]
+  of categories
+ ) {
+  const section =
+   document.createElement(
+    "div"
+   );
+
+  const title =
+   document.createElement(
+    "div"
+   );
+
+  title.textContent =
+   category;
+
+  Object.assign(
+   title.style,
+   {
+    color: "#ffcc66",
+
+    fontSize: "22px",
+
+    fontWeight: "bold",
+
+    marginBottom: "8px"
+   }
+  );
+
+  section.appendChild(
+   title
+  );
+
+  // -----------------------------------------------
+  // POINT BUTTONS
+  // -----------------------------------------------
+  for (
+   const point
+   of points
+  ) {
+   const button =
+    document.createElement(
+     "button"
+    );
+
+   button.textContent =
+    point.name;
+
+   Object.assign(
+    button.style,
+    {
+     display: "block",
+
+     width: "100%",
+
+     marginBottom: "6px",
+
+     padding:
+      "12px 16px",
+
+     color: "white",
+
+     background:
+      "rgba(255,255,255,.08)",
+
+     border:
+      "1px solid #777",
+
+     borderRadius:
+      "5px",
+
+     fontSize: "18px",
+
+     textAlign: "left",
+
+     cursor: "pointer"
+    }
+   );
+
+   button.addEventListener(
+    "mouseenter",
+    () => {
+     button.style.background =
+      "rgba(255,255,255,.22)";
+    }
+   );
+
+   button.addEventListener(
+    "mouseleave",
+    () => {
+     button.style.background =
+      "rgba(255,255,255,.08)";
+    }
+   );
+
+   button.addEventListener(
+    "click",
+    () => {
+     teleportToPoint(
+      point
+     );
+    }
+   );
+
+   section.appendChild(
+    button
+   );
+  }
+
+  teleportList.appendChild(
+   section
+  );
+ }
+}
+
+// --------------------------------------------------
+// OPEN TELEPORT MENU
+// --------------------------------------------------
+function openTeleportMenu() {
+ if (
+  teleportMenuOpen
+ ) {
+  return;
+ }
+
+ /*
+  * MAPが開いていたら閉じる。
+  */
+ if (
+  typeof worldMapOpen !==
+   "undefined" &&
+  worldMapOpen
+ ) {
+  closeWorldMap();
+ }
+
+ teleportMenuOpen =
+  true;
+
+ if (
+  document.pointerLockElement
+ ) {
+  document.exitPointerLock();
+ }
+
+ /*
+  * プレイヤー入力を解除。
+  */
+ for (
+  const code
+  of Object.keys(
+   keys
+  )
+ ) {
+  keys[code] =
+   false;
+ }
+
+ spacePressed =
+  false;
+
+ buildTeleportMenu();
+
+ teleportHUD.style.display =
+  "block";
+}
+
+// --------------------------------------------------
+// CLOSE TELEPORT MENU
+// --------------------------------------------------
+function closeTeleportMenu() {
+ teleportMenuOpen =
+  false;
+
+ teleportHUD.style.display =
+  "none";
+}
+
+// --------------------------------------------------
+// TOGGLE TELEPORT MENU
+// --------------------------------------------------
+function toggleTeleportMenu() {
+ if (
+  teleportMenuOpen
+ ) {
+  closeTeleportMenu();
+ } else {
+  openTeleportMenu();
+ }
+}
+
+// ==================================================
+// WORLD MAP SYSTEM
+// ==================================================
+const worldMapContext =
+ worldMapCanvas.getContext(
+  "2d"
+ );
+
+let worldMapOpen =
+ false;
+
+let worldMapZoom =
+ 1;
+
+let worldMapPanX =
+ 0;
+
+let worldMapPanY =
+ 0;
+
+let worldMapDragging =
+ false;
+
+let worldMapLastMouseX =
+ 0;
+
+let worldMapLastMouseY =
+ 0;
+
+// --------------------------------------------------
+// WORLD TO MAP
+// --------------------------------------------------
+function worldToMap(
+ xMeters,
+ zMeters
+) {
+ const mariaRadius =
+  WORLD_MAP.walls.maria
+  .radiusMeters;
+
+ /*
+  * zoom=1でMaria全体が
+  * 画面内に入る倍率。
+  */
+ const availableSize =
+  Math.min(
+   window.innerWidth,
+   window.innerHeight
+  ) *
+  0.78;
+
+ const baseScale =
+  availableSize /
+  (
+   mariaRadius *
+   2
+  );
+
+ const scale =
+  baseScale *
+  worldMapZoom;
+
+ return {
+  x:
+   window.innerWidth /
+   2 +
+   worldMapPanX +
+   xMeters *
+   scale,
+
+  y:
+   window.innerHeight /
+   2 +
+   worldMapPanY +
+   zMeters *
+   scale,
+
+  scale
+ };
+}
+
+// --------------------------------------------------
+// DRAW WALL
+// --------------------------------------------------
+function drawMapWall(
+ wall,
+ color
+) {
+ if (!wall) {
+  return;
+ }
+
+ const center =
+  worldToMap(
+   0,
+   0
+  );
+
+ const radius =
+  wall.radiusMeters *
+  center.scale;
+
+ worldMapContext.beginPath();
+
+ worldMapContext.arc(
+  center.x,
+  center.y,
+  radius,
+  0,
+  Math.PI *
+  2
+ );
+
+ worldMapContext.strokeStyle =
+  color;
+
+ worldMapContext.lineWidth =
+  4;
+
+ worldMapContext.stroke();
+}
+
+// --------------------------------------------------
+// DRAW TELEPORT POINT
+// --------------------------------------------------
+function drawMapPoint(
+ point
+) {
+ const position =
+  worldToMap(
+   point.xMeters,
+   point.zMeters
+  );
+
+ const pointRadius =
+  worldMapZoom >= 2
+  ? 6
+  : 4;
+
+ worldMapContext.beginPath();
+
+ worldMapContext.arc(
+  position.x,
+  position.y,
+  pointRadius,
+  0,
+  Math.PI *
+  2
+ );
+
+ worldMapContext.fillStyle =
+  "#ffcc66";
+
+ worldMapContext.fill();
+
+ // ------------------------------------------------
+ // LABEL
+ // ------------------------------------------------
+ if (
+  worldMapZoom <
+  0.65
+ ) {
+  return;
+ }
+
+ worldMapContext.font =
+  "13px Arial";
+
+ worldMapContext.fillStyle =
+  "white";
+
+ worldMapContext.textAlign =
+  "left";
+
+ worldMapContext.textBaseline =
+  "middle";
+
+ worldMapContext.fillText(
+  point.name,
+  position.x +
+  pointRadius +
+  5,
+  position.y
+ );
+}
+
+// --------------------------------------------------
+// DRAW PLAYER
+// --------------------------------------------------
+function drawMapPlayer() {
+ const playerXMeters =
+  camera.position.x *
+  METERS_PER_UNIT;
+
+ const playerZMeters =
+  camera.position.z *
+  METERS_PER_UNIT;
+
+ const position =
+  worldToMap(
+   playerXMeters,
+   playerZMeters
+  );
+
+ worldMapContext.save();
+
+ worldMapContext.translate(
+  position.x,
+  position.y
+ );
+
+ /*
+  * yaw=0 はゲームでは -Z方向。
+  */
+ worldMapContext.rotate(
+  -yaw
+ );
+
+ worldMapContext.beginPath();
+
+ worldMapContext.moveTo(
+  0,
+  -12
+ );
+
+ worldMapContext.lineTo(
+  8,
+  10
+ );
+
+ worldMapContext.lineTo(
+  0,
+  6
+ );
+
+ worldMapContext.lineTo(
+  -8,
+  10
+ );
+
+ worldMapContext.closePath();
+
+ worldMapContext.fillStyle =
+  "#29b6f6";
+
+ worldMapContext.fill();
+
+ worldMapContext.strokeStyle =
+  "white";
+
+ worldMapContext.lineWidth =
+  1.5;
+
+ worldMapContext.stroke();
+
+ worldMapContext.restore();
+}
+
+// --------------------------------------------------
+// DRAW WORLD MAP
+// --------------------------------------------------
+function drawWorldMap() {
+ if (
+  !worldMapOpen
+ ) {
+  return;
+ }
+
+ const width =
+  worldMapCanvas.width;
+
+ const height =
+  worldMapCanvas.height;
+
+ // ------------------------------------------------
+ // CLEAR
+ // ------------------------------------------------
+ worldMapContext.clearRect(
+  0,
+  0,
+  width,
+  height
+ );
+
+ // ------------------------------------------------
+ // BACKGROUND
+ // ------------------------------------------------
+ worldMapContext.fillStyle =
+  "#18271d";
+
+ worldMapContext.fillRect(
+  0,
+  0,
+  width,
+  height
+ );
+
+ // ------------------------------------------------
+ // WALL MARIA
+ // ------------------------------------------------
+ drawMapWall(
+  WORLD_MAP.walls.maria,
+  "#eee5cf"
+ );
+
+ // ------------------------------------------------
+ // WALL ROSE
+ // ------------------------------------------------
+ drawMapWall(
+  WORLD_MAP.walls.rose,
+  "#d4ccb6"
+ );
+
+ // ------------------------------------------------
+ // WALL SINA
+ // ------------------------------------------------
+ drawMapWall(
+  WORLD_MAP.walls.sina,
+  "#b9b19b"
+ );
+
+ // ------------------------------------------------
+ // TELEPORT POINTS
+ // ------------------------------------------------
+ for (
+  const point
+  of TELEPORT_POINTS
+ ) {
+  drawMapPoint(
+   point
+  );
+ }
+
+ // ------------------------------------------------
+ // PLAYER
+ // ------------------------------------------------
+ drawMapPlayer();
+
+ // ------------------------------------------------
+ // ZOOM HUD
+ // ------------------------------------------------
+ worldMapZoomHUD.textContent =
+  `ZOOM ${worldMapZoom.toFixed(
+   2
+  )}x`;
+}
+
+// --------------------------------------------------
+// RESIZE MAP CANVAS
+// --------------------------------------------------
+function resizeWorldMapCanvas() {
+ worldMapCanvas.width =
+  window.innerWidth;
+
+ worldMapCanvas.height =
+  window.innerHeight;
+
+ drawWorldMap();
+}
+
+// --------------------------------------------------
+// OPEN WORLD MAP
+// --------------------------------------------------
+function openWorldMap() {
+ if (
+  worldMapOpen
+ ) {
+  return;
+ }
+
+ if (
+  teleportMenuOpen
+ ) {
+  closeTeleportMenu();
+ }
+
+ worldMapOpen =
+  true;
+
+ if (
+  document.pointerLockElement
+ ) {
+  document.exitPointerLock();
+ }
+
+ /*
+  * WASD等が押しっぱなしに
+  * ならないようにする。
+  */
+ for (
+  const code
+  of Object.keys(
+   keys
+  )
+ ) {
+  keys[code] =
+   false;
+ }
+
+ spacePressed =
+  false;
+
+ worldMapHUD.style.display =
+  "block";
+
+ resizeWorldMapCanvas();
+
+ drawWorldMap();
+}
+
+// --------------------------------------------------
+// CLOSE WORLD MAP
+// --------------------------------------------------
+function closeWorldMap() {
+ worldMapOpen =
+  false;
+
+ worldMapDragging =
+  false;
+
+ worldMapHUD.style.display =
+  "none";
+
+ worldMapHUD.style.cursor =
+  "grab";
+}
+
+// --------------------------------------------------
+// TOGGLE WORLD MAP
+// --------------------------------------------------
+function toggleWorldMap() {
+ if (
+  worldMapOpen
+ ) {
+  closeWorldMap();
+ } else {
+  openWorldMap();
+ }
+}
+
+// --------------------------------------------------
+// MAP ZOOM
+// --------------------------------------------------
+worldMapHUD.addEventListener(
+ "wheel",
+ event => {
+  if (
+   !worldMapOpen
+  ) {
+   return;
+  }
+
+  event.preventDefault();
+
+  // -----------------------------------------------
+  // MOUSE POSITION
+  // -----------------------------------------------
+  const mouseX =
+   event.clientX;
+
+  const mouseY =
+   event.clientY;
+
+  const centerX =
+   window.innerWidth /
+   2 +
+   worldMapPanX;
+
+  const centerY =
+   window.innerHeight /
+   2 +
+   worldMapPanY;
+
+  const oldZoom =
+   worldMapZoom;
+
+  // -----------------------------------------------
+  // ZOOM
+  // -----------------------------------------------
+  if (
+   event.deltaY < 0
+  ) {
+   worldMapZoom *=
+    1.2;
+  } else {
+   worldMapZoom /=
+    1.2;
+  }
+
+  worldMapZoom =
+   THREE.MathUtils.clamp(
+    worldMapZoom,
+    0.3,
+    30
+   );
+
+  // -----------------------------------------------
+  // ZOOM TOWARD CURSOR
+  // -----------------------------------------------
+  const ratio =
+   worldMapZoom /
+   oldZoom;
+
+  worldMapPanX +=
+   (
+    mouseX -
+    centerX
+   ) *
+   (
+    1 -
+    ratio
+   );
+
+  worldMapPanY +=
+   (
+    mouseY -
+    centerY
+   ) *
+   (
+    1 -
+    ratio
+   );
+
+  drawWorldMap();
+ },
+ {
+  passive: false
+ }
+);
+
+// --------------------------------------------------
+// MAP DRAG START
+// --------------------------------------------------
+worldMapHUD.addEventListener(
+ "mousedown",
+ event => {
+  if (
+   event.button !==
+   0
+  ) {
+   return;
+  }
+
+  worldMapDragging =
+   true;
+
+  worldMapLastMouseX =
+   event.clientX;
+
+  worldMapLastMouseY =
+   event.clientY;
+
+  worldMapHUD.style.cursor =
+   "grabbing";
+ }
+);
+
+// --------------------------------------------------
+// MAP DRAG MOVE
+// --------------------------------------------------
+window.addEventListener(
+ "mousemove",
+ event => {
+  if (
+   !worldMapDragging
+  ) {
+   return;
+  }
+
+  worldMapPanX +=
+   event.clientX -
+   worldMapLastMouseX;
+
+  worldMapPanY +=
+   event.clientY -
+   worldMapLastMouseY;
+
+  worldMapLastMouseX =
+   event.clientX;
+
+  worldMapLastMouseY =
+   event.clientY;
+
+  drawWorldMap();
+ }
+);
+
+// --------------------------------------------------
+// MAP DRAG END
+// --------------------------------------------------
+window.addEventListener(
+ "mouseup",
+ () => {
+  if (
+   !worldMapDragging
+  ) {
+   return;
+  }
+
+  worldMapDragging =
+   false;
+
+  worldMapHUD.style.cursor =
+   "grab";
+ }
+);
+
+// ==================================================
 // KEYBOARD
 // ==================================================
 window.addEventListener(
@@ -6276,77 +7756,68 @@ window.addEventListener(
  event => {
 
  // --------------------------------------------------
- // TELEPORT MENU
+ // M = WORLD MAP
+ // --------------------------------------------------
+ if (
+  event.code ===
+  "KeyM" &&
+  !event.repeat
+ ) {
+  event.preventDefault();
+
+  toggleWorldMap();
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // WORLD MAP OPEN
+ // --------------------------------------------------
+ if (
+  worldMapOpen
+ ) {
+  if (
+   event.code ===
+   "Escape"
+  ) {
+   event.preventDefault();
+
+   closeWorldMap();
+  }
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // T = TELEPORT
  // --------------------------------------------------
  if (
   event.code ===
   "KeyT" &&
   !event.repeat
  ) {
-  if (
-   teleportMenuOpen
-  ) {
-   closeTeleportMenu();
-  } else {
-   openTeleportMenu();
-  }
-
   event.preventDefault();
+
+  toggleTeleportMenu();
 
   return;
  }
 
+ // --------------------------------------------------
+ // TELEPORT MENU OPEN
+ // --------------------------------------------------
  if (
   teleportMenuOpen
  ) {
   if (
    event.code ===
-   "ArrowDown"
-  ) {
-   selectNextTeleport();
-
-   event.preventDefault();
-
-   return;
-  }
-
-  if (
-   event.code ===
-   "ArrowUp"
-  ) {
-   selectPreviousTeleport();
-
-   event.preventDefault();
-
-   return;
-  }
-
-  if (
-   event.code ===
-   "Enter"
-  ) {
-   confirmTeleport();
-
-   event.preventDefault();
-
-   return;
-  }
-
-  if (
-   event.code ===
    "Escape"
   ) {
-   closeTeleportMenu();
-
    event.preventDefault();
 
-   return;
+   closeTeleportMenu();
   }
 
-  /*
-   * メニューを開いている間は
-   * プレイヤー入力へ渡さない。
-   */
   return;
  }
 
@@ -6373,16 +7844,16 @@ window.addEventListener(
    !keys["Space"]
   ) {
    spacePressed =
-   true;
+    true;
 
    const now =
-   performance.now() /
-   1000;
+    performance.now() /
+    1000;
 
    const doubleTap =
-   now -
-   lastSpaceTapTime <
-   GAS_DOUBLE_TAP_WINDOW;
+    now -
+    lastSpaceTapTime <
+    GAS_DOUBLE_TAP_WINDOW;
 
    if (
     doubleTap &&
@@ -6391,18 +7862,18 @@ window.addEventListener(
     wallStunTimer <= 0
    ) {
     const fired =
-    gasBurst();
+     gasBurst();
 
     if (fired) {
      lastSpaceTapTime =
-     -Infinity;
+      -Infinity;
     } else {
      lastSpaceTapTime =
-     now;
+      now;
     }
    } else {
     lastSpaceTapTime =
-    now;
+     now;
    }
   }
  }
@@ -6435,8 +7906,11 @@ window.addEventListener(
   );
  }
 
+ // --------------------------------------------------
+ // KEY STATE
+ // --------------------------------------------------
  keys[event.code] =
- true;
+  true;
  }
 );
 
@@ -6447,7 +7921,7 @@ window.addEventListener(
  "keyup",
  event => {
   keys[event.code] =
-  false;
+   false;
  }
 );
 
@@ -6455,522 +7929,147 @@ window.addEventListener(
 // POINTER LOCK
 // ==================================================
 document.addEventListener(
-  "pointerlockchange",
-  () => {
-    if (
-      document.pointerLockElement !==
-      renderer.domElement
-    ) {
-      for (
-        const code
-        of Object.keys(
-          keys
-        )
-      ) {
-        keys[code] =
-          false;
-      }
-
-      spacePressed =
-        false;
-    }
+ "pointerlockchange",
+ () => {
+  if (
+   document.pointerLockElement ===
+   renderer.domElement
+  ) {
+   return;
   }
+
+  // --------------------------------------------------
+  // CLEAR INPUT
+  // --------------------------------------------------
+  for (
+   const code
+   of Object.keys(
+    keys
+   )
+  ) {
+   keys[code] =
+    false;
+  }
+
+  spacePressed =
+   false;
+ }
 );
 
 // ==================================================
 // MOUSE
 // ==================================================
 renderer.domElement.addEventListener(
-  "mousedown",
-  event => {
-    if (
-      document.pointerLockElement !==
-      renderer.domElement
-    ) {
-      if (
-        event.button ===
-        0
-      ) {
-        renderer.domElement
-          .requestPointerLock();
-      }
+ "mousedown",
+ event => {
 
-      return;
-    }
+ // --------------------------------------------------
+ // UI OPEN
+ // --------------------------------------------------
+ if (
+  worldMapOpen ||
+  teleportMenuOpen
+ ) {
+  return;
+ }
 
-    if (
-      dead ||
-      wallStunTimer > 0
-    ) {
-      return;
-    }
-
-    // LEFT CLICK = BLADE
-    if (
-      event.button ===
-      0
-    ) {
-      bladeAttack();
-    }
-
-    // RIGHT CLICK = AUTO DUAL
-    if (
-      event.button ===
-      2
-    ) {
-      fireAutoDualAnchors();
-    }
-  }
-);
-
-renderer.domElement.addEventListener(
-  "contextmenu",
-  event => {
-    event.preventDefault();
-  }
-);
-
-document.addEventListener(
-  "mousemove",
-  event => {
-    if (
-      document.pointerLockElement !==
-      renderer.domElement
-    ) {
-      return;
-    }
-
-    yaw -=
-      event.movementX *
-      MOUSE_SENSITIVITY;
-
-    pitch -=
-      event.movementY *
-      MOUSE_SENSITIVITY;
-
-    pitch =
-      THREE.MathUtils.clamp(
-        pitch,
-        -Math.PI / 2 +
-          0.01,
-        Math.PI / 2 -
-          0.01
-      );
-  }
-);
-
-// ==================================================
-// DEBUG HUD
-// ==================================================
-const debugHUD =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  debugHUD.style,
-  {
-    position: "fixed",
-    left: "15px",
-    top: "15px",
-    color: "white",
-    fontFamily:
-      "monospace",
-    fontSize: "18px",
-    fontWeight: "bold",
-    whiteSpace: "pre",
-    textShadow:
-      "0 1px 4px black",
-    pointerEvents:
-      "none",
-    zIndex: "100"
-  }
-);
-
-document.body.appendChild(
-  debugHUD
-);
-
-// ==================================================
-// MESSAGE HUD
-// ==================================================
-const messageHUD =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  messageHUD.style,
-  {
-    position: "fixed",
-    left: "50%",
-    top: "35%",
-    transform:
-      "translate(-50%,-50%)",
-    color: "white",
-    fontFamily: "Arial",
-    fontSize: "38px",
-    fontWeight: "bold",
-    textShadow:
-      "0 3px 8px black",
-    opacity: "0",
-    transition:
-      "opacity .15s",
-    pointerEvents:
-      "none",
-    zIndex: "150"
-  }
-);
-
-document.body.appendChild(
-  messageHUD
-);
-
-let messageTimeout =
-  null;
-
-function showMessage(
-  text
-) {
-  messageHUD.textContent =
-    text;
-
-  messageHUD.style.opacity =
-    "1";
-
+ // --------------------------------------------------
+ // POINTER LOCK
+ // --------------------------------------------------
+ if (
+  document.pointerLockElement !==
+  renderer.domElement
+ ) {
   if (
-    messageTimeout
+   event.button ===
+   0
   ) {
-    clearTimeout(
-      messageTimeout
-    );
+   renderer.domElement
+   .requestPointerLock();
   }
 
-  messageTimeout =
-    setTimeout(
-      () => {
-        messageHUD.style.opacity =
-          "0";
-      },
-      1000
-    );
-}
+  return;
+ }
 
-// ==================================================
-// TELEPORT HUD
-// ==================================================
-const teleportHUD =
- document.createElement(
-  "div"
- );
+ // --------------------------------------------------
+ // DISABLED
+ // --------------------------------------------------
+ if (
+  dead ||
+  wallStunTimer > 0
+ ) {
+  return;
+ }
 
-Object.assign(
- teleportHUD.style,
- {
-  position: "fixed",
+ // --------------------------------------------------
+ // LEFT CLICK = BLADE
+ // --------------------------------------------------
+ if (
+  event.button ===
+  0
+ ) {
+  bladeAttack();
+ }
 
-  left: "50%",
-  top: "50%",
-
-  transform:
-  "translate(-50%,-50%)",
-
-  minWidth: "360px",
-
-  padding:
-  "28px 40px",
-
-  display: "none",
-
-  color: "white",
-
-  background:
-  "rgba(0,0,0,.78)",
-
-  border:
-  "2px solid rgba(255,255,255,.7)",
-
-  fontFamily:
-  "monospace",
-
-  fontSize:
-  "20px",
-
-  fontWeight:
-  "bold",
-
-  lineHeight:
-  "1.5",
-
-  textAlign:
-  "center",
-
-  whiteSpace:
-  "pre",
-
-  textShadow:
-  "0 2px 4px black",
-
-  pointerEvents:
-  "none",
-
-  zIndex:
-  "180"
+ // --------------------------------------------------
+ // RIGHT CLICK = AUTO DUAL
+ // --------------------------------------------------
+ if (
+  event.button ===
+  2
+ ) {
+  fireAutoDualAnchors();
+ }
  }
 );
 
-document.body.appendChild(
- teleportHUD
+// --------------------------------------------------
+// CONTEXT MENU
+// --------------------------------------------------
+renderer.domElement.addEventListener(
+ "contextmenu",
+ event => {
+  event.preventDefault();
+ }
 );
 
-// ==================================================
-// CROSSHAIR
-// ==================================================
-const crosshair =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  crosshair.style,
-  {
-    position: "fixed",
-    left: "50%",
-    top: "50%",
-    width: "6px",
-    height: "6px",
-    background: "white",
-    borderRadius: "50%",
-    transform:
-      "translate(-50%,-50%)",
-    boxShadow:
-      "0 0 3px black",
-    pointerEvents:
-      "none",
-    zIndex: "100"
+// --------------------------------------------------
+// CAMERA LOOK
+// --------------------------------------------------
+document.addEventListener(
+ "mousemove",
+ event => {
+  if (
+   worldMapOpen ||
+   teleportMenuOpen
+  ) {
+   return;
   }
-);
 
-document.body.appendChild(
-  crosshair
-);
-
-// ==================================================
-// ANCHOR HUD
-// ==================================================
-const anchorHUD =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  anchorHUD.style,
-  {
-    position: "fixed",
-    left: "50%",
-    top: "54%",
-    transform:
-      "translateX(-50%)",
-    display: "flex",
-    gap: "50px",
-    color: "white",
-    fontFamily:
-      "monospace",
-    fontSize: "18px",
-    fontWeight: "bold",
-    textShadow:
-      "0 1px 4px black",
-    pointerEvents:
-      "none",
-    zIndex: "100"
+  if (
+   document.pointerLockElement !==
+   renderer.domElement
+  ) {
+   return;
   }
-);
 
-const leftHUD =
-  document.createElement(
-    "span"
-  );
+  yaw -=
+   event.movementX *
+   MOUSE_SENSITIVITY;
 
-const rightHUD =
-  document.createElement(
-    "span"
-  );
+  pitch -=
+   event.movementY *
+   MOUSE_SENSITIVITY;
 
-anchorHUD.append(
-  leftHUD,
-  rightHUD
-);
-
-document.body.appendChild(
-  anchorHUD
-);
-
-// ==================================================
-// SMALL STATUS HUD
-// ==================================================
-const statusHUD =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  statusHUD.style,
-  {
-    position: "fixed",
-    left: "50%",
-    top: "58%",
-    transform:
-      "translateX(-50%)",
-    color: "#ffcc66",
-    fontFamily:
-      "monospace",
-    fontSize: "15px",
-    fontWeight: "bold",
-    textShadow:
-      "0 1px 3px black",
-    pointerEvents:
-      "none",
-    opacity: "0",
-    zIndex: "100"
-  }
-);
-
-document.body.appendChild(
-  statusHUD
-);
-
-// ==================================================
-// RESOURCES
-// ==================================================
-const resources =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  resources.style,
-  {
-    position: "fixed",
-    right: "25px",
-    bottom: "25px",
-    width: "300px",
-    color: "white",
-    fontFamily: "Arial",
-    fontWeight: "bold",
-    textShadow:
-      "0 1px 3px black"
-  }
-);
-
-document.body.appendChild(
-  resources
-);
-
-function createBar(
-  color
-) {
-  const wrapper =
-    document.createElement(
-      "div"
-    );
-
-  wrapper.style.marginTop =
-    "12px";
-
-  const label =
-    document.createElement(
-      "div"
-    );
-
-  const background =
-    document.createElement(
-      "div"
-    );
-
-  Object.assign(
-    background.style,
-    {
-      height: "18px",
-      border:
-        "2px solid white",
-      background:
-        "rgba(0,0,0,.6)",
-      overflow: "hidden"
-    }
-  );
-
-  const fill =
-    document.createElement(
-      "div"
-    );
-
-  fill.style.height =
-    "100%";
-
-  fill.style.background =
-    color;
-
-  background.appendChild(
-    fill
-  );
-
-  wrapper.append(
-    label,
-    background
-  );
-
-  resources.appendChild(
-    wrapper
-  );
-
-  return {
-    label,
-    fill
-  };
-}
-
-const hpBar =
-  createBar(
-    "#e53935"
-  );
-
-const gasBar =
-  createBar(
-    "#29b6f6"
-  );
-
-// ==================================================
-// DEATH SCREEN
-// ==================================================
-const deathScreen =
-  document.createElement(
-    "div"
-  );
-
-Object.assign(
-  deathScreen.style,
-  {
-    position: "fixed",
-    inset: "0",
-    display: "none",
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
-    background:
-      "rgba(100,0,0,.45)",
-    color: "white",
-    font:
-      "bold 64px Arial",
-    zIndex: "200"
-  }
-);
-
-deathScreen.textContent =
-  "YOU DIED";
-
-document.body.appendChild(
-  deathScreen
+  pitch =
+   THREE.MathUtils.clamp(
+    pitch,
+    -Math.PI / 2 +
+    0.01,
+    Math.PI / 2 -
+    0.01
+   );
+ }
 );
 
 // ==================================================
