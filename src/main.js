@@ -164,6 +164,130 @@ const IMPACT_MATERIALS = {
 };
 
 // ==================================================
+// IMPACT DAMAGE
+// ==================================================
+
+// --------------------------------------------------
+// CALCULATE DAMAGE
+// --------------------------------------------------
+function impactDamage(
+ speed,
+ materialName = "stone"
+) {
+ // ------------------------------------------------
+ // MATERIAL
+ // ------------------------------------------------
+ const material =
+  IMPACT_MATERIALS[
+   materialName
+  ] ||
+  IMPACT_MATERIALS.stone;
+
+ // ------------------------------------------------
+ // SPEED
+ // ------------------------------------------------
+ const kmh =
+  speedToKmh(
+   speed
+  );
+
+ // ------------------------------------------------
+ // SAFE SPEED
+ // ------------------------------------------------
+ if (
+  kmh <=
+  material.safeKmh
+ ) {
+  return 0;
+ }
+
+ // ------------------------------------------------
+ // LETHAL SPEED
+ // ------------------------------------------------
+ if (
+  kmh >=
+  material.lethalKmh
+ ) {
+  return MAX_HEALTH;
+ }
+
+ // ------------------------------------------------
+ // DAMAGE CURVE
+ // ------------------------------------------------
+ const t =
+  (
+   kmh -
+   material.safeKmh
+  ) /
+  (
+   material.lethalKmh -
+   material.safeKmh
+  );
+
+ /*
+  * 速度が致死速度へ近づくほど
+  * 急激にダメージが増える。
+  */
+ const damage =
+  t *
+  t *
+  MAX_HEALTH *
+  material.damageMultiplier *
+  material.hardness;
+
+ // ------------------------------------------------
+ // MINIMUM DAMAGE
+ // ------------------------------------------------
+ if (
+  damage <
+  MIN_DAMAGE_THRESHOLD
+ ) {
+  return 0;
+ }
+
+ return damage;
+}
+
+// --------------------------------------------------
+// APPLY IMPACT DAMAGE
+// --------------------------------------------------
+function damageFromImpact(
+ speed,
+ materialName = "stone"
+) {
+ if (dead) {
+  return;
+ }
+
+ const damage =
+  impactDamage(
+   speed,
+   materialName
+  );
+
+ if (
+  damage <= 0
+ ) {
+  return;
+ }
+
+ health -=
+  damage;
+
+ health =
+  Math.max(
+   health,
+   0
+  );
+
+ if (
+  health <= 0
+ ) {
+  die();
+ }
+}
+
+// ==================================================
 // WALL
 // ==================================================
 const WALL_JUMP_SAFE_KMH = 30;
