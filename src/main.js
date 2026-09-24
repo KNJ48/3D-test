@@ -6158,7 +6158,7 @@ function moveVertical(
   PLAYER_HEIGHT;
 
  // --------------------------------------------------
- // TERRAIN
+ // TERRAIN LANDING
  // --------------------------------------------------
  if (
   next.y <=
@@ -6346,7 +6346,7 @@ function moveVertical(
  }
 
  // --------------------------------------------------
- // CEILING
+ // CEILING / VERTICAL COLLISION
  // --------------------------------------------------
  damageFromImpact(
   velocity.y,
