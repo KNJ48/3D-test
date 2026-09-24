@@ -2241,146 +2241,182 @@ function createRoad(
 // ==================================================
 // HOUSE
 // ==================================================
-
-/*
- * 家そのものは1/100にしない。
- *
- * 全て実寸スケール。
- */
 const HOUSE_TEMPLATES = [
-  {
-    width: 7,
-    depth: 9,
-    height: 8,
-    roofHeight: 3
-  },
-
-  {
-    width: 9,
-    depth: 11,
-    height: 10,
-    roofHeight: 3.5
-  },
-
-  {
-    width: 11,
-    depth: 8,
-    height: 12,
-    roofHeight: 4
-  },
-
-  {
-    width: 8,
-    depth: 8,
-    height: 14,
-    roofHeight: 3
-  },
-
-  {
-    width: 13,
-    depth: 10,
-    height: 9,
-    roofHeight: 4
-  }
+ {
+  width: 7,
+  depth: 9,
+  height: 8,
+  roofHeight: 3
+ },
+ {
+  width: 9,
+  depth: 11,
+  height: 10,
+  roofHeight: 3.5
+ },
+ {
+  width: 11,
+  depth: 8,
+  height: 12,
+  roofHeight: 4
+ },
+ {
+  width: 8,
+  depth: 8,
+  height: 14,
+  roofHeight: 3
+ },
+ {
+  width: 13,
+  depth: 10,
+  height: 9,
+  roofHeight: 4
+ }
 ];
 
-/*
- * テンプレ値はmなので、
- * ここでunitへ変換。
- */
+// --------------------------------------------------
+// CREATE HOUSE
+// --------------------------------------------------
 function createHouse(
-  x,
-  z,
-  variant,
-  rotation = 0
+ x,
+ z,
+ variant,
+ rotation = 0
 ) {
-  const template =
-    HOUSE_TEMPLATES[
-      variant %
-      HOUSE_TEMPLATES.length
-    ];
+ const template =
+  HOUSE_TEMPLATES[
+   variant %
+   HOUSE_TEMPLATES.length
+  ];
 
-  const width =
-    metersToUnits(
-      template.width
-    );
-
-  const depth =
-    metersToUnits(
-      template.depth
-    );
-
-  const height =
-    metersToUnits(
-      template.height
-    );
-
-  const roofHeight =
-    metersToUnits(
-      template.roofHeight
-    );
-
-  const house =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        width,
-        height,
-        depth
-      ),
-      cityMaterials[
-        variant %
-        cityMaterials.length
-      ]
-    );
-
-  house.position.set(
-    x,
-    height / 2,
-    z
+ const width =
+  metersToUnits(
+   template.width
   );
 
-  house.rotation.y =
-    rotation;
-
-  addWorldObject(
-    house
+ const depth =
+  metersToUnits(
+   template.depth
   );
 
-  const roof =
-    new THREE.Mesh(
-      new THREE.ConeGeometry(
-        Math.max(
-          width,
-          depth
-        ) * 0.72,
-
-        roofHeight,
-
-        4
-      ),
-      roofMaterial
-    );
-
-  roof.position.set(
-    x,
-    height +
-      roofHeight / 2,
-    z
+ const height =
+  metersToUnits(
+   template.height
   );
 
-  roof.rotation.y =
-    Math.PI / 4 +
-    rotation;
-
-  roof.castShadow = true;
-
-  scene.add(
-    roof
+ const roofHeight =
+  metersToUnits(
+   template.roofHeight
   );
 
-  anchorTargets.push(
-    roof
+ // --------------------------------------------------
+ // TERRAIN HEIGHT
+ // --------------------------------------------------
+ /*
+  * createHouseへ渡されるx/zは
+  * Three.js内部unit。
+  *
+  * 地形Generatorはmなので変換する。
+  */
+ const terrainHeightMeters =
+  getTerrainHeightMeters(
+   x *
+   METERS_PER_UNIT,
+
+   z *
+   METERS_PER_UNIT
   );
+
+ const terrainY =
+  terrainHeightMeters /
+  METERS_PER_UNIT;
+
+ // --------------------------------------------------
+ // HOUSE
+ // --------------------------------------------------
+ const house =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    width,
+    height,
+    depth
+   ),
+
+   cityMaterials[
+    variant %
+    cityMaterials.length
+   ]
+  );
+
+ /*
+  * 建物底面を地表へ合わせる。
+  */
+ house.position.set(
+  x,
+
+  terrainY +
+  height /
+  2,
+
+  z
+ );
+
+ house.rotation.y =
+  rotation;
+
+ addWorldObject(
+  house
+ );
+
+ // --------------------------------------------------
+ // ROOF
+ // --------------------------------------------------
+ const roof =
+  new THREE.Mesh(
+   new THREE.ConeGeometry(
+    Math.max(
+     width,
+     depth
+    ) *
+    0.72,
+
+    roofHeight,
+
+    4
+   ),
+
+   roofMaterial
+  );
+
+ roof.position.set(
+  x,
+
+  terrainY +
+  height +
+  roofHeight /
+  2,
+
+  z
+ );
+
+ roof.rotation.y =
+  Math.PI /
+  4 +
+  rotation;
+
+ roof.castShadow =
+  true;
+
+ roof.receiveShadow =
+  true;
+
+ scene.add(
+  roof
+ );
+
+ anchorTargets.push(
+  roof
+ );
 }
 
 // ==================================================
