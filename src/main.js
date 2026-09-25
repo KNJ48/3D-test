@@ -5191,13 +5191,50 @@ function bladeEaseOut(
   Math.pow(
    1 -
    t,
-   3
+   4
   )
  );
 }
 
 // --------------------------------------------------
-// RESET BLADE POSE
+// EASE IN OUT
+// --------------------------------------------------
+function bladeEaseInOut(
+ t
+) {
+ t =
+  THREE.MathUtils.clamp(
+   t,
+   0,
+   1
+  );
+
+ if (
+  t <
+  0.5
+ ) {
+  return (
+   4 *
+   t *
+   t *
+   t
+  );
+ }
+
+ return (
+  1 -
+  Math.pow(
+   -2 *
+   t +
+   2,
+   3
+  ) /
+  2
+ );
+}
+
+// --------------------------------------------------
+// REST POSE
 // --------------------------------------------------
 function setBladeRestPose(
  blade
@@ -5214,11 +5251,568 @@ function setBladeRestPose(
 }
 
 // --------------------------------------------------
-// SINGLE SLASH
+// RIGHT TO LEFT SLASH
 // --------------------------------------------------
-function applySingleSlash(
+function applyRightToLeftSlash(
+ time
+) {
+ const blade =
+  rightBlade;
+
+ const restP =
+  blade.userData
+  .restPosition;
+
+ const restR =
+  blade.userData
+  .restRotation;
+
+ // ------------------------------------------------
+ // WINDUP
+ // ------------------------------------------------
+ /*
+  * 右画面端へ振りかぶる。
+  */
+ if (
+  time <
+  0.10
+ ) {
+  const t =
+   bladeSmoothStep(
+    time /
+    0.10
+   );
+
+  blade.position.set(
+   THREE.MathUtils.lerp(
+    restP.x,
+    0.78,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restP.y,
+    -0.24,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restP.z,
+    -0.42,
+    t
+   )
+  );
+
+  blade.rotation.set(
+   THREE.MathUtils.lerp(
+    restR.x,
+    -0.25,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restR.y,
+    -0.60,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restR.z,
+    -0.62,
+    t
+   )
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // FULL SCREEN SLASH
+ // ------------------------------------------------
+ /*
+  * 右端から左端まで、
+  * 手元ごと画面を横断する。
+  */
+ if (
+  time <
+  0.24
+ ) {
+  const t =
+   bladeEaseInOut(
+    (
+     time -
+     0.10
+    ) /
+    0.14
+   );
+
+  blade.position.set(
+   THREE.MathUtils.lerp(
+    0.78,
+    -0.78,
+    t
+   ),
+
+   -0.24 +
+   Math.sin(
+    t *
+    Math.PI
+   ) *
+   0.10,
+
+   THREE.MathUtils.lerp(
+    -0.42,
+    -0.61,
+    Math.sin(
+     t *
+     Math.PI
+    )
+   )
+  );
+
+  /*
+   * 横断しながら刀身を
+   * 斬撃方向へ寝かせる。
+   *
+   * カメラへ真っ直ぐ向けない。
+   */
+  blade.rotation.set(
+   THREE.MathUtils.lerp(
+    -0.25,
+    0.18,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.60,
+    0.52,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.62,
+    1.08,
+    t
+   )
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // FOLLOW THROUGH
+ // ------------------------------------------------
+ if (
+  time <
+  0.32
+ ) {
+  const t =
+   bladeEaseOut(
+    (
+     time -
+     0.24
+    ) /
+    0.08
+   );
+
+  blade.position.set(
+   THREE.MathUtils.lerp(
+    -0.78,
+    -0.68,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.24,
+    -0.34,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.42,
+    -0.30,
+    t
+   )
+  );
+
+  blade.rotation.set(
+   THREE.MathUtils.lerp(
+    0.18,
+    0.28,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    0.52,
+    0.38,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    1.08,
+    0.90,
+    t
+   )
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // RECOVERY
+ // ------------------------------------------------
+ const t =
+  bladeSmoothStep(
+   (
+    time -
+    0.32
+   ) /
+   0.12
+  );
+
+ blade.position.set(
+  THREE.MathUtils.lerp(
+   -0.68,
+   restP.x,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   -0.34,
+   restP.y,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   -0.30,
+   restP.z,
+   t
+  )
+ );
+
+ blade.rotation.set(
+  THREE.MathUtils.lerp(
+   0.28,
+   restR.x,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   0.38,
+   restR.y,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   0.90,
+   restR.z,
+   t
+  )
+ );
+}
+
+// --------------------------------------------------
+// LEFT TO RIGHT SLASH
+// --------------------------------------------------
+function applyLeftToRightSlash(
+ time
+) {
+ const blade =
+  leftBlade;
+
+ const restP =
+  blade.userData
+  .restPosition;
+
+ const restR =
+  blade.userData
+  .restRotation;
+
+ // ------------------------------------------------
+ // WINDUP
+ // ------------------------------------------------
+ if (
+  time <
+  0.10
+ ) {
+  const t =
+   bladeSmoothStep(
+    time /
+    0.10
+   );
+
+  blade.position.set(
+   THREE.MathUtils.lerp(
+    restP.x,
+    -0.78,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restP.y,
+    -0.24,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restP.z,
+    -0.42,
+    t
+   )
+  );
+
+  blade.rotation.set(
+   THREE.MathUtils.lerp(
+    restR.x,
+    -0.25,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restR.y,
+    0.60,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    restR.z,
+    0.62,
+    t
+   )
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // FULL SCREEN SLASH
+ // ------------------------------------------------
+ if (
+  time <
+  0.24
+ ) {
+  const t =
+   bladeEaseInOut(
+    (
+     time -
+     0.10
+    ) /
+    0.14
+   );
+
+  blade.position.set(
+   THREE.MathUtils.lerp(
+    -0.78,
+    0.78,
+    t
+   ),
+
+   -0.24 +
+   Math.sin(
+    t *
+    Math.PI
+   ) *
+   0.10,
+
+   THREE.MathUtils.lerp(
+    -0.42,
+    -0.61,
+    Math.sin(
+     t *
+     Math.PI
+    )
+   )
+  );
+
+  blade.rotation.set(
+   THREE.MathUtils.lerp(
+    -0.25,
+    0.18,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    0.60,
+    -0.52,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    0.62,
+    -1.08,
+    t
+   )
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // FOLLOW THROUGH
+ // ------------------------------------------------
+ if (
+  time <
+  0.32
+ ) {
+  const t =
+   bladeEaseOut(
+    (
+     time -
+     0.24
+    ) /
+    0.08
+   );
+
+  blade.position.set(
+   THREE.MathUtils.lerp(
+    0.78,
+    0.68,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.24,
+    -0.34,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.42,
+    -0.30,
+    t
+   )
+  );
+
+  blade.rotation.set(
+   THREE.MathUtils.lerp(
+    0.18,
+    0.28,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -0.52,
+    -0.38,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
+    -1.08,
+    -0.90,
+    t
+   )
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // RECOVERY
+ // ------------------------------------------------
+ const t =
+  bladeSmoothStep(
+   (
+    time -
+    0.32
+   ) /
+   0.12
+  );
+
+ blade.position.set(
+  THREE.MathUtils.lerp(
+   0.68,
+   restP.x,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   -0.34,
+   restP.y,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   -0.30,
+   restP.z,
+   t
+  )
+ );
+
+ blade.rotation.set(
+  THREE.MathUtils.lerp(
+   0.28,
+   restR.x,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   -0.38,
+   restR.y,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   -0.90,
+   restR.z,
+   t
+  )
+ );
+}
+
+// --------------------------------------------------
+// PASSIVE BLADE
+// --------------------------------------------------
+function applyPassiveBlade(
  blade,
- direction,
+ time
+) {
+ const restP =
+  blade.userData
+  .restPosition;
+
+ const restR =
+  blade.userData
+  .restRotation;
+
+ const amount =
+  Math.sin(
+   Math.min(
+    time /
+    BLADE_ATTACK_DURATION,
+    1
+   ) *
+   Math.PI
+  );
+
+ blade.position.set(
+  restP.x,
+
+  restP.y -
+  0.025 *
+  amount,
+
+  restP.z +
+  0.035 *
+  amount
+ );
+
+ blade.rotation.set(
+  restR.x -
+  0.06 *
+  amount,
+
+  restR.y,
+
+  restR.z
+ );
+}
+
+// --------------------------------------------------
+// CROSS SLASH
+// --------------------------------------------------
+function applyCrossSlash(
+ blade,
+ side,
  time
 ) {
  const restP =
@@ -5243,427 +5837,110 @@ function applySingleSlash(
    );
 
   blade.position.set(
-   restP.x +
-   direction *
-   0.12 *
-   t,
+   THREE.MathUtils.lerp(
+    restP.x,
+    side *
+    0.76,
+    t
+   ),
 
-   restP.y +
-   0.08 *
-   t,
+   THREE.MathUtils.lerp(
+    restP.y,
+    -0.20,
+    t
+   ),
 
-   restP.z +
-   0.10 *
-   t
+   THREE.MathUtils.lerp(
+    restP.z,
+    -0.43,
+    t
+   )
   );
 
   blade.rotation.set(
-   restR.x -
-   0.30 *
-   t,
+   THREE.MathUtils.lerp(
+    restR.x,
+    -0.25,
+    t
+   ),
 
-   restR.y +
-   direction *
-   0.40 *
-   t,
+   THREE.MathUtils.lerp(
+    restR.y,
+    side *
+    -0.52,
+    t
+   ),
 
-   restR.z +
-   direction *
-   0.55 *
-   t
+   THREE.MathUtils.lerp(
+    restR.z,
+    side *
+    -0.60,
+    t
+   )
   );
 
   return;
  }
 
  // ------------------------------------------------
- // FAST SLASH
+ // CROSS THROUGH CENTER
  // ------------------------------------------------
  if (
   time <
-  0.21
+  0.25
  ) {
   const t =
-   bladeEaseOut(
+   bladeEaseInOut(
     (
      time -
      0.10
     ) /
-    0.11
-   );
-
-  /*
-   * direction:
-   *
-   * -1 = 左へ斬る
-   * +1 = 右へ斬る
-   */
-  blade.position.set(
-   restP.x +
-   direction *
-   (
-    0.12 -
-    0.50 *
-    t
-   ),
-
-   restP.y +
-   0.08 -
-   0.14 *
-   t,
-
-   restP.z -
-   0.23 *
-   t
-  );
-
-  blade.rotation.set(
-   restR.x +
-   (
-    -0.30 +
-    0.72 *
-    t
-   ),
-
-   restR.y +
-   direction *
-   (
-    0.40 -
-    0.90 *
-    t
-   ),
-
-   restR.z +
-   direction *
-   (
-    0.55 -
-    1.80 *
-    t
-   )
-  );
-
-  return;
- }
-
- // ------------------------------------------------
- // FOLLOW THROUGH
- // ------------------------------------------------
- if (
-  time <
-  0.31
- ) {
-  const t =
-   bladeSmoothStep(
-    (
-     time -
-     0.21
-    ) /
-    0.10
+    0.15
    );
 
   blade.position.set(
-   restP.x -
-   direction *
-   (
-    0.38 -
-    0.18 *
+   THREE.MathUtils.lerp(
+    side *
+    0.76,
+    side *
+    -0.72,
     t
    ),
 
-   restP.y -
-   (
-    0.06 -
-    0.02 *
+   THREE.MathUtils.lerp(
+    -0.20,
+    -0.33,
     t
    ),
 
-   restP.z -
-   (
-    0.23 -
-    0.10 *
-    t
-   )
-  );
-
-  blade.rotation.set(
-   restR.x +
-   (
-    0.42 -
-    0.16 *
-    t
-   ),
-
-   restR.y -
-   direction *
-   (
-    0.50 -
-    0.22 *
-    t
-   ),
-
-   restR.z -
-   direction *
-   (
-    1.25 -
-    0.55 *
-    t
-   )
-  );
-
-  return;
- }
-
- // ------------------------------------------------
- // RECOVER
- // ------------------------------------------------
- const t =
-  bladeSmoothStep(
-   (
-    time -
-    0.31
-   ) /
-   0.13
-  );
-
- blade.position.set(
-  THREE.MathUtils.lerp(
-   restP.x -
-   direction *
-   0.20,
-   restP.x,
-   t
-  ),
-
-  THREE.MathUtils.lerp(
-   restP.y -
-   0.04,
-   restP.y,
-   t
-  ),
-
-  THREE.MathUtils.lerp(
-   restP.z -
-   0.13,
-   restP.z,
-   t
-  )
- );
-
- blade.rotation.set(
-  THREE.MathUtils.lerp(
-   restR.x +
-   0.26,
-   restR.x,
-   t
-  ),
-
-  THREE.MathUtils.lerp(
-   restR.y -
-   direction *
-   0.28,
-   restR.y,
-   t
-  ),
-
-  THREE.MathUtils.lerp(
-   restR.z -
-   direction *
-   0.70,
-   restR.z,
-   t
-  )
- );
-}
-
-// --------------------------------------------------
-// PASSIVE HAND
-// --------------------------------------------------
-function applyPassiveBladeDuringSlash(
- blade,
- direction,
- time
-) {
- const restP =
-  blade.userData
-  .restPosition;
-
- const restR =
-  blade.userData
-  .restRotation;
-
- const phase =
-  Math.sin(
-   Math.min(
-    time /
-    BLADE_ATTACK_DURATION,
-    1
+   -0.43 -
+   Math.sin(
+    t *
+    Math.PI
    ) *
-   Math.PI
-  );
-
- /*
-  * 片手斬り中も
-  * 反対の腕を完全静止させない。
-  */
- blade.position.set(
-  restP.x -
-   direction *
-   0.045 *
-   phase,
-
-  restP.y -
-   0.025 *
-   phase,
-
-  restP.z +
-   0.035 *
-   phase
- );
-
- blade.rotation.set(
-  restR.x -
-   0.08 *
-   phase,
-
-  restR.y -
-   direction *
-   0.08 *
-   phase,
-
-  restR.z -
-   direction *
-   0.12 *
-   phase
- );
-}
-
-// --------------------------------------------------
-// CROSS SLASH
-// --------------------------------------------------
-function applyCrossSlash(
- blade,
- side,
- time
-) {
- const restP =
-  blade.userData
-  .restPosition;
-
- const restR =
-  blade.userData
-  .restRotation;
-
- // ------------------------------------------------
- // OPEN
- // ------------------------------------------------
- if (
-  time <
-  0.11
- ) {
-  const t =
-   bladeSmoothStep(
-    time /
-    0.11
-   );
-
-  blade.position.set(
-   restP.x +
-   side *
-   0.16 *
-   t,
-
-   restP.y +
-   0.08 *
-   t,
-
-   restP.z +
-   0.08 *
-   t
+   0.20
   );
 
   blade.rotation.set(
-   restR.x -
-   0.30 *
-   t,
-
-   restR.y +
-   side *
-   0.34 *
-   t,
-
-   restR.z +
-   side *
-   0.68 *
-   t
-  );
-
-  return;
- }
-
- // ------------------------------------------------
- // CROSS
- // ------------------------------------------------
- if (
-  time <
-  0.23
- ) {
-  const t =
-   bladeEaseOut(
-    (
-     time -
-     0.11
-    ) /
-    0.12
-   );
-
-  /*
-   * 左右から中央を通って
-   * 反対側へ交差。
-   */
-  blade.position.set(
    THREE.MathUtils.lerp(
-    restP.x +
+    -0.25,
+    0.22,
+    t
+   ),
+
+   THREE.MathUtils.lerp(
     side *
-    0.16,
-
-    restP.x -
+    -0.52,
     side *
-    0.27,
-
+    0.44,
     t
    ),
 
-   restP.y +
-   0.08 -
-   0.13 *
-   t,
-
-   restP.z -
-   0.25 *
-   t
-  );
-
-  blade.rotation.set(
-   restR.x +
    THREE.MathUtils.lerp(
-    -0.30,
-    0.46,
-    t
-   ),
-
-   restR.y +
-   side *
-   THREE.MathUtils.lerp(
-    0.34,
-    -0.43,
-    t
-   ),
-
-   restR.z +
-   side *
-   THREE.MathUtils.lerp(
-    0.68,
-    -1.05,
+    side *
+    -0.60,
+    side *
+    1.02,
     t
    )
   );
@@ -5678,68 +5955,50 @@ function applyCrossSlash(
   bladeSmoothStep(
    (
     time -
-    0.23
+    0.25
    ) /
-   0.21
+   0.19
   );
 
  blade.position.set(
   THREE.MathUtils.lerp(
-   restP.x -
    side *
-   0.27,
-
+   -0.72,
    restP.x,
-
    t
   ),
 
   THREE.MathUtils.lerp(
-   restP.y -
-   0.05,
-
+   -0.33,
    restP.y,
-
    t
   ),
 
   THREE.MathUtils.lerp(
-   restP.z -
-   0.25,
-
+   -0.43,
    restP.z,
-
    t
   )
  );
 
  blade.rotation.set(
   THREE.MathUtils.lerp(
-   restR.x +
-   0.46,
-
+   0.22,
    restR.x,
-
    t
   ),
 
   THREE.MathUtils.lerp(
-   restR.y -
    side *
-   0.43,
-
+   0.44,
    restR.y,
-
    t
   ),
 
   THREE.MathUtils.lerp(
-   restR.z -
    side *
-   1.05,
-
+   1.02,
    restR.z,
-
    t
   )
  );
@@ -5752,27 +6011,18 @@ function applyBladeAttackMotion(
  time
 ) {
  // ------------------------------------------------
- // MOTION 1
- // RIGHT → LEFT
+ // 1 = RIGHT → LEFT
  // ------------------------------------------------
  if (
   bladeAttackMotion ===
   1
  ) {
-  /*
-   * 右手を左へ振る。
-   *
-   * direction=-1
-   */
-  applySingleSlash(
-   rightBlade,
-   -1,
+  applyRightToLeftSlash(
    time
   );
 
-  applyPassiveBladeDuringSlash(
+  applyPassiveBlade(
    leftBlade,
-   -1,
    time
   );
 
@@ -5780,22 +6030,18 @@ function applyBladeAttackMotion(
  }
 
  // ------------------------------------------------
- // MOTION 2
- // LEFT → RIGHT
+ // 2 = LEFT → RIGHT
  // ------------------------------------------------
  if (
   bladeAttackMotion ===
   2
  ) {
-  applySingleSlash(
-   leftBlade,
-   1,
+  applyLeftToRightSlash(
    time
   );
 
-  applyPassiveBladeDuringSlash(
+  applyPassiveBlade(
    rightBlade,
-   1,
    time
   );
 
@@ -5803,8 +6049,7 @@ function applyBladeAttackMotion(
  }
 
  // ------------------------------------------------
- // MOTION 3
- // CROSS
+ // 3 = CROSS SLASH
  // ------------------------------------------------
  applyCrossSlash(
   leftBlade,
@@ -5835,58 +6080,46 @@ function triggerBladeAnchorRecoil(
 }
 
 // --------------------------------------------------
-// ANCHOR RECOIL
+// ANCHOR RECOIL UPDATE
 // --------------------------------------------------
 function updateBladeAnchorRecoil(
  blade,
  delta
 ) {
- let recoil =
+ let value =
   blade.userData
   .anchorRecoil ||
   0;
 
  if (
-  recoil <=
-  0
+  value <= 0
  ) {
-  return {
-   position: 0,
-   rotation: 0
-  };
+  return 0;
  }
 
- /*
-  * すぐ引き、
-  * 滑らかに戻す。
-  */
- recoil =
+ value =
   Math.max(
    0,
 
-   recoil -
+   value -
    delta /
    BLADE_ANCHOR_RECOIL_DURATION
   );
 
  blade.userData.anchorRecoil =
-  recoil;
+  value;
 
- const curve =
+ /*
+  * 1→0の途中で
+  * 一度だけ大きく後退。
+  */
+ return (
   Math.sin(
-   recoil *
+   value *
    Math.PI
-  );
-
- return {
-  position:
-   curve *
-   BLADE_ANCHOR_RECOIL_DISTANCE,
-
-  rotation:
-   curve *
-   BLADE_ANCHOR_RECOIL_ANGLE
- };
+  ) *
+  BLADE_ANCHOR_RECOIL_DISTANCE
+ );
 }
 
 // --------------------------------------------------
@@ -5898,9 +6131,6 @@ function updateBladeIdleMotion(
  yawDelta,
  pitchDelta
 ) {
- const side =
-  blade.userData.side;
-
  const restP =
   blade.userData
   .restPosition;
@@ -5909,9 +6139,6 @@ function updateBladeIdleMotion(
   blade.userData
   .restRotation;
 
- // ------------------------------------------------
- // SPEED
- // ------------------------------------------------
  const speedKmh =
   velocity.length() *
   METERS_PER_UNIT *
@@ -5928,7 +6155,7 @@ function updateBladeIdleMotion(
  // ------------------------------------------------
  // CAMERA SWAY
  // ------------------------------------------------
- const swayX =
+ const targetSwayX =
   THREE.MathUtils.clamp(
    -yawDelta *
    4.2,
@@ -5936,7 +6163,7 @@ function updateBladeIdleMotion(
    0.055
   );
 
- const swayY =
+ const targetSwayY =
   THREE.MathUtils.clamp(
    pitchDelta *
    3.8,
@@ -5947,7 +6174,7 @@ function updateBladeIdleMotion(
  blade.userData.swayX =
   THREE.MathUtils.lerp(
    blade.userData.swayX,
-   swayX,
+   targetSwayX,
    Math.min(
     delta *
     14,
@@ -5958,7 +6185,7 @@ function updateBladeIdleMotion(
  blade.userData.swayY =
   THREE.MathUtils.lerp(
    blade.userData.swayY,
-   swayY,
+   targetSwayY,
    Math.min(
     delta *
     14,
@@ -5967,9 +6194,9 @@ function updateBladeIdleMotion(
   );
 
  // ------------------------------------------------
- // VIBRATION
+ // SPEED VIBRATION
  // ------------------------------------------------
- const time =
+ const now =
   performance.now() *
   0.001;
 
@@ -5979,17 +6206,17 @@ function updateBladeIdleMotion(
 
  const vibrationX =
   Math.sin(
-   time *
+   now *
    37 +
-   side
+   blade.userData.side
   ) *
   vibration;
 
  const vibrationY =
   Math.sin(
-   time *
+   now *
    43 +
-   side *
+   blade.userData.side *
    2
   ) *
   vibration;
@@ -6004,7 +6231,7 @@ function updateBladeIdleMotion(
   );
 
  // ------------------------------------------------
- // TARGET POSITION
+ // POSITION
  // ------------------------------------------------
  const targetX =
   restP.x +
@@ -6016,21 +6243,12 @@ function updateBladeIdleMotion(
   blade.userData.swayY +
   vibrationY;
 
- /*
-  * +Zがカメラ側。
-  *
-  * アンカー射出時は
-  * 手元を後ろへ引く。
-  */
  const targetZ =
   restP.z +
   speedRatio *
   BLADE_MAX_WIND_PUSH +
-  recoil.position;
+  recoil;
 
- // ------------------------------------------------
- // POSITION
- // ------------------------------------------------
  blade.position.x =
   THREE.MathUtils.lerp(
    blade.position.x,
@@ -6064,18 +6282,12 @@ function updateBladeIdleMotion(
    )
   );
 
- // ------------------------------------------------
- // ROTATION
- // ------------------------------------------------
  blade.rotation.x =
   THREE.MathUtils.lerp(
    blade.rotation.x,
-
    restR.x +
    blade.userData.swayY *
-   0.5 -
-   recoil.rotation,
-
+   0.5,
    Math.min(
     delta *
     14,
@@ -6086,11 +6298,9 @@ function updateBladeIdleMotion(
  blade.rotation.y =
   THREE.MathUtils.lerp(
    blade.rotation.y,
-
    restR.y +
    blade.userData.swayX *
    0.8,
-
    Math.min(
     delta *
     14,
@@ -6101,9 +6311,7 @@ function updateBladeIdleMotion(
  blade.rotation.z =
   THREE.MathUtils.lerp(
    blade.rotation.z,
-
    restR.z,
-
    Math.min(
     delta *
     14,
@@ -6150,6 +6358,20 @@ function updateBladeAnimation(
    attackTimer
   );
 
+  // -----------------------------------------------
+  // HIT MOMENT
+  // -----------------------------------------------
+  if (
+   !bladeHitApplied &&
+   attackTimer >=
+   BLADE_HIT_TIME
+  ) {
+   applyBladeHit();
+  }
+
+  // -----------------------------------------------
+  // FINISH
+  // -----------------------------------------------
   if (
    attackTimer >=
    BLADE_ATTACK_DURATION
@@ -6173,7 +6395,7 @@ function updateBladeAnimation(
  }
 
  // ------------------------------------------------
- // IDLE
+ // NORMAL
  // ------------------------------------------------
  updateBladeIdleMotion(
   leftBlade,
