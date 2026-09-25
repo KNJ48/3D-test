@@ -489,26 +489,667 @@ const AUTO_MIN_SEPARATION = 5;
 const AUTO_DEPTH_PRIORITY_EPSILON = 2;
 
 // ==================================================
-// BLADE
+// BLADE VIEWMODEL
 // ==================================================
-const ATTACK_RANGE = 3.5;
-const ATTACK_COOLDOWN = 0.35;
 
-// ==================================================
-// TITAN DAMAGE
-// ==================================================
-const TITAN_SLASH_REFERENCE_KMH = 150;
+// --------------------------------------------------
+// MATERIALS
+// --------------------------------------------------
+const bladeMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0xdfe5e9,
 
-const TITAN_SLASH_BASE_DAMAGE = 200;
+  metalness: 0.96,
 
-// うなじは累積ダメージではない。
-// 一太刀の威力で判定。
-const NAPE_KILL_POWER = 230;
+  roughness: 0.17
+ });
 
-const TITAN_ARM_MAX_HP = 300;
-const TITAN_LEG_MAX_HP = 400;
+const bladeEdgeMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0xf8fbff,
 
-const TITAN_PART_REGEN_TIME = 12;
+  metalness: 1,
+
+  roughness: 0.06
+ });
+
+const bladeSpineMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0x858c91,
+
+  metalness: 0.9,
+
+  roughness: 0.22
+ });
+
+const bladeMechanismMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0x4f5559,
+
+  metalness: 0.88,
+
+  roughness: 0.3
+ });
+
+const bladeDarkMetalMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0x26292b,
+
+  metalness: 0.72,
+
+  roughness: 0.42
+ });
+
+const bladeHandleMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0x171515,
+
+  metalness: 0.18,
+
+  roughness: 0.78
+ });
+
+const bladeGripMaterial =
+ new THREE.MeshStandardMaterial({
+  color: 0x493531,
+
+  metalness: 0.08,
+
+  roughness: 0.9
+ });
+
+// --------------------------------------------------
+// BLADE GEOMETRY
+// --------------------------------------------------
+function createBladeGeometry() {
+ /*
+  * 専用刀身。
+  *
+  * Z方向:
+  * 0     = 根元
+  * -1.55 = 先端
+  *
+  * 先端を斜めに落とす。
+  */
+ const width =
+  0.078;
+
+ const thickness =
+  0.026;
+
+ const length =
+  1.55;
+
+ const halfWidth =
+  width /
+  2;
+
+ const halfThickness =
+  thickness /
+  2;
+
+ const vertices =
+  new Float32Array([
+   // ------------------------------------------------
+   // ROOT
+   // ------------------------------------------------
+   -halfWidth,
+   -halfThickness,
+   0,
+
+   halfWidth,
+   -halfThickness,
+   0,
+
+   halfWidth,
+   halfThickness,
+   0,
+
+   -halfWidth,
+   halfThickness,
+   0,
+
+   // ------------------------------------------------
+   // TIP BASE
+   // ------------------------------------------------
+   -halfWidth,
+   -halfThickness,
+   -length,
+
+   /*
+    * 刃側だけ少し後退させ、
+    * 先端を斜めにする。
+    */
+   halfWidth,
+   -halfThickness,
+   -length +
+   0.18,
+
+   halfWidth,
+   halfThickness,
+   -length +
+   0.18,
+
+   -halfWidth,
+   halfThickness,
+   -length
+  ]);
+
+ const indices = [
+  // bottom
+  0, 5, 1,
+  0, 4, 5,
+
+  // top
+  3, 2, 6,
+  3, 6, 7,
+
+  // left
+  0, 3, 7,
+  0, 7, 4,
+
+  // right
+  1, 5, 6,
+  1, 6, 2,
+
+  // root
+  0, 1, 2,
+  0, 2, 3,
+
+  // tip
+  4, 7, 6,
+  4, 6, 5
+ ];
+
+ const geometry =
+  new THREE.BufferGeometry();
+
+ geometry.setAttribute(
+  "position",
+
+  new THREE.BufferAttribute(
+   vertices,
+   3
+  )
+ );
+
+ geometry.setIndex(
+  indices
+ );
+
+ geometry.computeVertexNormals();
+
+ return geometry;
+}
+
+// --------------------------------------------------
+// CREATE BLADE
+// --------------------------------------------------
+function createBlade(
+ side
+) {
+ const group =
+  new THREE.Group();
+
+ const weapon =
+  new THREE.Group();
+
+ group.add(
+  weapon
+ );
+
+ // --------------------------------------------------
+ // MAIN BLADE
+ // --------------------------------------------------
+ const blade =
+  new THREE.Mesh(
+   createBladeGeometry(),
+   bladeMaterial
+  );
+
+ blade.position.set(
+  0,
+  0.065,
+  -0.22
+ );
+
+ weapon.add(
+  blade
+ );
+
+ // --------------------------------------------------
+ // CUTTING EDGE
+ // --------------------------------------------------
+ /*
+  * 刃の片側を別パーツにして
+  * 明るく反射させる。
+  */
+ const edge =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    0.012,
+    0.033,
+    1.34
+   ),
+
+   bladeEdgeMaterial
+  );
+
+ edge.position.set(
+  side *
+  -0.041,
+
+  0.064,
+
+  -0.92
+ );
+
+ weapon.add(
+  edge
+ );
+
+ // --------------------------------------------------
+ // SPINE
+ // --------------------------------------------------
+ const spine =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    0.014,
+    0.032,
+    1.38
+   ),
+
+   bladeSpineMaterial
+  );
+
+ spine.position.set(
+  side *
+  0.041,
+
+  0.064,
+
+  -0.9
+ );
+
+ weapon.add(
+  spine
+ );
+
+ // --------------------------------------------------
+ // BLADE SEGMENTS
+ // --------------------------------------------------
+ /*
+  * 交換式刀身の継ぎ目。
+  */
+ const segmentCount =
+  7;
+
+ for (
+  let i = 1;
+  i < segmentCount;
+  i++
+ ) {
+  const line =
+   new THREE.Mesh(
+    new THREE.BoxGeometry(
+     0.083,
+     0.034,
+     0.008
+    ),
+
+    bladeSpineMaterial
+   );
+
+  line.position.set(
+   0,
+
+   0.065,
+
+   -0.23 -
+   i *
+   0.185
+  );
+
+  line.rotation.y =
+   side *
+   0.18;
+
+  weapon.add(
+   line
+  );
+ }
+
+ // --------------------------------------------------
+ // BLADE SOCKET
+ // --------------------------------------------------
+ const socket =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    0.13,
+    0.09,
+    0.25
+   ),
+
+   bladeMechanismMaterial
+  );
+
+ socket.position.set(
+  0,
+  0.045,
+  -0.08
+ );
+
+ weapon.add(
+  socket
+ );
+
+ // --------------------------------------------------
+ // MAIN MECHANISM
+ // --------------------------------------------------
+ const mechanism =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    0.27,
+    0.14,
+    0.22
+   ),
+
+   bladeMechanismMaterial
+  );
+
+ mechanism.position.set(
+  0,
+  -0.025,
+  0.09
+ );
+
+ weapon.add(
+  mechanism
+ );
+
+ // --------------------------------------------------
+ // SIDE DRUM
+ // --------------------------------------------------
+ const drum =
+  new THREE.Mesh(
+   new THREE.CylinderGeometry(
+    0.075,
+    0.075,
+    0.29,
+    12
+   ),
+
+   bladeDarkMetalMaterial
+  );
+
+ drum.rotation.z =
+  Math.PI /
+  2;
+
+ drum.position.set(
+  0,
+  -0.01,
+  0.09
+ );
+
+ weapon.add(
+  drum
+ );
+
+ // --------------------------------------------------
+ // HANDLE
+ // --------------------------------------------------
+ const handle =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    0.11,
+    0.38,
+    0.13
+   ),
+
+   bladeHandleMaterial
+  );
+
+ handle.position.set(
+  0,
+
+  -0.245,
+
+  0.14
+ );
+
+ handle.rotation.x =
+  -0.20;
+
+ weapon.add(
+  handle
+ );
+
+ // --------------------------------------------------
+ // GRIP
+ // --------------------------------------------------
+ /*
+  * 握り部分に横線。
+  */
+ for (
+  let i = 0;
+  i < 6;
+  i++
+ ) {
+  const grip =
+   new THREE.Mesh(
+    new THREE.BoxGeometry(
+     0.116,
+     0.018,
+     0.137
+    ),
+
+    bladeGripMaterial
+   );
+
+  grip.position.set(
+   0,
+
+   -0.115 -
+   i *
+   0.05,
+
+   0.14 +
+   i *
+   0.01
+  );
+
+  grip.rotation.x =
+   -0.20;
+
+  weapon.add(
+   grip
+  );
+ }
+
+ // --------------------------------------------------
+ // TRIGGER
+ // --------------------------------------------------
+ const trigger =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    0.025,
+    0.09,
+    0.025
+   ),
+
+   bladeDarkMetalMaterial
+  );
+
+ trigger.position.set(
+  side *
+  -0.045,
+
+  -0.11,
+
+  0.035
+ );
+
+ trigger.rotation.x =
+  0.42;
+
+ weapon.add(
+  trigger
+ );
+
+ // --------------------------------------------------
+ // TRIGGER GUARD
+ // --------------------------------------------------
+ const triggerGuard =
+  new THREE.Mesh(
+   new THREE.TorusGeometry(
+    0.075,
+    0.011,
+    6,
+    16,
+    Math.PI
+   ),
+
+   bladeMechanismMaterial
+  );
+
+ triggerGuard.position.set(
+  side *
+  -0.035,
+
+  -0.11,
+
+  0.075
+ );
+
+ triggerGuard.rotation.x =
+  Math.PI /
+  2;
+
+ triggerGuard.rotation.z =
+  side *
+  0.28;
+
+ weapon.add(
+  triggerGuard
+ );
+
+ // --------------------------------------------------
+ // POMMEL
+ // --------------------------------------------------
+ const pommel =
+  new THREE.Mesh(
+   new THREE.CylinderGeometry(
+    0.05,
+    0.04,
+    0.1,
+    8
+   ),
+
+   bladeDarkMetalMaterial
+  );
+
+ pommel.rotation.x =
+  Math.PI /
+  2;
+
+ pommel.position.set(
+  0,
+  -0.46,
+  0.22
+ );
+
+ weapon.add(
+  pommel
+ );
+
+ // --------------------------------------------------
+ // CAMERA REST POSE
+ // --------------------------------------------------
+ group.position.set(
+  side *
+  0.39,
+
+  -0.37,
+
+  -0.56
+ );
+
+ group.rotation.set(
+  -0.09,
+
+  side *
+  -0.09,
+
+  side *
+  -0.035
+ );
+
+ // --------------------------------------------------
+ // USER DATA
+ // --------------------------------------------------
+ /*
+  * アニメーション用の
+  * 初期姿勢を保存。
+  */
+ group.userData.side =
+  side;
+
+ group.userData.restPosition =
+  group.position.clone();
+
+ group.userData.restRotation =
+  group.rotation.clone();
+
+ group.userData.swayX =
+  0;
+
+ group.userData.swayY =
+  0;
+
+ camera.add(
+  group
+ );
+
+ return group;
+}
+
+// --------------------------------------------------
+// LEFT / RIGHT
+// --------------------------------------------------
+const leftBlade =
+ createBlade(
+  -1
+ );
+
+const rightBlade =
+ createBlade(
+  1
+ );
+
+// --------------------------------------------------
+// ATTACK STATE
+// --------------------------------------------------
+let attacking =
+ false;
+
+let attackTimer =
+ 0;
+
+let attackCooldownTimer =
+ 0;
+
+const attackRaycaster =
+ new THREE.Raycaster();
+
+// --------------------------------------------------
+// CAMERA MOTION STATE
+// --------------------------------------------------
+let bladePreviousYaw =
+ 0;
+
+let bladePreviousPitch =
+ 0;
 
 // ==================================================
 // TRAINING
@@ -4455,65 +5096,601 @@ function bladeAttack() {
 // ==================================================
 // BLADE ANIMATION
 // ==================================================
-function updateBladeAnimation(
-  delta
+
+// --------------------------------------------------
+// SMOOTH CURVES
+// --------------------------------------------------
+function bladeSmoothStep(
+ t
 ) {
-  attackCooldownTimer =
-    Math.max(
-      0,
-      attackCooldownTimer -
-        delta
-    );
+ t =
+  THREE.MathUtils.clamp(
+   t,
+   0,
+   1
+  );
 
-  if (!attacking) {
-    return;
-  }
+ return (
+  t *
+  t *
+  (
+   3 -
+   2 *
+   t
+  )
+ );
+}
 
-  attackTimer += delta;
+// --------------------------------------------------
+// ATTACK POSE
+// --------------------------------------------------
+function applyBladeAttackPose(
+ blade,
+ side,
+ attackTime
+) {
+ const restPosition =
+  blade.userData
+  .restPosition;
 
+ const restRotation =
+  blade.userData
+  .restRotation;
+
+ /*
+  * 左右にほんの少し
+  * タイミング差を付ける。
+  */
+ const delay =
+  side < 0
+  ? 0
+  : 0.025;
+
+ const localTime =
+  Math.max(
+   0,
+   attackTime -
+   delay
+  );
+
+ // --------------------------------------------------
+ // PHASE 1 : WINDUP
+ // --------------------------------------------------
+ if (
+  localTime <
+  0.09
+ ) {
   const t =
-    Math.min(
-      attackTimer /
-        0.28,
-      1
-    );
+   bladeSmoothStep(
+    localTime /
+    0.09
+   );
 
-  const swing =
-    Math.sin(
-      t * Math.PI
-    );
+  blade.position.set(
+   restPosition.x +
+   side *
+   0.08 *
+   t,
 
-  leftBlade.rotation.z =
-    -swing * 1.15;
+   restPosition.y +
+   0.05 *
+   t,
 
-  rightBlade.rotation.z =
-    swing * 1.15;
+   restPosition.z +
+   0.08 *
+   t
+  );
 
-  leftBlade.rotation.x =
-    -0.12 +
-    swing * 0.65;
+  blade.rotation.set(
+   restRotation.x -
+   0.30 *
+   t,
 
-  rightBlade.rotation.x =
-    -0.12 +
-    swing * 0.65;
+   restRotation.y +
+   side *
+   0.32 *
+   t,
 
+   restRotation.z +
+   side *
+   0.42 *
+   t
+  );
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // PHASE 2 : SLASH
+ // --------------------------------------------------
+ if (
+  localTime <
+  0.19
+ ) {
+  const t =
+   bladeSmoothStep(
+    (
+     localTime -
+     0.09
+    ) /
+    0.10
+   );
+
+  /*
+   * 外側から画面中央へ
+   * 一気に斬り込む。
+   */
+  blade.position.set(
+   restPosition.x +
+   side *
+   (
+    0.08 -
+    0.28 *
+    t
+   ),
+
+   restPosition.y +
+   (
+    0.05 -
+    0.12 *
+    t
+   ),
+
+   restPosition.z -
+   0.19 *
+   t
+  );
+
+  blade.rotation.set(
+   restRotation.x +
+   (
+    -0.30 +
+    0.78 *
+    t
+   ),
+
+   restRotation.y +
+   side *
+   (
+    0.32 -
+    0.72 *
+    t
+   ),
+
+   restRotation.z +
+   side *
+   (
+    0.42 -
+    1.55 *
+    t
+   )
+  );
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // PHASE 3 : FOLLOW THROUGH
+ // --------------------------------------------------
+ if (
+  localTime <
+  0.30
+ ) {
+  const t =
+   bladeSmoothStep(
+    (
+     localTime -
+     0.19
+    ) /
+    0.11
+   );
+
+  blade.position.set(
+   restPosition.x -
+   side *
+   (
+    0.20 -
+    0.12 *
+    t
+   ),
+
+   restPosition.y -
+   (
+    0.07 -
+    0.03 *
+    t
+   ),
+
+   restPosition.z -
+   (
+    0.19 -
+    0.07 *
+    t
+   )
+  );
+
+  blade.rotation.set(
+   restRotation.x +
+   (
+    0.48 -
+    0.18 *
+    t
+   ),
+
+   restRotation.y -
+   side *
+   (
+    0.40 -
+    0.18 *
+    t
+   ),
+
+   restRotation.z -
+   side *
+   (
+    1.13 -
+    0.48 *
+    t
+   )
+  );
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // PHASE 4 : RECOVERY
+ // --------------------------------------------------
+ const t =
+  bladeSmoothStep(
+   (
+    localTime -
+    0.30
+   ) /
+   0.17
+  );
+
+ blade.position.lerpVectors(
+  new THREE.Vector3(
+   restPosition.x -
+   side *
+   0.08,
+
+   restPosition.y -
+   0.04,
+
+   restPosition.z -
+   0.12
+  ),
+
+  restPosition,
+
+  t
+ );
+
+ blade.rotation.set(
+  THREE.MathUtils.lerp(
+   restRotation.x +
+   0.30,
+   restRotation.x,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   restRotation.y -
+   side *
+   0.22,
+   restRotation.y,
+   t
+  ),
+
+  THREE.MathUtils.lerp(
+   restRotation.z -
+   side *
+   0.65,
+   restRotation.z,
+   t
+  )
+ );
+}
+
+// --------------------------------------------------
+// NORMAL VIEWMODEL MOTION
+// --------------------------------------------------
+function updateBladeIdleMotion(
+ blade,
+ side,
+ delta,
+ yawDelta,
+ pitchDelta
+) {
+ const restPosition =
+  blade.userData
+  .restPosition;
+
+ const restRotation =
+  blade.userData
+  .restRotation;
+
+ // --------------------------------------------------
+ // SPEED
+ // --------------------------------------------------
+ const speedKmh =
+  velocity.length() *
+  METERS_PER_UNIT *
+  3.6;
+
+ const speedRatio =
+  THREE.MathUtils.clamp(
+   speedKmh /
+   300,
+   0,
+   1
+  );
+
+ // --------------------------------------------------
+ // CAMERA INERTIA
+ // --------------------------------------------------
+ /*
+  * 視点を右へ振ると
+  * 武器がほんの少し左へ残る。
+  */
+ const targetSwayX =
+  THREE.MathUtils.clamp(
+   -yawDelta *
+   4.5,
+   -0.06,
+   0.06
+  );
+
+ const targetSwayY =
+  THREE.MathUtils.clamp(
+   pitchDelta *
+   4,
+   -0.05,
+   0.05
+  );
+
+ blade.userData.swayX =
+  THREE.MathUtils.lerp(
+   blade.userData.swayX,
+   targetSwayX,
+   Math.min(
+    delta *
+    15,
+    1
+   )
+  );
+
+ blade.userData.swayY =
+  THREE.MathUtils.lerp(
+   blade.userData.swayY,
+   targetSwayY,
+   Math.min(
+    delta *
+    15,
+    1
+   )
+  );
+
+ // --------------------------------------------------
+ // HIGH SPEED VIBRATION
+ // --------------------------------------------------
+ const time =
+  performance.now() *
+  0.001;
+
+ const vibration =
+  speedRatio *
+  0.008;
+
+ const vibrationX =
+  Math.sin(
+   time *
+   37 +
+   side
+  ) *
+  vibration;
+
+ const vibrationY =
+  Math.sin(
+   time *
+   43 +
+   side *
+   2
+  ) *
+  vibration;
+
+ // --------------------------------------------------
+ // WIND PUSH
+ // --------------------------------------------------
+ const windPush =
+  speedRatio *
+  0.045;
+
+ // --------------------------------------------------
+ // POSITION
+ // --------------------------------------------------
+ const targetX =
+  restPosition.x +
+  blade.userData.swayX +
+  vibrationX;
+
+ const targetY =
+  restPosition.y +
+  blade.userData.swayY +
+  vibrationY;
+
+ const targetZ =
+  restPosition.z +
+  windPush;
+
+ blade.position.x =
+  THREE.MathUtils.lerp(
+   blade.position.x,
+   targetX,
+   Math.min(
+    delta *
+    12,
+    1
+   )
+  );
+
+ blade.position.y =
+  THREE.MathUtils.lerp(
+   blade.position.y,
+   targetY,
+   Math.min(
+    delta *
+    12,
+    1
+   )
+  );
+
+ blade.position.z =
+  THREE.MathUtils.lerp(
+   blade.position.z,
+   targetZ,
+   Math.min(
+    delta *
+    12,
+    1
+   )
+  );
+
+ // --------------------------------------------------
+ // ROTATION
+ // --------------------------------------------------
+ blade.rotation.x =
+  THREE.MathUtils.lerp(
+   blade.rotation.x,
+
+   restRotation.x +
+   blade.userData.swayY *
+   0.5,
+
+   Math.min(
+    delta *
+    10,
+    1
+   )
+  );
+
+ blade.rotation.y =
+  THREE.MathUtils.lerp(
+   blade.rotation.y,
+
+   restRotation.y +
+   blade.userData.swayX *
+   0.8,
+
+   Math.min(
+    delta *
+    10,
+    1
+   )
+  );
+
+ blade.rotation.z =
+  THREE.MathUtils.lerp(
+   blade.rotation.z,
+
+   restRotation.z,
+
+   Math.min(
+    delta *
+    10,
+    1
+   )
+  );
+}
+
+// --------------------------------------------------
+// UPDATE BLADE ANIMATION
+// --------------------------------------------------
+function updateBladeAnimation(
+ delta
+) {
+ // --------------------------------------------------
+ // COOLDOWN
+ // --------------------------------------------------
+ attackCooldownTimer =
+  Math.max(
+   0,
+   attackCooldownTimer -
+   delta
+  );
+
+ // --------------------------------------------------
+ // CAMERA DELTA
+ // --------------------------------------------------
+ const yawDelta =
+  yaw -
+  bladePreviousYaw;
+
+ const pitchDelta =
+  pitch -
+  bladePreviousPitch;
+
+ bladePreviousYaw =
+  yaw;
+
+ bladePreviousPitch =
+  pitch;
+
+ // --------------------------------------------------
+ // ATTACK
+ // --------------------------------------------------
+ if (attacking) {
+  attackTimer +=
+   delta;
+
+  applyBladeAttackPose(
+   leftBlade,
+   -1,
+   attackTimer
+  );
+
+  applyBladeAttackPose(
+   rightBlade,
+   1,
+   attackTimer
+  );
+
+  /*
+   * 合計約0.5秒。
+   */
   if (
-    t >= 1
+   attackTimer >=
+   0.50
   ) {
-    attacking = false;
+   attacking =
+    false;
 
-    leftBlade.rotation.z =
-      0;
-
-    rightBlade.rotation.z =
-      0;
-
-    leftBlade.rotation.x =
-      -0.12;
-
-    rightBlade.rotation.x =
-      -0.12;
+   attackTimer =
+    0;
   }
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // IDLE / FLIGHT
+ // --------------------------------------------------
+ updateBladeIdleMotion(
+  leftBlade,
+  -1,
+  delta,
+  yawDelta,
+  pitchDelta
+ );
+
+ updateBladeIdleMotion(
+  rightBlade,
+  1,
+  delta,
+  yawDelta,
+  pitchDelta
+ );
 }
 
 // ==================================================
