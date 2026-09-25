@@ -1,203 +1,69 @@
 // ==================================================
-// TERRAIN GENERATOR
+// IMPORTS
 // ==================================================
-
-const TERRAIN_SEED_STORAGE_KEY =
- "paradisWorldSeed";
-
-const DEFAULT_TERRAIN_SEED =
- 104729;
+import {
+ WORLD_MAP
+} from "./worldMap.js";
 
 // ==================================================
-// LOAD SEED
+// WORLD GENERATOR SETTINGS
 // ==================================================
-function loadTerrainSeed() {
- const saved =
-  localStorage.getItem(
-   TERRAIN_SEED_STORAGE_KEY
-  );
 
- if (
-  saved === null
- ) {
-  return DEFAULT_TERRAIN_SEED;
- }
+const NORMAL_FOREST_CHANCE =
+ 0.055;
 
- const parsed =
-  Number(
-   saved
-  );
+const NORMAL_VILLAGE_CHANCE =
+ 0.012;
 
- if (
-  !Number.isFinite(
-   parsed
-  )
- ) {
-  return DEFAULT_TERRAIN_SEED;
- }
+const NORMAL_FOREST_RADIUS_METERS =
+ 6000;
 
- return Math.floor(
-  parsed
- );
-}
+const NORMAL_VILLAGE_RADIUS_METERS =
+ 650;
 
-let terrainSeed =
- loadTerrainSeed();
+const NORMAL_TREE_MIN_HEIGHT_METERS =
+ 10;
+
+const NORMAL_TREE_MAX_HEIGHT_METERS =
+ 24;
+
+const GIANT_TREE_MIN_TRUNK_METERS =
+ 3.5;
+
+const GIANT_TREE_MAX_TRUNK_METERS =
+ 7;
+
+const NORMAL_TREE_MIN_TRUNK_METERS =
+ 0.35;
+
+const NORMAL_TREE_MAX_TRUNK_METERS =
+ 0.9;
 
 // ==================================================
-// TERRAIN SETTINGS
+// HASH
 // ==================================================
-const TERRAIN_SETTINGS = {
-
- // --------------------------------------------------
- // BASE HEIGHT
- // --------------------------------------------------
- /*
-  * 世界全体の基準標高。
-  */
- baseHeightMeters: 20,
-
- // --------------------------------------------------
- // CONTINENTAL
- // --------------------------------------------------
- /*
-  * 非常に大きな高地・低地。
-  *
-  * 数十km規模。
-  */
- continentalScale:
-  0.000035,
-
- continentalAmplitude:
-  120,
-
- // --------------------------------------------------
- // LARGE TERRAIN
- // --------------------------------------------------
- /*
-  * 数km規模の丘・山。
-  */
- largeScale:
-  0.00018,
-
- largeAmplitude:
-  100,
-
- // --------------------------------------------------
- // MEDIUM TERRAIN
- // --------------------------------------------------
- /*
-  * 数百m規模の丘。
-  */
- mediumScale:
-  0.0008,
-
- mediumAmplitude:
-  35,
-
- // --------------------------------------------------
- // SMALL TERRAIN
- // --------------------------------------------------
- /*
-  * 小規模な起伏。
-  */
- smallScale:
-  0.003,
-
- smallAmplitude:
-  7,
-
- // --------------------------------------------------
- // GLOBAL STRENGTH
- // --------------------------------------------------
- strength:
-  1
-};
-
-// ==================================================
-// SEED
-// ==================================================
-export function setTerrainSeed(
- seed
-) {
- const parsed =
-  Number(
-   seed
-  );
-
- if (
-  !Number.isFinite(
-   parsed
-  )
- ) {
-  return false;
- }
-
- terrainSeed =
-  Math.floor(
-   parsed
-  );
-
- // --------------------------------------------------
- // SAVE
- // --------------------------------------------------
- localStorage.setItem(
-  TERRAIN_SEED_STORAGE_KEY,
-  String(
-   terrainSeed
-  )
- );
-
- return true;
-}
-
-export function getTerrainSeed() {
- return terrainSeed;
-}
-
-// ==================================================
-// INTEGER HASH
-// ==================================================
-function hash2D(
- x,
- z
+function hashInteger(
+ value
 ) {
  let h =
+  value | 0;
+
+ h =
   Math.imul(
-   x,
-   374761393
-  );
-
- h =
-  (
-   h +
-   Math.imul(
-    z,
-    668265263
-   )
-  ) |
-  0;
-
- h =
-  (
-   h +
-   Math.imul(
-    terrainSeed,
-    1442695041
-   )
-  ) |
-  0;
-
- h =
-  h ^
-  (
-   h >>> 13
+   h ^
+   (
+    h >>> 16
+   ),
+   0x45d9f3b
   );
 
  h =
   Math.imul(
-   h,
-   1274126177
+   h ^
+   (
+    h >>> 16
+   ),
+   0x45d9f3b
   );
 
  h =
@@ -207,345 +73,1104 @@ function hash2D(
   );
 
  return (
-  (
-   h >>> 0
-  ) /
-  4294967295
- ) *
-  2 -
-  1;
-}
-
-// ==================================================
-// SMOOTHING
-// ==================================================
-function fade(
- t
-) {
- return (
-  t *
-  t *
-  t *
-  (
-   t *
-   (
-    t *
-    6 -
-    15
-   ) +
-   10
-  )
- );
-}
-
-function lerp(
- a,
- b,
- t
-) {
- return (
-  a +
-  (
-   b -
-   a
-  ) *
-  t
+  h >>> 0
  );
 }
 
 // ==================================================
-// VALUE NOISE 2D
+// STRING HASH
 // ==================================================
-function valueNoise2D(
- x,
- z
+function hashString(
+ text
 ) {
- const x0 =
-  Math.floor(
-   x
-  );
-
- const z0 =
-  Math.floor(
-   z
-  );
-
- const x1 =
-  x0 + 1;
-
- const z1 =
-  z0 + 1;
-
- const tx =
-  fade(
-   x -
-   x0
-  );
-
- const tz =
-  fade(
-   z -
-   z0
-  );
-
- const a =
-  hash2D(
-   x0,
-   z0
-  );
-
- const b =
-  hash2D(
-   x1,
-   z0
-  );
-
- const c =
-  hash2D(
-   x0,
-   z1
-  );
-
- const d =
-  hash2D(
-   x1,
-   z1
-  );
-
- const top =
-  lerp(
-   a,
-   b,
-   tx
-  );
-
- const bottom =
-  lerp(
-   c,
-   d,
-   tx
-  );
-
- return lerp(
-  top,
-  bottom,
-  tz
- );
-}
-
-// ==================================================
-// FBM
-// ==================================================
-function fbm(
- x,
- z,
- octaves
-) {
- let value =
-  0;
-
- let amplitude =
-  0.5;
-
- let frequency =
-  1;
-
- let totalAmplitude =
-  0;
+ let h =
+  2166136261;
 
  for (
   let i = 0;
-  i < octaves;
+  i < text.length;
   i++
  ) {
-  value +=
-   valueNoise2D(
-    x *
-    frequency,
-    z *
-    frequency
-   ) *
-   amplitude;
+  h ^=
+   text.charCodeAt(
+    i
+   );
 
-  totalAmplitude +=
-   amplitude;
-
-  frequency *=
-   2.03;
-
-  amplitude *=
-   0.5;
+  h =
+   Math.imul(
+    h,
+    16777619
+   );
  }
 
  return (
-  value /
-  totalAmplitude
+  h >>> 0
  );
 }
 
 // ==================================================
-// RIDGED NOISE
+// COMBINE SEED
 // ==================================================
-function ridgedNoise(
- x,
- z
+function combineSeed(
+ ...values
 ) {
- const n =
-  fbm(
-   x,
-   z,
-   5
-  );
+ let h =
+  0x811c9dc5;
 
- /*
-  * 山の稜線を作りやすい形へ変換。
-  */
+ for (
+  const value
+  of values
+ ) {
+  const n =
+   typeof value ===
+   "string"
+   ? hashString(
+      value
+     )
+   : hashInteger(
+      Number(
+       value
+      ) || 0
+     );
+
+  h ^=
+   n;
+
+  h =
+   Math.imul(
+    h,
+    16777619
+   );
+ }
+
  return (
-  1 -
-  Math.abs(
-   n
-  )
+  h >>> 0
  );
 }
 
 // ==================================================
-// TERRAIN HEIGHT
+// PRNG
 // ==================================================
-export function getTerrainHeightMeters(
- xMeters,
- zMeters
+function createRandom(
+ seed
 ) {
- // --------------------------------------------------
- // CONTINENTAL SHAPE
- // --------------------------------------------------
- const continental =
-  fbm(
-   xMeters *
-   TERRAIN_SETTINGS
-   .continentalScale,
+ let state =
+  seed >>> 0;
 
-   zMeters *
-   TERRAIN_SETTINGS
-   .continentalScale,
+ return function random() {
+  state +=
+   0x6D2B79F5;
 
-   5
-  ) *
-  TERRAIN_SETTINGS
-  .continentalAmplitude;
+  let t =
+   state;
 
- // --------------------------------------------------
- // LARGE HILLS
- // --------------------------------------------------
- const large =
-  fbm(
-   xMeters *
-   TERRAIN_SETTINGS
-   .largeScale +
-   73.41,
+  t =
+   Math.imul(
+    t ^
+    (
+     t >>> 15
+    ),
+    t | 1
+   );
 
-   zMeters *
-   TERRAIN_SETTINGS
-   .largeScale -
-   181.72,
+  t ^=
+   t +
+   Math.imul(
+    t ^
+    (
+     t >>> 7
+    ),
+    t | 61
+   );
 
-   5
-  ) *
-  TERRAIN_SETTINGS
-  .largeAmplitude;
+  return (
+   (
+    t ^
+    (
+     t >>> 14
+    )
+   ) >>>
+   0
+  ) /
+  4294967296;
+ };
+}
 
- // --------------------------------------------------
- // RIDGES
- // --------------------------------------------------
- /*
-  * すべてを山にすると不自然なので
-  * 別ノイズで山岳の強さを決める。
-  */
- const mountainMaskRaw =
-  fbm(
-   xMeters *
-   0.000045 +
-   731.2,
-
-   zMeters *
-   0.000045 -
-   413.7,
-
-   4
-  );
-
- const mountainMask =
-  Math.max(
-   0,
-   mountainMaskRaw -
-   0.12
-  );
-
- const ridges =
-  ridgedNoise(
-   xMeters *
-   0.00022,
-
-   zMeters *
-   0.00022
-  ) *
-  mountainMask *
-  300;
-
- // --------------------------------------------------
- // MEDIUM
- // --------------------------------------------------
- const medium =
-  fbm(
-   xMeters *
-   TERRAIN_SETTINGS
-   .mediumScale -
-   291.4,
-
-   zMeters *
-   TERRAIN_SETTINGS
-   .mediumScale +
-   517.8,
-
-   4
-  ) *
-  TERRAIN_SETTINGS
-  .mediumAmplitude;
-
- // --------------------------------------------------
- // SMALL
- // --------------------------------------------------
- const small =
-  fbm(
-   xMeters *
-   TERRAIN_SETTINGS
-   .smallScale +
-   811.3,
-
-   zMeters *
-   TERRAIN_SETTINGS
-   .smallScale -
-   307.9,
-
-   3
-  ) *
-  TERRAIN_SETTINGS
-  .smallAmplitude;
-
- // --------------------------------------------------
- // FINAL
- // --------------------------------------------------
+// ==================================================
+// RANDOM RANGE
+// ==================================================
+function randomRange(
+ random,
+ min,
+ max
+) {
  return (
-  TERRAIN_SETTINGS
-  .baseHeightMeters +
-
+  min +
   (
-   continental +
-   large +
-   ridges +
-   medium +
-   small
+   max -
+   min
   ) *
-  TERRAIN_SETTINGS
-  .strength
+  random()
  );
+}
+
+// ==================================================
+// DISTANCE
+// ==================================================
+function distance2D(
+ ax,
+ az,
+ bx,
+ bz
+) {
+ return Math.hypot(
+  ax -
+  bx,
+
+  az -
+  bz
+ );
+}
+
+// ==================================================
+// POINT IN CHUNK
+// ==================================================
+function pointInChunk(
+ xMeters,
+ zMeters,
+ chunkMinX,
+ chunkMinZ,
+ chunkMaxX,
+ chunkMaxZ
+) {
+ return (
+  xMeters >=
+  chunkMinX &&
+
+  xMeters <
+  chunkMaxX &&
+
+  zMeters >=
+  chunkMinZ &&
+
+  zMeters <
+  chunkMaxZ
+ );
+}
+
+// ==================================================
+// CIRCLE INTERSECTS CHUNK
+// ==================================================
+function circleIntersectsChunk(
+ centerX,
+ centerZ,
+ radius,
+ chunkMinX,
+ chunkMinZ,
+ chunkMaxX,
+ chunkMaxZ
+) {
+ const closestX =
+  Math.max(
+   chunkMinX,
+   Math.min(
+    centerX,
+    chunkMaxX
+   )
+  );
+
+ const closestZ =
+  Math.max(
+   chunkMinZ,
+   Math.min(
+    centerZ,
+    chunkMaxZ
+   )
+  );
+
+ const dx =
+  centerX -
+  closestX;
+
+ const dz =
+  centerZ -
+  closestZ;
+
+ return (
+  dx *
+  dx +
+  dz *
+  dz <=
+  radius *
+  radius
+ );
+}
+
+// ==================================================
+// HOUSE DESCRIPTOR
+// ==================================================
+function makeHouse(
+ random,
+ xMeters,
+ zMeters,
+ scale = 1
+) {
+ const width =
+  randomRange(
+   random,
+   7,
+   13
+  ) *
+  scale;
+
+ const depth =
+  randomRange(
+   random,
+   8,
+   14
+  ) *
+  scale;
+
+ const height =
+  randomRange(
+   random,
+   7,
+   15
+  ) *
+  scale;
+
+ return {
+  type:
+   "house",
+
+  xMeters,
+
+  zMeters,
+
+  widthMeters:
+   width,
+
+  depthMeters:
+   depth,
+
+  heightMeters:
+   height,
+
+  roofHeightMeters:
+   randomRange(
+    random,
+    2.5,
+    4.5
+   ) *
+   scale,
+
+  rotation:
+   random() *
+   Math.PI *
+   2,
+
+  variant:
+   Math.floor(
+    random() *
+    100000
+   )
+ };
+}
+
+// ==================================================
+// TREE DESCRIPTOR
+// ==================================================
+function makeTree(
+ random,
+ xMeters,
+ zMeters,
+ giant = false,
+ forcedMinHeight = null,
+ forcedMaxHeight = null
+) {
+ const minHeight =
+  forcedMinHeight ??
+  (
+   giant
+   ? 50
+   : NORMAL_TREE_MIN_HEIGHT_METERS
+  );
+
+ const maxHeight =
+  forcedMaxHeight ??
+  (
+   giant
+   ? 100
+   : NORMAL_TREE_MAX_HEIGHT_METERS
+  );
+
+ const height =
+  randomRange(
+   random,
+   minHeight,
+   maxHeight
+  );
+
+ const trunkRadius =
+  giant
+  ? randomRange(
+     random,
+     GIANT_TREE_MIN_TRUNK_METERS,
+     GIANT_TREE_MAX_TRUNK_METERS
+    )
+  : randomRange(
+     random,
+     NORMAL_TREE_MIN_TRUNK_METERS,
+     NORMAL_TREE_MAX_TRUNK_METERS
+    );
+
+ return {
+  type:
+   "tree",
+
+  giant,
+
+  xMeters,
+
+  zMeters,
+
+  heightMeters:
+   height,
+
+  trunkRadiusMeters:
+   trunkRadius,
+
+  crownRadiusMeters:
+   giant
+   ? randomRange(
+      random,
+      9,
+      18
+     )
+   : randomRange(
+      random,
+      3,
+      7
+     )
+ };
+}
+
+// ==================================================
+// GENERATE DISTRICT
+// ==================================================
+function generateDistrict(
+ district,
+ chunk,
+ output
+) {
+ if (
+  !circleIntersectsChunk(
+   district.xMeters,
+   district.zMeters,
+   district.cityRadiusMeters,
+   chunk.minX,
+   chunk.minZ,
+   chunk.maxX,
+   chunk.maxZ
+  )
+ ) {
+  return;
+ }
+
+ const seed =
+  combineSeed(
+   "district",
+   district.seed,
+   chunk.chunkX,
+   chunk.chunkZ
+  );
+
+ const random =
+  createRandom(
+   seed
+  );
+
+ /*
+  * 主要都市なのでかなり高密度。
+  *
+  * 1チャンク最大約80軒。
+  */
+ const houseAttempts =
+  90;
+
+ for (
+  let i = 0;
+  i < houseAttempts;
+  i++
+ ) {
+  const x =
+   randomRange(
+    random,
+    chunk.minX,
+    chunk.maxX
+   );
+
+  const z =
+   randomRange(
+    random,
+    chunk.minZ,
+    chunk.maxZ
+   );
+
+  const distance =
+   distance2D(
+    x,
+    z,
+    district.xMeters,
+    district.zMeters
+   );
+
+  if (
+   distance >
+   district.cityRadiusMeters
+  ) {
+   continue;
+  }
+
+  /*
+   * 中央大通りを空ける。
+   */
+  const dx =
+   Math.abs(
+    x -
+    district.xMeters
+   );
+
+  if (
+   dx <
+   18
+  ) {
+   continue;
+  }
+
+  /*
+   * 数本の横道も空ける。
+   */
+  const localZ =
+   z -
+   district.zMeters;
+
+  const roadBand =
+   Math.abs(
+    (
+     (
+      localZ +
+      10000
+     ) %
+     180
+    ) -
+    90
+   );
+
+  if (
+   roadBand <
+   8
+  ) {
+   continue;
+  }
+
+  output.push(
+   makeHouse(
+    random,
+    x,
+    z,
+    1
+   )
+  );
+ }
+}
+
+// ==================================================
+// GENERATE MAJOR VILLAGE
+// ==================================================
+function generateMajorVillage(
+ village,
+ chunk,
+ output
+) {
+ if (
+  !circleIntersectsChunk(
+   village.xMeters,
+   village.zMeters,
+   village.radiusMeters,
+   chunk.minX,
+   chunk.minZ,
+   chunk.maxX,
+   chunk.maxZ
+  )
+ ) {
+  return;
+ }
+
+ const random =
+  createRandom(
+   combineSeed(
+    "major-village",
+    village.seed,
+    chunk.chunkX,
+    chunk.chunkZ
+   )
+  );
+
+ const attempts =
+  48;
+
+ for (
+  let i = 0;
+  i < attempts;
+  i++
+ ) {
+  const x =
+   randomRange(
+    random,
+    chunk.minX,
+    chunk.maxX
+   );
+
+  const z =
+   randomRange(
+    random,
+    chunk.minZ,
+    chunk.maxZ
+   );
+
+  if (
+   distance2D(
+    x,
+    z,
+    village.xMeters,
+    village.zMeters
+   ) >
+   village.radiusMeters
+  ) {
+   continue;
+  }
+
+  output.push(
+   makeHouse(
+    random,
+    x,
+    z,
+    0.9
+   )
+  );
+ }
+}
+
+// ==================================================
+// GENERATE MAJOR FOREST
+// ==================================================
+function generateMajorForest(
+ forest,
+ chunk,
+ output
+) {
+ if (
+  !circleIntersectsChunk(
+   forest.xMeters,
+   forest.zMeters,
+   forest.radiusMeters,
+   chunk.minX,
+   chunk.minZ,
+   chunk.maxX,
+   chunk.maxZ
+  )
+ ) {
+  return;
+ }
+
+ const random =
+  createRandom(
+   combineSeed(
+    "major-forest",
+    forest.seed,
+    chunk.chunkX,
+    chunk.chunkZ
+   )
+  );
+
+ /*
+  * 巨大樹は1チャンク内に
+  * 多すぎないよう抑える。
+  */
+ const attempts =
+  forest.type ===
+  "giant"
+  ? 75
+  : 120;
+
+ for (
+  let i = 0;
+  i < attempts;
+  i++
+ ) {
+  const x =
+   randomRange(
+    random,
+    chunk.minX,
+    chunk.maxX
+   );
+
+  const z =
+   randomRange(
+    random,
+    chunk.minZ,
+    chunk.maxZ
+   );
+
+  const distance =
+   distance2D(
+    x,
+    z,
+    forest.xMeters,
+    forest.zMeters
+   );
+
+  if (
+   distance >
+   forest.radiusMeters
+  ) {
+   continue;
+  }
+
+  /*
+   * 森の外周は少し薄くする。
+   */
+  const normalizedDistance =
+   distance /
+   forest.radiusMeters;
+
+  const edgeDensity =
+   1 -
+   normalizedDistance *
+   0.55;
+
+  if (
+   random() >
+   forest.density *
+   edgeDensity
+  ) {
+   continue;
+  }
+
+  output.push(
+   makeTree(
+    random,
+
+    x,
+    z,
+
+    forest.type ===
+    "giant",
+
+    forest.treeHeightMinMeters,
+
+    forest.treeHeightMaxMeters
+   )
+  );
+ }
+}
+
+// ==================================================
+// PROCEDURAL CELL
+// ==================================================
+function getProceduralCell(
+ cellX,
+ cellZ,
+ worldSeed
+) {
+ const random =
+  createRandom(
+   combineSeed(
+    "procedural-cell",
+    worldSeed,
+    cellX,
+    cellZ
+   )
+  );
+
+ const value =
+  random();
+
+ if (
+  value <
+  NORMAL_VILLAGE_CHANCE
+ ) {
+  return {
+   type:
+    "village",
+
+   random
+  };
+ }
+
+ if (
+  value <
+  NORMAL_VILLAGE_CHANCE +
+  NORMAL_FOREST_CHANCE
+ ) {
+  return {
+   type:
+    "forest",
+
+   random
+  };
+ }
+
+ return {
+  type:
+   "none",
+
+  random
+ };
+}
+
+// ==================================================
+// PROCEDURAL CONTENT
+// ==================================================
+function generateProceduralContent(
+ chunk,
+ worldSeed,
+ output
+) {
+ /*
+  * 10kmセルごとに
+  * 通常ランドマーク候補を決定。
+  */
+ const cellSize =
+  10000;
+
+ const centerX =
+  (
+   chunk.minX +
+   chunk.maxX
+  ) *
+  0.5;
+
+ const centerZ =
+  (
+   chunk.minZ +
+   chunk.maxZ
+  ) *
+  0.5;
+
+ const cellX =
+  Math.floor(
+   centerX /
+   cellSize
+  );
+
+ const cellZ =
+  Math.floor(
+   centerZ /
+   cellSize
+  );
+
+ /*
+  * 隣接セルの森・村も
+  * このチャンクへ届く可能性がある。
+  */
+ for (
+  let ox = -1;
+  ox <= 1;
+  ox++
+ ) {
+  for (
+   let oz = -1;
+   oz <= 1;
+   oz++
+  ) {
+   const cx =
+    cellX +
+    ox;
+
+   const cz =
+    cellZ +
+    oz;
+
+   const cell =
+    getProceduralCell(
+     cx,
+     cz,
+     worldSeed
+    );
+
+   if (
+    cell.type ===
+    "none"
+   ) {
+    continue;
+   }
+
+   const random =
+    cell.random;
+
+   const landmarkX =
+    cx *
+    cellSize +
+    randomRange(
+     random,
+     1500,
+     cellSize -
+     1500
+    );
+
+   const landmarkZ =
+    cz *
+    cellSize +
+    randomRange(
+     random,
+     1500,
+     cellSize -
+     1500
+    );
+
+   // ------------------------------------------------
+   // NORMAL FOREST
+   // ------------------------------------------------
+   if (
+    cell.type ===
+    "forest"
+   ) {
+    if (
+     !circleIntersectsChunk(
+      landmarkX,
+      landmarkZ,
+      NORMAL_FOREST_RADIUS_METERS,
+      chunk.minX,
+      chunk.minZ,
+      chunk.maxX,
+      chunk.maxZ
+     )
+    ) {
+     continue;
+    }
+
+    const treeRandom =
+     createRandom(
+      combineSeed(
+       "normal-forest",
+       worldSeed,
+       cx,
+       cz,
+       chunk.chunkX,
+       chunk.chunkZ
+      )
+     );
+
+    for (
+     let i = 0;
+     i < 55;
+     i++
+    ) {
+     const x =
+      randomRange(
+       treeRandom,
+       chunk.minX,
+       chunk.maxX
+      );
+
+     const z =
+      randomRange(
+       treeRandom,
+       chunk.minZ,
+       chunk.maxZ
+      );
+
+     if (
+      distance2D(
+       x,
+       z,
+       landmarkX,
+       landmarkZ
+      ) >
+      NORMAL_FOREST_RADIUS_METERS
+     ) {
+      continue;
+     }
+
+     output.push(
+      makeTree(
+       treeRandom,
+       x,
+       z,
+       false
+      )
+     );
+    }
+   }
+
+   // ------------------------------------------------
+   // NORMAL VILLAGE
+   // ------------------------------------------------
+   if (
+    cell.type ===
+    "village"
+   ) {
+    if (
+     !circleIntersectsChunk(
+      landmarkX,
+      landmarkZ,
+      NORMAL_VILLAGE_RADIUS_METERS,
+      chunk.minX,
+      chunk.minZ,
+      chunk.maxX,
+      chunk.maxZ
+     )
+    ) {
+     continue;
+    }
+
+    const villageRandom =
+     createRandom(
+      combineSeed(
+       "normal-village",
+       worldSeed,
+       cx,
+       cz,
+       chunk.chunkX,
+       chunk.chunkZ
+      )
+     );
+
+    for (
+     let i = 0;
+     i < 26;
+     i++
+    ) {
+     const x =
+      randomRange(
+       villageRandom,
+       chunk.minX,
+       chunk.maxX
+      );
+
+     const z =
+      randomRange(
+       villageRandom,
+       chunk.minZ,
+       chunk.maxZ
+      );
+
+     if (
+      distance2D(
+       x,
+       z,
+       landmarkX,
+       landmarkZ
+      ) >
+      NORMAL_VILLAGE_RADIUS_METERS
+     ) {
+      continue;
+     }
+
+     output.push(
+      makeHouse(
+       villageRandom,
+       x,
+       z,
+       0.82
+      )
+     );
+    }
+   }
+  }
+ }
+}
+
+// ==================================================
+// WORLD CHUNK CONTENT
+// ==================================================
+export function generateWorldChunkContent(
+ chunkX,
+ chunkZ,
+ chunkSizeMeters,
+ worldSeed
+) {
+ const minX =
+  chunkX *
+  chunkSizeMeters;
+
+ const minZ =
+  chunkZ *
+  chunkSizeMeters;
+
+ const maxX =
+  minX +
+  chunkSizeMeters;
+
+ const maxZ =
+  minZ +
+  chunkSizeMeters;
+
+ const chunk = {
+  chunkX,
+  chunkZ,
+
+  minX,
+  minZ,
+  maxX,
+  maxZ
+ };
+
+ const output =
+  [];
+
+ // --------------------------------------------------
+ // MAJOR DISTRICTS
+ // --------------------------------------------------
+ for (
+  const district
+  of WORLD_MAP.districts
+ ) {
+  generateDistrict(
+   district,
+   chunk,
+   output
+  );
+ }
+
+ // --------------------------------------------------
+ // MAJOR VILLAGES
+ // --------------------------------------------------
+ for (
+  const village
+  of WORLD_MAP.villages
+ ) {
+  generateMajorVillage(
+   village,
+   chunk,
+   output
+  );
+ }
+
+ // --------------------------------------------------
+ // MAJOR FORESTS
+ // --------------------------------------------------
+ for (
+  const forest
+  of WORLD_MAP.forests
+ ) {
+  generateMajorForest(
+   forest,
+   chunk,
+   output
+  );
+ }
+
+ // --------------------------------------------------
+ // PROCEDURAL WORLD
+ // --------------------------------------------------
+ generateProceduralContent(
+  chunk,
+  worldSeed,
+  output
+ );
+
+ return output;
 }
