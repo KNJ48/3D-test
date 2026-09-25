@@ -1757,6 +1757,217 @@ function updateWorldStreaming(
 }
 
 // ==================================================
+// AREA SYSTEM
+// ==================================================
+let currentAreaId =
+ null;
+
+let previousAreaChunkX =
+ null;
+
+let previousAreaChunkZ =
+ null;
+
+let areaSystemInitialized =
+ false;
+
+// --------------------------------------------------
+// FIND AREA
+// --------------------------------------------------
+function findAreaAtPosition(
+ position
+) {
+ /*
+  * WORLD_MAPにareasがまだ無ければ
+  * エリアなしとして扱う。
+  */
+ if (
+  !WORLD_MAP.areas ||
+  WORLD_MAP.areas.length ===
+  0
+ ) {
+  return null;
+ }
+
+ // --------------------------------------------------
+ // UNIT TO METERS
+ // --------------------------------------------------
+ const xMeters =
+  position.x *
+  METERS_PER_UNIT;
+
+ const zMeters =
+  position.z *
+  METERS_PER_UNIT;
+
+ // --------------------------------------------------
+ // SEARCH
+ // --------------------------------------------------
+ for (
+  const area
+  of WORLD_MAP.areas
+ ) {
+  // ------------------------------------------------
+  // RECTANGLE
+  // ------------------------------------------------
+  if (
+   area.type ===
+   "rectangle"
+  ) {
+   const halfWidth =
+    area.widthMeters /
+    2;
+
+   const halfDepth =
+    area.depthMeters /
+    2;
+
+   const inside =
+    xMeters >=
+     area.xMeters -
+     halfWidth &&
+
+    xMeters <=
+     area.xMeters +
+     halfWidth &&
+
+    zMeters >=
+     area.zMeters -
+     halfDepth &&
+
+    zMeters <=
+     area.zMeters +
+     halfDepth;
+
+   if (inside) {
+    return area;
+   }
+  }
+
+  // ------------------------------------------------
+  // CIRCLE
+  // ------------------------------------------------
+  if (
+   area.type ===
+   "circle"
+  ) {
+   const distance =
+    Math.hypot(
+     xMeters -
+      area.xMeters,
+
+     zMeters -
+      area.zMeters
+    );
+
+   if (
+    distance <=
+    area.radiusMeters
+   ) {
+    return area;
+   }
+  }
+ }
+
+ return null;
+}
+
+// --------------------------------------------------
+// ENTER AREA
+// --------------------------------------------------
+function enterArea(
+ area
+) {
+ // --------------------------------------------------
+ // OUTSIDE NAMED AREA
+ // --------------------------------------------------
+ if (!area) {
+  currentAreaId =
+   null;
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // SAME AREA
+ // --------------------------------------------------
+ if (
+  currentAreaId ===
+  area.id
+ ) {
+  return;
+ }
+
+ // --------------------------------------------------
+ // NEW AREA
+ // --------------------------------------------------
+ currentAreaId =
+  area.id;
+
+ showMessage(
+  area.name
+ );
+}
+
+// --------------------------------------------------
+// UPDATE AREA SYSTEM
+// --------------------------------------------------
+function updateAreaSystem() {
+ const chunkX =
+  getChunkCoordinate(
+   camera.position.x
+  );
+
+ const chunkZ =
+  getChunkCoordinate(
+   camera.position.z
+  );
+
+ // --------------------------------------------------
+ // SAME CHUNK
+ // --------------------------------------------------
+ /*
+  * 地名判定を毎フレームする必要はない。
+  *
+  * 新しい500mチャンクへ
+  * 入った場合だけ判定。
+  */
+ if (
+  areaSystemInitialized &&
+  chunkX ===
+   previousAreaChunkX &&
+  chunkZ ===
+   previousAreaChunkZ
+ ) {
+  return;
+ }
+
+ // --------------------------------------------------
+ // STORE CHUNK
+ // --------------------------------------------------
+ previousAreaChunkX =
+  chunkX;
+
+ previousAreaChunkZ =
+  chunkZ;
+
+ areaSystemInitialized =
+  true;
+
+ // --------------------------------------------------
+ // FIND CURRENT AREA
+ // --------------------------------------------------
+ const area =
+  findAreaAtPosition(
+   camera.position
+  );
+
+ enterArea(
+  area
+ );
+}
+
+// ==================================================
 // WORLD LISTS
 // ==================================================
 const colliders = [];
