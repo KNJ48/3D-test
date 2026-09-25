@@ -5268,7 +5268,7 @@ function bladeEaseOut(
 }
 
 // --------------------------------------------------
-// RESET SWING PIVOT
+// RESET SWING
 // --------------------------------------------------
 function resetBladeSwing(
  blade
@@ -5285,9 +5285,9 @@ function resetBladeSwing(
 }
 
 // --------------------------------------------------
-// SINGLE SWING
+// HORIZONTAL SLASH
 // --------------------------------------------------
-function applyPivotSlash(
+function applyHorizontalSlash(
  blade,
  direction,
  time
@@ -5299,8 +5299,18 @@ function applyPivotSlash(
  /*
   * direction:
   *
-  * -1 = 右から左
-  * +1 = 左から右
+  * -1
+  * 右 → 左
+  *
+  * +1
+  * 左 → 右
+  *
+  *
+  * 刀はローカル-Z方向へ
+  * 伸びている。
+  *
+  * したがって横薙ぎの
+  * 主回転軸はY。
   */
 
  // ------------------------------------------------
@@ -5317,31 +5327,34 @@ function applyPivotSlash(
    );
 
   /*
-   * 振りかぶり。
+   * 一度、振る方向とは
+   * 反対側へ引く。
+   */
+  pivot.rotation.y =
+   direction *
+   THREE.MathUtils.lerp(
+    0,
+    -0.78,
+    t
+   );
+
+  /*
+   * 刃をわずかに傾けるだけ。
    *
-   * Z回転が主成分。
-   * 手元は動かさない。
+   * Zは主回転にしない。
    */
   pivot.rotation.z =
    direction *
    THREE.MathUtils.lerp(
     0,
-    -0.92,
-    t
-   );
-
-  pivot.rotation.y =
-   direction *
-   THREE.MathUtils.lerp(
-    0,
-    0.18,
+    -0.12,
     t
    );
 
   pivot.rotation.x =
    THREE.MathUtils.lerp(
     0,
-    -0.14,
+    -0.03,
     t
    );
 
@@ -5349,11 +5362,11 @@ function applyPivotSlash(
  }
 
  // ------------------------------------------------
- // ACCELERATE
+ // ACCELERATION
  // ------------------------------------------------
  if (
   time <
-  0.16
+  0.15
  ) {
   const t =
    bladeEaseIn(
@@ -5361,46 +5374,39 @@ function applyPivotSlash(
      time -
      0.11
     ) /
-    0.05
-   );
-
-  pivot.rotation.z =
-   direction *
-   THREE.MathUtils.lerp(
-    -0.92,
-    -0.30,
-    t
+    0.04
    );
 
   pivot.rotation.y =
    direction *
    THREE.MathUtils.lerp(
-    0.18,
-    0.05,
+    -0.78,
+    -0.40,
+    t
+   );
+
+  pivot.rotation.z =
+   direction *
+   THREE.MathUtils.lerp(
+    -0.12,
+    -0.06,
     t
    );
 
   pivot.rotation.x =
-   THREE.MathUtils.lerp(
-    -0.14,
-    0.03,
-    t
-   );
+   -0.02;
 
   return;
  }
 
  // ------------------------------------------------
- // IMPACT SWING
+ // MAIN SWING
  // ------------------------------------------------
  /*
-  * ここを非常に速く通過させる。
+  * ここが「ブンッ」。
   *
-  * -0.30rad
-  * ↓
-  * +1.35rad
-  *
-  * を0.08秒。
+  * 手元を動かさず、
+  * Y軸で約135°一気に振る。
   */
  if (
   time <
@@ -5410,31 +5416,35 @@ function applyPivotSlash(
    bladeEaseOut(
     (
      time -
-     0.16
+     0.15
     ) /
-    0.08
-   );
-
-  pivot.rotation.z =
-   direction *
-   THREE.MathUtils.lerp(
-    -0.30,
-    1.35,
-    t
+    0.09
    );
 
   pivot.rotation.y =
    direction *
    THREE.MathUtils.lerp(
-    0.05,
-    -0.16,
+    -0.40,
+    1.56,
+    t
+   );
+
+  /*
+   * 横薙ぎなので
+   * X/Zは最低限。
+   */
+  pivot.rotation.z =
+   direction *
+   THREE.MathUtils.lerp(
+    -0.06,
+    0.10,
     t
    );
 
   pivot.rotation.x =
    THREE.MathUtils.lerp(
-    0.03,
-    0.19,
+    -0.02,
+    0.04,
     t
    );
 
@@ -5446,7 +5456,7 @@ function applyPivotSlash(
  // ------------------------------------------------
  if (
   time <
-  0.32
+  0.31
  ) {
   const t =
    bladeSmoothStep(
@@ -5454,31 +5464,31 @@ function applyPivotSlash(
      time -
      0.24
     ) /
-    0.08
+    0.07
+   );
+
+  /*
+   * さらに少しだけ
+   * 振り抜く。
+   */
+  pivot.rotation.y =
+   direction *
+   THREE.MathUtils.lerp(
+    1.56,
+    1.72,
+    t
    );
 
   pivot.rotation.z =
    direction *
    THREE.MathUtils.lerp(
-    1.35,
-    1.48,
-    t
-   );
-
-  pivot.rotation.y =
-   direction *
-   THREE.MathUtils.lerp(
-    -0.16,
-    -0.20,
+    0.10,
+    0.13,
     t
    );
 
   pivot.rotation.x =
-   THREE.MathUtils.lerp(
-    0.19,
-    0.24,
-    t
-   );
+   0.04;
 
   return;
  }
@@ -5490,37 +5500,37 @@ function applyPivotSlash(
   bladeSmoothStep(
    (
     time -
-    0.32
+    0.31
    ) /
-   0.12
-  );
-
- pivot.rotation.z =
-  direction *
-  THREE.MathUtils.lerp(
-   1.48,
-   0,
-   t
+   0.13
   );
 
  pivot.rotation.y =
   direction *
   THREE.MathUtils.lerp(
-   -0.20,
+   1.72,
+   0,
+   t
+  );
+
+ pivot.rotation.z =
+  direction *
+  THREE.MathUtils.lerp(
+   0.13,
    0,
    t
   );
 
  pivot.rotation.x =
   THREE.MathUtils.lerp(
-   0.24,
+   0.04,
    0,
    t
   );
 }
 
 // --------------------------------------------------
-// PASSIVE HAND
+// PASSIVE BLADE
 // --------------------------------------------------
 function applyPassiveBladeMotion(
  blade,
@@ -5542,28 +5552,27 @@ function applyPassiveBladeMotion(
   );
 
  /*
-  * 反対側の刀は
-  * 少しだけ姿勢を変える。
+  * 反対側の手は
+  * ほぼ構えたまま。
   */
- pivot.rotation.x =
-  -0.05 *
-  amount;
-
  pivot.rotation.y =
   blade.userData.side *
-  0.05 *
+  0.035 *
   amount;
 
  pivot.rotation.z =
   blade.userData.side *
-  0.08 *
+  0.025 *
   amount;
+
+ pivot.rotation.x =
+  0;
 }
 
 // --------------------------------------------------
-// CROSS SLASH
+// CROSS HORIZONTAL SLASH
 // --------------------------------------------------
-function applyCrossPivotSlash(
+function applyCrossHorizontalSlash(
  blade,
  time
 ) {
@@ -5573,6 +5582,17 @@ function applyCrossPivotSlash(
  const pivot =
   blade.userData
   .swingPivot;
+
+ /*
+  * 左刀:
+  * 左 → 右
+  *
+  * 右刀:
+  * 右 → 左
+  *
+  * なので左右とも
+  * 中央を横切って交差する。
+  */
 
  // ------------------------------------------------
  // WINDUP
@@ -5587,34 +5607,31 @@ function applyCrossPivotSlash(
     0.11
    );
 
-  pivot.rotation.z =
-   side *
-   THREE.MathUtils.lerp(
-    0,
-    -0.86,
-    t
-   );
-
   pivot.rotation.y =
    side *
    THREE.MathUtils.lerp(
     0,
-    0.14,
+    0.74,
+    t
+   );
+
+  pivot.rotation.z =
+   side *
+   THREE.MathUtils.lerp(
+    0,
+    0.10,
     t
    );
 
   pivot.rotation.x =
-   THREE.MathUtils.lerp(
-    0,
-    -0.16,
-    t
-   );
+   -0.025 *
+   t;
 
   return;
  }
 
  // ------------------------------------------------
- // CROSS
+ // CROSS SWING
  // ------------------------------------------------
  if (
   time <
@@ -5630,30 +5647,29 @@ function applyCrossPivotSlash(
    );
 
   /*
-   * 左右の刃が
-   * 中央で交差して
-   * 反対方向へ抜ける。
+   * Y軸を反対方向まで
+   * 一気に回す。
    */
-  pivot.rotation.z =
-   side *
-   THREE.MathUtils.lerp(
-    -0.86,
-    1.30,
-    t
-   );
-
   pivot.rotation.y =
    side *
    THREE.MathUtils.lerp(
-    0.14,
-    -0.18,
+    0.74,
+    -1.48,
+    t
+   );
+
+  pivot.rotation.z =
+   side *
+   THREE.MathUtils.lerp(
+    0.10,
+    -0.10,
     t
    );
 
   pivot.rotation.x =
    THREE.MathUtils.lerp(
-    -0.16,
-    0.20,
+    -0.025,
+    0.035,
     t
    );
 
@@ -5665,7 +5681,7 @@ function applyCrossPivotSlash(
  // ------------------------------------------------
  if (
   time <
-  0.32
+  0.31
  ) {
   const t =
    bladeSmoothStep(
@@ -5673,31 +5689,27 @@ function applyCrossPivotSlash(
      time -
      0.24
     ) /
-    0.08
-   );
-
-  pivot.rotation.z =
-   side *
-   THREE.MathUtils.lerp(
-    1.30,
-    1.43,
-    t
+    0.07
    );
 
   pivot.rotation.y =
    side *
    THREE.MathUtils.lerp(
-    -0.18,
-    -0.21,
+    -1.48,
+    -1.64,
+    t
+   );
+
+  pivot.rotation.z =
+   side *
+   THREE.MathUtils.lerp(
+    -0.10,
+    -0.13,
     t
    );
 
   pivot.rotation.x =
-   THREE.MathUtils.lerp(
-    0.20,
-    0.24,
-    t
-   );
+   0.035;
 
   return;
  }
@@ -5709,50 +5721,49 @@ function applyCrossPivotSlash(
   bladeSmoothStep(
    (
     time -
-    0.32
+    0.31
    ) /
-   0.12
-  );
-
- pivot.rotation.z =
-  side *
-  THREE.MathUtils.lerp(
-   1.43,
-   0,
-   t
+   0.13
   );
 
  pivot.rotation.y =
   side *
   THREE.MathUtils.lerp(
-   -0.21,
+   -1.64,
+   0,
+   t
+  );
+
+ pivot.rotation.z =
+  side *
+  THREE.MathUtils.lerp(
+   -0.13,
    0,
    t
   );
 
  pivot.rotation.x =
   THREE.MathUtils.lerp(
-   0.24,
+   0.035,
    0,
    t
   );
 }
 
 // --------------------------------------------------
-// APPLY ATTACK
+// APPLY ATTACK MOTION
 // --------------------------------------------------
 function applyBladeAttackMotion(
  time
 ) {
  // ------------------------------------------------
- // MOTION 1
- // RIGHT → LEFT
+ // 1 = RIGHT → LEFT
  // ------------------------------------------------
  if (
   bladeAttackMotion ===
   1
  ) {
-  applyPivotSlash(
+  applyHorizontalSlash(
    rightBlade,
    -1,
    time
@@ -5767,14 +5778,13 @@ function applyBladeAttackMotion(
  }
 
  // ------------------------------------------------
- // MOTION 2
- // LEFT → RIGHT
+ // 2 = LEFT → RIGHT
  // ------------------------------------------------
  if (
   bladeAttackMotion ===
   2
  ) {
-  applyPivotSlash(
+  applyHorizontalSlash(
    leftBlade,
    1,
    time
@@ -5789,15 +5799,14 @@ function applyBladeAttackMotion(
  }
 
  // ------------------------------------------------
- // MOTION 3
- // CROSS
+ // 3 = CROSS
  // ------------------------------------------------
- applyCrossPivotSlash(
+ applyCrossHorizontalSlash(
   leftBlade,
   time
  );
 
- applyCrossPivotSlash(
+ applyCrossHorizontalSlash(
   rightBlade,
   time
  );
@@ -5819,7 +5828,7 @@ function triggerBladeAnchorRecoil(
 }
 
 // --------------------------------------------------
-// ANCHOR RECOIL CURVE
+// ANCHOR RECOIL
 // --------------------------------------------------
 function getBladeAnchorRecoil(
  blade,
@@ -5852,7 +5861,7 @@ function getBladeAnchorRecoil(
   0;
 
  // ------------------------------------------------
- // FAST KICK
+ // KICK
  // ------------------------------------------------
  if (
   elapsed <
@@ -5865,7 +5874,7 @@ function getBladeAnchorRecoil(
    );
  } else {
   // ------------------------------------------------
-  // RECOVER
+  // RETURN
   // ------------------------------------------------
   strength =
    1 -
@@ -5900,11 +5909,11 @@ function getBladeAnchorRecoil(
 
   down:
    strength *
-   0.035,
+   0.025,
 
   outward:
    strength *
-   0.025,
+   0.018,
 
   angle:
    strength *
@@ -5913,7 +5922,7 @@ function getBladeAnchorRecoil(
 }
 
 // --------------------------------------------------
-// IDLE / RECOIL
+// IDLE MOTION
 // --------------------------------------------------
 function updateBladeIdleMotion(
  blade,
@@ -5953,12 +5962,12 @@ function updateBladeIdleMotion(
   );
 
  // ------------------------------------------------
- // CAMERA SWAY
+ // CAMERA INERTIA
  // ------------------------------------------------
  const targetSwayX =
   THREE.MathUtils.clamp(
    -yawDelta *
-   4.0,
+   4,
    -0.045,
    0.045
   );
@@ -5994,7 +6003,7 @@ function updateBladeIdleMotion(
   );
 
  // ------------------------------------------------
- // SPEED VIBRATION
+ // VIBRATION
  // ------------------------------------------------
  const now =
   performance.now() *
@@ -6046,11 +6055,6 @@ function updateBladeIdleMotion(
   vibrationY -
   recoil.down;
 
- /*
-  * +Z = カメラ側。
-  *
-  * 射出時に手を後ろへ引く。
-  */
  const targetZ =
   restP.z +
   speedRatio *
@@ -6113,10 +6117,7 @@ function updateBladeIdleMotion(
 
    restR.y +
    blade.userData.swayX *
-   0.7 +
-   side *
-   recoil.angle *
-   0.4,
+   0.7,
 
    Math.min(
     delta *
@@ -6139,10 +6140,6 @@ function updateBladeIdleMotion(
  // ------------------------------------------------
  // RETURN PIVOT
  // ------------------------------------------------
- /*
-  * 攻撃していない時は
-  * swingPivotもゼロへ戻す。
-  */
  pivot.rotation.x =
   THREE.MathUtils.lerp(
    pivot.rotation.x,
@@ -6216,7 +6213,7 @@ function updateBladeAnimation(
   );
 
   // -----------------------------------------------
-  // HIT MOMENT
+  // HIT
   // -----------------------------------------------
   if (
    !bladeHitApplied &&
@@ -6252,7 +6249,7 @@ function updateBladeAnimation(
  }
 
  // ------------------------------------------------
- // IDLE / ANCHOR RECOIL
+ // IDLE / ANCHOR
  // ------------------------------------------------
  updateBladeIdleMotion(
   leftBlade,
