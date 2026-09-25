@@ -371,28 +371,84 @@ const GAS_BURST_COOLDOWN = 0.5;
 // WIRE
 // ==================================================
 
-// 牽引開始時の初速
-const WIRE_INITIAL_IMPULSE = 11;
+// --------------------------------------------------
+// BASE PULL
+// --------------------------------------------------
+/*
+ * 基本の牽引開始初速。
+ */
+const WIRE_INITIAL_IMPULSE =
+ 11;
 
-// 継続加速度
-const WIRE_SUSTAIN_ACCEL = 16;
+/*
+ * 基本の継続加速度。
+ */
+const WIRE_SUSTAIN_ACCEL =
+ 16;
 
-// アンカー射出速度
-const ANCHOR_SHOT_SPEED = 150;
+// --------------------------------------------------
+// DISTANCE BOOST
+// --------------------------------------------------
+/*
+ * この距離以下では
+ * 距離ボーナスなし。
+ */
+const WIRE_BOOST_MIN_DISTANCE_METERS =
+ 20;
 
-// ワイヤー表示設定
-const WIRE_VISUAL_RADIUS = 0.01;
-const WIRE_VISUAL_SEGMENTS = 6;
+/*
+ * この距離で
+ * 最大ボーナスへ到達。
+ */
+const WIRE_BOOST_MAX_DISTANCE_METERS =
+ 350;
 
-// 黒
-const WIRE_VISUAL_COLOR = 0x101214;
+/*
+ * 遠距離アンカー時の
+ * 初速最大倍率。
+ */
+const WIRE_INITIAL_MAX_MULTIPLIER =
+ 2.0;
 
-const WIRE_VISUAL_OPACITY = 1.0;
+/*
+ * 遠距離アンカー時の
+ * 継続加速度最大倍率。
+ */
+const WIRE_ACCEL_MAX_MULTIPLIER =
+ 1.8;
 
-// 一人称視点での射出口
-const WIRE_START_SIDE = 0.28;
-const WIRE_START_DOWN = -0.22;
-const WIRE_START_FORWARD = -0.45;
+// --------------------------------------------------
+// ANCHOR PROJECTILE
+// --------------------------------------------------
+const ANCHOR_SHOT_SPEED =
+ 150;
+
+// --------------------------------------------------
+// WIRE VISUAL
+// --------------------------------------------------
+const WIRE_VISUAL_RADIUS =
+ 0.01;
+
+const WIRE_VISUAL_SEGMENTS =
+ 6;
+
+const WIRE_VISUAL_COLOR =
+ 0x101214;
+
+const WIRE_VISUAL_OPACITY =
+ 1.0;
+
+// --------------------------------------------------
+// WIRE START
+// --------------------------------------------------
+const WIRE_START_SIDE =
+ 0.28;
+
+const WIRE_START_DOWN =
+ -0.22;
+
+const WIRE_START_FORWARD =
+ -0.45;
 
 // ==================================================
 // AUTO DUAL ANCHOR
@@ -5164,6 +5220,85 @@ function updateWireGas(
 }
 
 // ==================================================
+// WIRE DISTANCE BOOST
+// ==================================================
+function getWireDistanceBoost(
+ anchor
+) {
+ // --------------------------------------------------
+ // DISTANCE
+ // --------------------------------------------------
+ const distanceUnits =
+  camera.position.distanceTo(
+   anchor.point
+  );
+
+ const distanceMeters =
+  distanceUnits *
+  METERS_PER_UNIT;
+
+ // --------------------------------------------------
+ // NORMALIZE
+ // --------------------------------------------------
+ const range =
+  WIRE_BOOST_MAX_DISTANCE_METERS -
+  WIRE_BOOST_MIN_DISTANCE_METERS;
+
+ let t =
+  (
+   distanceMeters -
+   WIRE_BOOST_MIN_DISTANCE_METERS
+  ) /
+  range;
+
+ t =
+  THREE.MathUtils.clamp(
+   t,
+   0,
+   1
+  );
+
+ /*
+  * 最初は緩やか、
+  * 遠距離で強くなる。
+  */
+ t =
+  t *
+  t *
+  (
+   3 -
+   2 *
+   t
+  );
+
+ // --------------------------------------------------
+ // INITIAL IMPULSE
+ // --------------------------------------------------
+ const initialMultiplier =
+  THREE.MathUtils.lerp(
+   1,
+   WIRE_INITIAL_MAX_MULTIPLIER,
+   t
+  );
+
+ // --------------------------------------------------
+ // ACCELERATION
+ // --------------------------------------------------
+ const accelerationMultiplier =
+  THREE.MathUtils.lerp(
+   1,
+   WIRE_ACCEL_MAX_MULTIPLIER,
+   t
+  );
+
+ return {
+  distanceMeters,
+  initialMultiplier,
+  accelerationMultiplier
+ };
+}
+
+// ==================================================
 // WIRE PHYSICS
 // ==================================================
 function updateWire(
@@ -5178,70 +5313,65 @@ function updateWire(
   !anchor.connected
  ) {
   anchor.pulling =
-  false;
+   false;
 
   anchor.impulseApplied =
-  false;
+   false;
 
   anchor.ropeLocked =
-  false;
+   false;
 
   return;
  }
 
-// --------------------------------------------------
-// SHIFT INPUT
-// --------------------------------------------------
-const ctrlHeld =
- keys["ShiftLeft"] ||
- keys["ShiftRight"];
+ // --------------------------------------------------
+ // SHIFT = ROPE LOCK
+ // --------------------------------------------------
+ const shiftHeld =
+  keys["ShiftLeft"] ||
+  keys["ShiftRight"];
 
- // --------------------------------------------------
- // ROPE LOCK
- // --------------------------------------------------
- if (ctrlHeld) {
+ if (shiftHeld) {
   /*
-   * Ctrlを押した最初のフレームだけ
-   * 現在のアンカーとの距離を保存。
-   *
-   * 以降はCtrlを離すまで
-   * lengthを絶対に変更しない。
+   * Shiftを押した瞬間の
+   * ロープ長を保存。
    */
   if (
    !anchor.ropeLocked
   ) {
    anchor.length =
-   camera.position.distanceTo(
-    anchor.point
-   );
+    camera.position.distanceTo(
+     anchor.point
+    );
 
    anchor.ropeLocked =
-   true;
+    true;
   }
 
   /*
-   * ガス牽引は完全停止。
+   * ロープ拘束のみ。
+   * ガス牽引はしない。
    */
   anchor.pulling =
-  false;
+   false;
 
   anchor.impulseApplied =
-  false;
+   false;
 
   return;
  }
 
  // --------------------------------------------------
- // UNLOCK
+ // RELEASE ROPE LOCK
  // --------------------------------------------------
  if (
   anchor.ropeLocked
  ) {
   anchor.ropeLocked =
-  false;
+   false;
 
   anchor.impulseApplied =
-  false;
+   false;
  }
 
  // --------------------------------------------------
@@ -5252,10 +5382,10 @@ const ctrlHeld =
   !gasAvailable
  ) {
   anchor.pulling =
-  false;
+   false;
 
   anchor.impulseApplied =
-  false;
+   false;
 
   return;
  }
@@ -5278,6 +5408,14 @@ const ctrlHeld =
  wireDirection.normalize();
 
  // --------------------------------------------------
+ // DISTANCE BOOST
+ // --------------------------------------------------
+ const boost =
+  getWireDistanceBoost(
+   anchor
+  );
+
+ // --------------------------------------------------
  // INITIAL IMPULSE
  // --------------------------------------------------
  if (
@@ -5285,30 +5423,37 @@ const ctrlHeld =
  ) {
   velocity.addScaledVector(
    wireDirection,
-   WIRE_INITIAL_IMPULSE
+
+   WIRE_INITIAL_IMPULSE *
+   boost.initialMultiplier
   );
 
   anchor.impulseApplied =
-  true;
+   true;
 
   anchor.length =
-  camera.position.distanceTo(
-   anchor.point
-  );
+   camera.position.distanceTo(
+    anchor.point
+   );
  }
 
  // --------------------------------------------------
  // SUSTAINED PULL
  // --------------------------------------------------
  anchor.pulling =
- true;
+  true;
 
  velocity.addScaledVector(
   wireDirection,
+
   WIRE_SUSTAIN_ACCEL *
+  boost.accelerationMultiplier *
   delta
  );
 
+ // --------------------------------------------------
+ // SAFETY
+ // --------------------------------------------------
  limitWireSafetySpeed();
 }
 
