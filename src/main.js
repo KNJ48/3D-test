@@ -4060,7 +4060,7 @@ const bladeSpineMaterial =
    0xd4d8dc,
 
   metalness:
-   0.9,
+   0.90,
 
   roughness:
    0.20
@@ -4115,6 +4115,19 @@ const bladeGripMaterial =
  });
 
 // --------------------------------------------------
+// MODEL SIZE
+// --------------------------------------------------
+const BLADE_MODEL_LENGTH =
+ 1.55;
+
+/*
+ * weaponローカル座標における
+ * 刀身中央付近。
+ */
+const BLADE_CENTER_PIVOT_Z =
+ -0.98;
+
+// --------------------------------------------------
 // BLADE GEOMETRY
 // --------------------------------------------------
 function createBladeGeometry(
@@ -4127,7 +4140,7 @@ function createBladeGeometry(
   0.026;
 
  const length =
-  1.55;
+  BLADE_MODEL_LENGTH;
 
  const halfWidth =
   width /
@@ -4236,28 +4249,30 @@ function createBladeGeometry(
 function createBlade(
  side
 ) {
+ // ------------------------------------------------
+ // HAND GROUP
+ // ------------------------------------------------
  /*
-  * handGroup:
-  * カメラに対する手元そのもの。
-  *
-  * 攻撃中も基本的に
-  * 大きく動かさない。
+  * カメラへ付く手元。
   */
  const handGroup =
   new THREE.Group();
 
+ // ------------------------------------------------
+ // SWING PIVOT
+ // ------------------------------------------------
  /*
-  * swingPivot:
-  * 手首・グリップ付近の
-  * 回転支点。
+  * 今回の回転中心。
+  *
+  * 持ち手ではなく
+  * 刀身中央へ置く。
   */
  const swingPivot =
   new THREE.Group();
 
- /*
-  * weapon:
-  * 実際のブレードと柄。
-  */
+ // ------------------------------------------------
+ // WEAPON
+ // ------------------------------------------------
  const weapon =
   new THREE.Group();
 
@@ -4267,6 +4282,32 @@ function createBlade(
 
  swingPivot.add(
   weapon
+ );
+
+ // ------------------------------------------------
+ // PIVOT LOCATION
+ // ------------------------------------------------
+ /*
+  * handGroup内で
+  * 刀身中央へPivotを移動。
+  */
+ swingPivot.position.set(
+  0,
+  0.065,
+  BLADE_CENTER_PIVOT_Z
+ );
+
+ /*
+  * Pivotを移動した分だけ
+  * weaponを逆方向へ戻す。
+  *
+  * これにより待機時の
+  * 見た目位置は変わらない。
+  */
+ weapon.position.set(
+  0,
+  -0.065,
+  -BLADE_CENTER_PIVOT_Z
  );
 
  // ------------------------------------------------
@@ -4281,9 +4322,6 @@ function createBlade(
    bladeMaterial
   );
 
- /*
-  * Pivotから前方へ伸ばす。
-  */
  blade.position.set(
   0,
   0.065,
@@ -4386,7 +4424,7 @@ function createBlade(
  }
 
  // ------------------------------------------------
- // BLADE SOCKET
+ // SOCKET
  // ------------------------------------------------
  const socket =
   new THREE.Mesh(
@@ -4410,7 +4448,7 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // MAIN MECHANISM
+ // MECHANISM
  // ------------------------------------------------
  const mechanism =
   new THREE.Mesh(
@@ -4434,7 +4472,7 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // SIDE DRUM
+ // DRUM
  // ------------------------------------------------
  const drum =
   new THREE.Mesh(
@@ -4625,14 +4663,8 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // HAND POSITION
+ // CAMERA REST POSE
  // ------------------------------------------------
- /*
-  * この位置が「手」。
-  *
-  * 攻撃中はここを
-  * 大きく横移動させない。
-  */
  handGroup.position.set(
   side *
   0.39,
@@ -4650,30 +4682,6 @@ function createBlade(
 
   side *
   -0.035
- );
-
- // ------------------------------------------------
- // PIVOT POSITION
- // ------------------------------------------------
- /*
-  * weapon内部の柄付近を
-  * 回転中心へ近づける。
-  */
- swingPivot.position.set(
-  0,
-  -0.03,
-  0.08
- );
-
- /*
-  * weaponを少し戻すことで
-  * Pivotとグリップ位置を
-  * 見た目上合わせる。
-  */
- weapon.position.set(
-  0,
-  0.03,
-  -0.08
  );
 
  // ------------------------------------------------
@@ -4703,6 +4711,9 @@ function createBlade(
  handGroup.userData.anchorRecoil =
   0;
 
+ // ------------------------------------------------
+ // CAMERA ATTACH
+ // ------------------------------------------------
  camera.add(
   handGroup
  );
@@ -4738,11 +4749,6 @@ let attackCooldownTimer =
 let bladeHitApplied =
  false;
 
-/*
- * 1 = 右 → 左
- * 2 = 左 → 右
- * 3 = クロス
- */
 let bladeAttackMotion =
  1;
 
@@ -4750,7 +4756,7 @@ const attackRaycaster =
  new THREE.Raycaster();
 
 // --------------------------------------------------
-// CAMERA MOTION
+// CAMERA MOTION STATE
 // --------------------------------------------------
 let bladePreviousYaw =
  0;
