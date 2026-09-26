@@ -5307,7 +5307,7 @@ const BLADE_WINDUP_ANGLE =
  * 左ブレードは逆。
  */
 const BLADE_SIDE_EDGE =
- 0.72;
+ 5;
 
 // --------------------------------------------------
 // SMOOTH STEP
