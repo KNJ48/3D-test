@@ -10394,21 +10394,129 @@ let worldMapLastMouseX =
 let worldMapLastMouseY =
  0;
 
-// --------------------------------------------------
-// WORLD TO MAP
-// --------------------------------------------------
-function worldToMap(
- xMeters,
- zMeters
-) {
- const mariaRadius =
-  WORLD_MAP.walls.maria
-  .radiusMeters;
+// ==================================================
+// MAP COLORS
+// ==================================================
+const WORLD_MAP_COLORS = {
 
- /*
-  * zoom=1でMaria全体が
-  * 画面内に入る倍率。
-  */
+ // --------------------------------------------------
+ // TERRAIN
+ // --------------------------------------------------
+ background:
+  "#75985d",
+
+ grass:
+  "#829f68",
+
+ // --------------------------------------------------
+ // FOREST
+ // --------------------------------------------------
+ forest:
+  "rgba(42,89,45,.68)",
+
+ giantForest:
+  "rgba(20,66,32,.80)",
+
+ forestOutline:
+  "rgba(27,70,34,.95)",
+
+ // --------------------------------------------------
+ // CITY
+ // --------------------------------------------------
+ district:
+  "rgba(190,168,126,.28)",
+
+ districtOutline:
+  "rgba(225,208,170,.85)",
+
+ village:
+  "rgba(184,158,112,.40)",
+
+ // --------------------------------------------------
+ // BUILDINGS
+ // --------------------------------------------------
+ building:
+  "#d8c39a",
+
+ buildingOutline:
+  "#806c4e",
+
+ // --------------------------------------------------
+ // ROAD
+ // --------------------------------------------------
+ road:
+  "#806f59",
+
+ // --------------------------------------------------
+ // WALL
+ // --------------------------------------------------
+ wall:
+  "#ddd7c8",
+
+ wallShadow:
+  "rgba(40,40,35,.55)",
+
+ // --------------------------------------------------
+ // LABEL
+ // --------------------------------------------------
+ label:
+  "#ffffff",
+
+ labelShadow:
+  "rgba(0,0,0,.85)",
+
+ // --------------------------------------------------
+ // PLAYER
+ // --------------------------------------------------
+ player:
+  "#29b6f6",
+
+ playerOutline:
+  "#ffffff",
+
+ // --------------------------------------------------
+ // TP
+ // --------------------------------------------------
+ teleport:
+  "#ffca55",
+
+ // --------------------------------------------------
+ // CHUNK
+ // --------------------------------------------------
+ chunk:
+  "rgba(255,255,255,.13)",
+
+ chunkText:
+  "rgba(255,255,255,.38)"
+};
+
+// ==================================================
+// RESIZE MAP
+// ==================================================
+function resizeWorldMapCanvas() {
+ worldMapCanvas.width =
+  window.innerWidth;
+
+ worldMapCanvas.height =
+  window.innerHeight;
+
+ drawWorldMap();
+}
+
+// ==================================================
+// BASE SCALE
+// ==================================================
+function getWorldMapBaseScale() {
+ const database =
+  getActiveWorldDatabase();
+
+ const maria =
+  database?.walls?.maria ??
+  WORLD_MAP.walls.maria;
+
+ const mariaRadius =
+  maria.radiusMeters;
+
  const availableSize =
   Math.min(
    window.innerWidth,
@@ -10416,15 +10524,24 @@ function worldToMap(
   ) *
   0.78;
 
- const baseScale =
+ return (
   availableSize /
   (
    mariaRadius *
    2
-  );
+  )
+ );
+}
 
+// ==================================================
+// WORLD TO MAP
+// ==================================================
+function worldToMap(
+ xMeters,
+ zMeters
+) {
  const scale =
-  baseScale *
+  getWorldMapBaseScale() *
   worldMapZoom;
 
  return {
@@ -10446,17 +10563,162 @@ function worldToMap(
  };
 }
 
-// --------------------------------------------------
-// DRAW WALL
-// --------------------------------------------------
-function drawMapWall(
- wall,
- color
+// ==================================================
+// MAP TO WORLD
+// ==================================================
+function mapToWorld(
+ screenX,
+ screenY
 ) {
- if (!wall) {
-  return;
- }
+ const scale =
+  getWorldMapBaseScale() *
+  worldMapZoom;
 
+ return {
+  xMeters:
+   (
+    screenX -
+    window.innerWidth /
+    2 -
+    worldMapPanX
+   ) /
+   scale,
+
+  zMeters:
+   (
+    screenY -
+    window.innerHeight /
+    2 -
+    worldMapPanY
+   ) /
+   scale
+ };
+}
+
+// ==================================================
+// VISIBILITY HELPERS
+// ==================================================
+function mapCircleVisible(
+ xMeters,
+ zMeters,
+ radiusMeters
+) {
+ const center =
+  worldToMap(
+   xMeters,
+   zMeters
+  );
+
+ const radius =
+  radiusMeters *
+  center.scale;
+
+ return (
+  center.x +
+  radius >= 0 &&
+
+  center.x -
+  radius <=
+  window.innerWidth &&
+
+  center.y +
+  radius >= 0 &&
+
+  center.y -
+  radius <=
+  window.innerHeight
+ );
+}
+
+function mapPointVisible(
+ x,
+ y,
+ padding = 40
+) {
+ return (
+  x >=
+  -padding &&
+
+  x <=
+  window.innerWidth +
+  padding &&
+
+  y >=
+  -padding &&
+
+  y <=
+  window.innerHeight +
+  padding
+ );
+}
+
+// ==================================================
+// DRAW LABEL
+// ==================================================
+function drawWorldMapLabel(
+ text,
+ x,
+ y,
+ options = {}
+) {
+ const size =
+  options.size ??
+  14;
+
+ const color =
+  options.color ??
+  WORLD_MAP_COLORS.label;
+
+ const align =
+  options.align ??
+  "center";
+
+ worldMapContext.save();
+
+ worldMapContext.font =
+  `${
+   options.bold === false
+   ? ""
+   : "bold "
+  }${size}px Arial`;
+
+ worldMapContext.textAlign =
+  align;
+
+ worldMapContext.textBaseline =
+  "middle";
+
+ worldMapContext.lineWidth =
+  4;
+
+ worldMapContext.strokeStyle =
+  WORLD_MAP_COLORS
+  .labelShadow;
+
+ worldMapContext.strokeText(
+  text,
+  x,
+  y
+ );
+
+ worldMapContext.fillStyle =
+  color;
+
+ worldMapContext.fillText(
+  text,
+  x,
+  y
+ );
+
+ worldMapContext.restore();
+}
+
+// ==================================================
+// DRAW WALL
+// ==================================================
+function drawDatabaseWall(
+ wall
+) {
  const center =
   worldToMap(
    0,
@@ -10467,6 +10729,9 @@ function drawMapWall(
   wall.radiusMeters *
   center.scale;
 
+ // --------------------------------------------------
+ // SHADOW
+ // --------------------------------------------------
  worldMapContext.beginPath();
 
  worldMapContext.arc(
@@ -10479,94 +10744,948 @@ function drawMapWall(
  );
 
  worldMapContext.strokeStyle =
-  color;
+  WORLD_MAP_COLORS
+  .wallShadow;
 
  worldMapContext.lineWidth =
-  4;
-
- worldMapContext.stroke();
-}
-
-// --------------------------------------------------
-// DRAW TELEPORT POINT
-// --------------------------------------------------
-function drawMapPoint(
- point
-) {
- const position =
-  worldToMap(
-   point.xMeters,
-   point.zMeters
+  Math.max(
+   4,
+   8 *
+   Math.min(
+    worldMapZoom,
+    2
+   )
   );
 
- const pointRadius =
-  worldMapZoom >= 2
-  ? 6
-  : 4;
+ worldMapContext.stroke();
 
+ // --------------------------------------------------
+ // WALL
+ // --------------------------------------------------
  worldMapContext.beginPath();
 
  worldMapContext.arc(
-  position.x,
-  position.y,
-  pointRadius,
+  center.x,
+  center.y,
+  radius,
   0,
   Math.PI *
   2
  );
 
- worldMapContext.fillStyle =
-  "#ffcc66";
+ worldMapContext.strokeStyle =
+  WORLD_MAP_COLORS.wall;
 
- worldMapContext.fill();
+ worldMapContext.lineWidth =
+  Math.max(
+   2,
+   4 *
+   Math.min(
+    worldMapZoom,
+    2
+   )
+  );
 
- // ------------------------------------------------
- // LABEL
- // ------------------------------------------------
+ worldMapContext.stroke();
+}
+
+// ==================================================
+// DRAW DISTRICTS
+// ==================================================
+function drawDatabaseDistricts(
+ database
+) {
+ for (
+  const district
+  of database.districts
+ ) {
+  if (
+   !mapCircleVisible(
+    district.xMeters,
+    district.zMeters,
+    district.cityRadiusMeters
+   )
+  ) {
+   continue;
+  }
+
+  const position =
+   worldToMap(
+    district.xMeters,
+    district.zMeters
+   );
+
+  const radius =
+   district.cityRadiusMeters *
+   position.scale;
+
+  // ------------------------------------------------
+  // AREA
+  // ------------------------------------------------
+  worldMapContext.beginPath();
+
+  worldMapContext.arc(
+   position.x,
+   position.y,
+   radius,
+   0,
+   Math.PI *
+   2
+  );
+
+  worldMapContext.fillStyle =
+   WORLD_MAP_COLORS
+   .district;
+
+  worldMapContext.fill();
+
+  worldMapContext.strokeStyle =
+   WORLD_MAP_COLORS
+   .districtOutline;
+
+  worldMapContext.lineWidth =
+   1.5;
+
+  worldMapContext.stroke();
+
+  // ------------------------------------------------
+  // NAME
+  // ------------------------------------------------
+  if (
+   worldMapZoom >=
+   0.65
+  ) {
+   drawWorldMapLabel(
+    district.name,
+    position.x,
+    position.y,
+
+    {
+     size:
+      worldMapZoom >= 3
+      ? 16
+      : 13,
+
+     color:
+      "#fff0cd"
+    }
+   );
+  }
+ }
+}
+
+// ==================================================
+// DRAW VILLAGES
+// ==================================================
+function drawDatabaseVillages(
+ database
+) {
+ for (
+  const village
+  of database.villages
+ ) {
+  if (
+   !mapCircleVisible(
+    village.xMeters,
+    village.zMeters,
+    village.radiusMeters
+   )
+  ) {
+   continue;
+  }
+
+  const position =
+   worldToMap(
+    village.xMeters,
+    village.zMeters
+   );
+
+  const radius =
+   Math.max(
+    4,
+    village.radiusMeters *
+    position.scale
+   );
+
+  worldMapContext.beginPath();
+
+  worldMapContext.arc(
+   position.x,
+   position.y,
+   radius,
+   0,
+   Math.PI *
+   2
+  );
+
+  worldMapContext.fillStyle =
+   WORLD_MAP_COLORS
+   .village;
+
+  worldMapContext.fill();
+
+  if (
+   worldMapZoom >=
+   1.5
+  ) {
+   drawWorldMapLabel(
+    village.name,
+    position.x,
+    position.y -
+    radius -
+    9,
+
+    {
+     size: 13,
+     color: "#ffe5b1"
+    }
+   );
+  }
+ }
+}
+
+// ==================================================
+// DRAW FORESTS
+// ==================================================
+function drawDatabaseForests(
+ database
+) {
+ for (
+  const forest
+  of database.forests
+ ) {
+  if (
+   !mapCircleVisible(
+    forest.xMeters,
+    forest.zMeters,
+    forest.radiusMeters
+   )
+  ) {
+   continue;
+  }
+
+  const position =
+   worldToMap(
+    forest.xMeters,
+    forest.zMeters
+   );
+
+  const radius =
+   forest.radiusMeters *
+   position.scale;
+
+  // ------------------------------------------------
+  // AREA
+  // ------------------------------------------------
+  worldMapContext.beginPath();
+
+  worldMapContext.arc(
+   position.x,
+   position.y,
+   radius,
+   0,
+   Math.PI *
+   2
+  );
+
+  worldMapContext.fillStyle =
+   forest.type ===
+   "giant"
+   ? WORLD_MAP_COLORS
+     .giantForest
+   : WORLD_MAP_COLORS
+     .forest;
+
+  worldMapContext.fill();
+
+  worldMapContext.strokeStyle =
+   WORLD_MAP_COLORS
+   .forestOutline;
+
+  worldMapContext.lineWidth =
+   2;
+
+  worldMapContext.stroke();
+
+  // ------------------------------------------------
+  // TREE PATTERN
+  // ------------------------------------------------
+  /*
+   * 中距離以上では
+   * 木が生えていることが
+   * 分かる模様を表示。
+   *
+   * これは表示専用で、
+   * 木の確定座標化は
+   * 次の段階で共通Generatorへ移す。
+   */
+  if (
+   worldMapZoom >=
+   2
+  ) {
+   const spacing =
+    Math.max(
+     18,
+     55 /
+     Math.sqrt(
+      worldMapZoom
+     )
+    );
+
+   worldMapContext.save();
+
+   worldMapContext.beginPath();
+
+   worldMapContext.arc(
+    position.x,
+    position.y,
+    radius,
+    0,
+    Math.PI *
+    2
+   );
+
+   worldMapContext.clip();
+
+   worldMapContext.fillStyle =
+    forest.type ===
+    "giant"
+    ? "rgba(13,46,23,.70)"
+    : "rgba(29,70,33,.55)";
+
+   const minX =
+    Math.max(
+     0,
+     position.x -
+     radius
+    );
+
+   const maxX =
+    Math.min(
+     window.innerWidth,
+     position.x +
+     radius
+    );
+
+   const minY =
+    Math.max(
+     0,
+     position.y -
+     radius
+    );
+
+   const maxY =
+    Math.min(
+     window.innerHeight,
+     position.y +
+     radius
+    );
+
+   for (
+    let x = minX;
+    x <= maxX;
+    x += spacing
+   ) {
+    for (
+     let y = minY;
+     y <= maxY;
+     y += spacing
+    ) {
+     /*
+      * 規則正しすぎないよう
+      * 座標由来の揺らぎ。
+      */
+     const jitterX =
+      Math.sin(
+       x *
+       12.9898 +
+       y *
+       78.233
+      ) *
+      5;
+
+     const jitterY =
+      Math.cos(
+       x *
+       4.123 +
+       y *
+       17.71
+      ) *
+      5;
+
+     const px =
+      x +
+      jitterX;
+
+     const py =
+      y +
+      jitterY;
+
+     const dx =
+      px -
+      position.x;
+
+     const dy =
+      py -
+      position.y;
+
+     if (
+      dx *
+      dx +
+      dy *
+      dy >
+      radius *
+      radius
+     ) {
+      continue;
+     }
+
+     worldMapContext.beginPath();
+
+     worldMapContext.arc(
+      px,
+      py,
+
+      forest.type ===
+      "giant"
+      ? 3.5
+      : 2.2,
+
+      0,
+      Math.PI *
+      2
+     );
+
+     worldMapContext.fill();
+    }
+   }
+
+   worldMapContext.restore();
+  }
+
+  // ------------------------------------------------
+  // NAME
+  // ------------------------------------------------
+  if (
+   worldMapZoom >=
+   0.7
+  ) {
+   drawWorldMapLabel(
+    forest.name,
+    position.x,
+    position.y,
+
+    {
+     size:
+      worldMapZoom >= 2
+      ? 16
+      : 13,
+
+     color:
+      "#cde8b2"
+    }
+   );
+  }
+ }
+}
+
+// ==================================================
+// DRAW ROADS
+// ==================================================
+function drawDatabaseRoads(
+ database
+) {
  if (
   worldMapZoom <
-  0.65
+  1.5
  ) {
   return;
  }
 
- worldMapContext.font =
-  "13px Arial";
+ worldMapContext.save();
 
- worldMapContext.fillStyle =
-  "white";
+ worldMapContext.lineCap =
+  "round";
 
- worldMapContext.textAlign =
-  "left";
+ for (
+  const road
+  of database.roads
+ ) {
+  const start =
+   worldToMap(
+    road.x1,
+    road.z1
+   );
 
- worldMapContext.textBaseline =
-  "middle";
+  const end =
+   worldToMap(
+    road.x2,
+    road.z2
+   );
 
- worldMapContext.fillText(
-  point.name,
-  position.x +
-  pointRadius +
-  5,
-  position.y
- );
+  const width =
+   Math.max(
+    1.5,
+
+    road.widthMeters *
+    start.scale
+   );
+
+  worldMapContext.beginPath();
+
+  worldMapContext.moveTo(
+   start.x,
+   start.y
+  );
+
+  worldMapContext.lineTo(
+   end.x,
+   end.y
+  );
+
+  worldMapContext.strokeStyle =
+   WORLD_MAP_COLORS.road;
+
+  worldMapContext.lineWidth =
+   width;
+
+  worldMapContext.stroke();
+ }
+
+ worldMapContext.restore();
 }
 
-// --------------------------------------------------
+// ==================================================
+// DRAW BUILDINGS
+// ==================================================
+function drawDatabaseBuildings(
+ database
+) {
+ /*
+  * 家一軒表示は
+  * 十分拡大してから。
+  */
+ if (
+  worldMapZoom <
+  4
+ ) {
+  return;
+ }
+
+ const scale =
+  getWorldMapBaseScale() *
+  worldMapZoom;
+
+ for (
+  const building
+  of database.buildings
+ ) {
+  const position =
+   worldToMap(
+    building.xMeters,
+    building.zMeters
+   );
+
+  if (
+   !mapPointVisible(
+    position.x,
+    position.y,
+    30
+   )
+  ) {
+   continue;
+  }
+
+  /*
+   * 建物の実寸を
+   * そのまま地図サイズへ。
+   *
+   * 極端に小さくなる場合は
+   * 最低表示サイズを確保。
+   */
+  const width =
+   Math.max(
+    2,
+    building.widthMeters *
+    scale
+   );
+
+  const depth =
+   Math.max(
+    2,
+    building.depthMeters *
+    scale
+   );
+
+  worldMapContext.save();
+
+  worldMapContext.translate(
+   position.x,
+   position.y
+  );
+
+  worldMapContext.rotate(
+   building.rotation
+  );
+
+  worldMapContext.fillStyle =
+   WORLD_MAP_COLORS
+   .building;
+
+  worldMapContext.fillRect(
+   -width /
+   2,
+
+   -depth /
+   2,
+
+   width,
+
+   depth
+  );
+
+  if (
+   worldMapZoom >=
+   10
+  ) {
+   worldMapContext.strokeStyle =
+    WORLD_MAP_COLORS
+    .buildingOutline;
+
+   worldMapContext.lineWidth =
+    1;
+
+   worldMapContext.strokeRect(
+    -width /
+    2,
+
+    -depth /
+    2,
+
+    width,
+
+    depth
+   );
+  }
+
+  worldMapContext.restore();
+ }
+}
+
+// ==================================================
+// DRAW LANDMARKS
+// ==================================================
+function drawDatabaseLandmarks(
+ database
+) {
+ for (
+  const landmark
+  of database.landmarks
+ ) {
+  const position =
+   worldToMap(
+    landmark.xMeters,
+    landmark.zMeters
+   );
+
+  if (
+   !mapPointVisible(
+    position.x,
+    position.y
+   )
+  ) {
+   continue;
+  }
+
+  // ------------------------------------------------
+  // MARKER
+  // ------------------------------------------------
+  worldMapContext.beginPath();
+
+  worldMapContext.arc(
+   position.x,
+   position.y,
+   5,
+   0,
+   Math.PI *
+   2
+  );
+
+  worldMapContext.fillStyle =
+   WORLD_MAP_COLORS
+   .teleport;
+
+  worldMapContext.fill();
+
+  // ------------------------------------------------
+  // LABEL
+  // ------------------------------------------------
+  if (
+   worldMapZoom >=
+   0.7
+  ) {
+   drawWorldMapLabel(
+    landmark.name,
+    position.x,
+    position.y -
+    13,
+
+    {
+     size: 13,
+     color: "#ffe39b"
+    }
+   );
+  }
+ }
+}
+
+// ==================================================
+// DRAW CHUNK GRID
+// ==================================================
+function drawWorldMapChunkGrid() {
+ if (
+  worldMapZoom <
+  10
+ ) {
+  return;
+ }
+
+ const topLeft =
+  mapToWorld(
+   0,
+   0
+  );
+
+ const bottomRight =
+  mapToWorld(
+   window.innerWidth,
+   window.innerHeight
+  );
+
+ const chunkSize =
+  500;
+
+ const minChunkX =
+  Math.floor(
+   Math.min(
+    topLeft.xMeters,
+    bottomRight.xMeters
+   ) /
+   chunkSize
+  );
+
+ const maxChunkX =
+  Math.floor(
+   Math.max(
+    topLeft.xMeters,
+    bottomRight.xMeters
+   ) /
+   chunkSize
+  );
+
+ const minChunkZ =
+  Math.floor(
+   Math.min(
+    topLeft.zMeters,
+    bottomRight.zMeters
+   ) /
+   chunkSize
+  );
+
+ const maxChunkZ =
+  Math.floor(
+   Math.max(
+    topLeft.zMeters,
+    bottomRight.zMeters
+   ) /
+   chunkSize
+  );
+
+ worldMapContext.save();
+
+ worldMapContext.strokeStyle =
+  WORLD_MAP_COLORS.chunk;
+
+ worldMapContext.lineWidth =
+  1;
+
+ // --------------------------------------------------
+ // VERTICAL
+ // --------------------------------------------------
+ for (
+  let x = minChunkX;
+  x <= maxChunkX + 1;
+  x++
+ ) {
+  const position =
+   worldToMap(
+    x *
+    chunkSize,
+    0
+   );
+
+  worldMapContext.beginPath();
+
+  worldMapContext.moveTo(
+   position.x,
+   0
+  );
+
+  worldMapContext.lineTo(
+   position.x,
+   window.innerHeight
+  );
+
+  worldMapContext.stroke();
+ }
+
+ // --------------------------------------------------
+ // HORIZONTAL
+ // --------------------------------------------------
+ for (
+  let z = minChunkZ;
+  z <= maxChunkZ + 1;
+  z++
+ ) {
+  const position =
+   worldToMap(
+    0,
+    z *
+    chunkSize
+   );
+
+  worldMapContext.beginPath();
+
+  worldMapContext.moveTo(
+   0,
+   position.y
+  );
+
+  worldMapContext.lineTo(
+   window.innerWidth,
+   position.y
+  );
+
+  worldMapContext.stroke();
+ }
+
+ // --------------------------------------------------
+ // CHUNK LABELS
+ // --------------------------------------------------
+ if (
+  worldMapZoom >=
+  16
+ ) {
+  worldMapContext.font =
+   "10px monospace";
+
+  worldMapContext.fillStyle =
+   WORLD_MAP_COLORS
+   .chunkText;
+
+  worldMapContext.textAlign =
+   "center";
+
+  worldMapContext.textBaseline =
+   "middle";
+
+  for (
+   let x = minChunkX;
+   x <= maxChunkX;
+   x++
+  ) {
+   for (
+    let z = minChunkZ;
+    z <= maxChunkZ;
+    z++
+   ) {
+    const center =
+     worldToMap(
+      (
+       x +
+       0.5
+      ) *
+      chunkSize,
+
+      (
+       z +
+       0.5
+      ) *
+      chunkSize
+     );
+
+    worldMapContext.fillText(
+     `${x},${z}`,
+     center.x,
+     center.y
+    );
+   }
+  }
+ }
+
+ worldMapContext.restore();
+}
+
+// ==================================================
+// DRAW TELEPORT POINTS
+// ==================================================
+function drawDatabaseTeleportPoints() {
+ if (
+  worldMapZoom <
+  1
+ ) {
+  return;
+ }
+
+ for (
+  const point
+  of TELEPORT_POINTS
+ ) {
+  const position =
+   worldToMap(
+    point.xMeters,
+    point.zMeters
+   );
+
+  if (
+   !mapPointVisible(
+    position.x,
+    position.y
+   )
+  ) {
+   continue;
+  }
+
+  worldMapContext.beginPath();
+
+  worldMapContext.arc(
+   position.x,
+   position.y,
+   4,
+   0,
+   Math.PI *
+   2
+  );
+
+  worldMapContext.fillStyle =
+   WORLD_MAP_COLORS
+   .teleport;
+
+  worldMapContext.fill();
+ }
+}
+
+// ==================================================
 // DRAW PLAYER
-// --------------------------------------------------
+// ==================================================
 function drawMapPlayer() {
- const playerXMeters =
-  camera.position.x *
-  METERS_PER_UNIT;
-
- const playerZMeters =
-  camera.position.z *
-  METERS_PER_UNIT;
-
  const position =
   worldToMap(
-   playerXMeters,
-   playerZMeters
+   camera.position.x *
+   METERS_PER_UNIT,
+
+   camera.position.z *
+   METERS_PER_UNIT
   );
 
  worldMapContext.save();
@@ -10576,9 +11695,6 @@ function drawMapPlayer() {
   position.y
  );
 
- /*
-  * yaw=0 はゲームでは -Z方向。
-  */
  worldMapContext.rotate(
   -yaw
  );
@@ -10608,12 +11724,13 @@ function drawMapPlayer() {
  worldMapContext.closePath();
 
  worldMapContext.fillStyle =
-  "#29b6f6";
+  WORLD_MAP_COLORS.player;
 
  worldMapContext.fill();
 
  worldMapContext.strokeStyle =
-  "white";
+  WORLD_MAP_COLORS
+  .playerOutline;
 
  worldMapContext.lineWidth =
   1.5;
@@ -10623,9 +11740,9 @@ function drawMapPlayer() {
  worldMapContext.restore();
 }
 
-// --------------------------------------------------
+// ==================================================
 // DRAW WORLD MAP
-// --------------------------------------------------
+// ==================================================
 function drawWorldMap() {
  if (
   !worldMapOpen
@@ -10633,101 +11750,122 @@ function drawWorldMap() {
   return;
  }
 
- const width =
-  worldMapCanvas.width;
+ const database =
+  getActiveWorldDatabase();
 
- const height =
-  worldMapCanvas.height;
+ if (!database) {
+  return;
+ }
 
- // ------------------------------------------------
- // CLEAR
- // ------------------------------------------------
+ // --------------------------------------------------
+ // BACKGROUND
+ // --------------------------------------------------
  worldMapContext.clearRect(
   0,
   0,
-  width,
-  height
+  worldMapCanvas.width,
+  worldMapCanvas.height
  );
 
- // ------------------------------------------------
- // BACKGROUND
- // ------------------------------------------------
  worldMapContext.fillStyle =
-  "#18271d";
+  WORLD_MAP_COLORS
+  .background;
 
  worldMapContext.fillRect(
   0,
   0,
-  width,
-  height
+  worldMapCanvas.width,
+  worldMapCanvas.height
  );
 
- // ------------------------------------------------
- // WALL MARIA
- // ------------------------------------------------
- drawMapWall(
-  WORLD_MAP.walls.maria,
-  "#eee5cf"
+ // --------------------------------------------------
+ // FORESTS
+ // --------------------------------------------------
+ drawDatabaseForests(
+  database
  );
 
- // ------------------------------------------------
- // WALL ROSE
- // ------------------------------------------------
- drawMapWall(
-  WORLD_MAP.walls.rose,
-  "#d4ccb6"
+ // --------------------------------------------------
+ // DISTRICT AREAS
+ // --------------------------------------------------
+ drawDatabaseDistricts(
+  database
  );
 
- // ------------------------------------------------
- // WALL SINA
- // ------------------------------------------------
- drawMapWall(
-  WORLD_MAP.walls.sina,
-  "#b9b19b"
+ // --------------------------------------------------
+ // VILLAGES
+ // --------------------------------------------------
+ drawDatabaseVillages(
+  database
  );
 
- // ------------------------------------------------
- // TELEPORT POINTS
- // ------------------------------------------------
- for (
-  const point
-  of TELEPORT_POINTS
- ) {
-  drawMapPoint(
-   point
-  );
- }
+ // --------------------------------------------------
+ // ROADS
+ // --------------------------------------------------
+ drawDatabaseRoads(
+  database
+ );
 
- // ------------------------------------------------
+ // --------------------------------------------------
+ // BUILDINGS
+ // --------------------------------------------------
+ drawDatabaseBuildings(
+  database
+ );
+
+ // --------------------------------------------------
+ // WALLS
+ // --------------------------------------------------
+ /*
+  * 地区や森より上に描くことで
+  * 三重壁を明確にする。
+  */
+ drawDatabaseWall(
+  database.walls.maria
+ );
+
+ drawDatabaseWall(
+  database.walls.rose
+ );
+
+ drawDatabaseWall(
+  database.walls.sina
+ );
+
+ // --------------------------------------------------
+ // LANDMARKS
+ // --------------------------------------------------
+ drawDatabaseLandmarks(
+  database
+ );
+
+ // --------------------------------------------------
+ // TP
+ // --------------------------------------------------
+ drawDatabaseTeleportPoints();
+
+ // --------------------------------------------------
+ // CHUNK GRID
+ // --------------------------------------------------
+ drawWorldMapChunkGrid();
+
+ // --------------------------------------------------
  // PLAYER
- // ------------------------------------------------
+ // --------------------------------------------------
  drawMapPlayer();
 
- // ------------------------------------------------
- // ZOOM HUD
- // ------------------------------------------------
+ // --------------------------------------------------
+ // ZOOM
+ // --------------------------------------------------
  worldMapZoomHUD.textContent =
   `ZOOM ${worldMapZoom.toFixed(
    2
   )}x`;
 }
 
-// --------------------------------------------------
-// RESIZE MAP CANVAS
-// --------------------------------------------------
-function resizeWorldMapCanvas() {
- worldMapCanvas.width =
-  window.innerWidth;
-
- worldMapCanvas.height =
-  window.innerHeight;
-
- drawWorldMap();
-}
-
-// --------------------------------------------------
-// OPEN WORLD MAP
-// --------------------------------------------------
+// ==================================================
+// OPEN MAP
+// ==================================================
 function openWorldMap() {
  if (
   worldMapOpen
@@ -10741,6 +11879,14 @@ function openWorldMap() {
   closeTeleportMenu();
  }
 
+ if (
+  typeof settingsOpen !==
+   "undefined" &&
+  settingsOpen
+ ) {
+  closeSettings();
+ }
+
  worldMapOpen =
   true;
 
@@ -10750,10 +11896,6 @@ function openWorldMap() {
   document.exitPointerLock();
  }
 
- /*
-  * WASD等が押しっぱなしに
-  * ならないようにする。
-  */
  for (
   const code
   of Object.keys(
@@ -10771,13 +11913,11 @@ function openWorldMap() {
   "block";
 
  resizeWorldMapCanvas();
-
- drawWorldMap();
 }
 
-// --------------------------------------------------
-// CLOSE WORLD MAP
-// --------------------------------------------------
+// ==================================================
+// CLOSE MAP
+// ==================================================
 function closeWorldMap() {
  worldMapOpen =
   false;
@@ -10792,9 +11932,9 @@ function closeWorldMap() {
   "grab";
 }
 
-// --------------------------------------------------
-// TOGGLE WORLD MAP
-// --------------------------------------------------
+// ==================================================
+// TOGGLE MAP
+// ==================================================
 function toggleWorldMap() {
  if (
   worldMapOpen
@@ -10805,9 +11945,9 @@ function toggleWorldMap() {
  }
 }
 
-// --------------------------------------------------
+// ==================================================
 // MAP ZOOM
-// --------------------------------------------------
+// ==================================================
 worldMapHUD.addEventListener(
  "wheel",
  event => {
@@ -10819,33 +11959,28 @@ worldMapHUD.addEventListener(
 
   event.preventDefault();
 
-  // -----------------------------------------------
-  // MOUSE POSITION
-  // -----------------------------------------------
+  const oldZoom =
+   worldMapZoom;
+
   const mouseX =
    event.clientX;
 
   const mouseY =
    event.clientY;
 
-  const centerX =
-   window.innerWidth /
-   2 +
-   worldMapPanX;
+  /*
+   * ズーム前にマウス下の
+   * ワールド座標を保存。
+   */
+  const before =
+   mapToWorld(
+    mouseX,
+    mouseY
+   );
 
-  const centerY =
-   window.innerHeight /
-   2 +
-   worldMapPanY;
-
-  const oldZoom =
-   worldMapZoom;
-
-  // -----------------------------------------------
-  // ZOOM
-  // -----------------------------------------------
   if (
-   event.deltaY < 0
+   event.deltaY <
+   0
   ) {
    worldMapZoom *=
     1.2;
@@ -10858,35 +11993,30 @@ worldMapHUD.addEventListener(
    THREE.MathUtils.clamp(
     worldMapZoom,
     0.3,
-    30
+    40
    );
 
-  // -----------------------------------------------
-  // ZOOM TOWARD CURSOR
-  // -----------------------------------------------
-  const ratio =
-   worldMapZoom /
-   oldZoom;
+  /*
+   * ズーム後にも同じワールド地点が
+   * マウスの下へ残るようPanを補正。
+   */
+  const scale =
+   getWorldMapBaseScale() *
+   worldMapZoom;
 
-  worldMapPanX +=
-   (
-    mouseX -
-    centerX
-   ) *
-   (
-    1 -
-    ratio
-   );
+  worldMapPanX =
+   mouseX -
+   window.innerWidth /
+   2 -
+   before.xMeters *
+   scale;
 
-  worldMapPanY +=
-   (
-    mouseY -
-    centerY
-   ) *
-   (
-    1 -
-    ratio
-   );
+  worldMapPanY =
+   mouseY -
+   window.innerHeight /
+   2 -
+   before.zMeters *
+   scale;
 
   drawWorldMap();
  },
@@ -10895,9 +12025,9 @@ worldMapHUD.addEventListener(
  }
 );
 
-// --------------------------------------------------
+// ==================================================
 // MAP DRAG START
-// --------------------------------------------------
+// ==================================================
 worldMapHUD.addEventListener(
  "mousedown",
  event => {
@@ -10922,9 +12052,9 @@ worldMapHUD.addEventListener(
  }
 );
 
-// --------------------------------------------------
+// ==================================================
 // MAP DRAG MOVE
-// --------------------------------------------------
+// ==================================================
 window.addEventListener(
  "mousemove",
  event => {
@@ -10952,9 +12082,9 @@ window.addEventListener(
  }
 );
 
-// --------------------------------------------------
+// ==================================================
 // MAP DRAG END
-// --------------------------------------------------
+// ==================================================
 window.addEventListener(
  "mouseup",
  () => {
