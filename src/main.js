@@ -13244,37 +13244,37 @@ let gameLoopStarted =
 // --------------------------------------------------
 function animate() {
  requestAnimationFrame(
-  animate
+ animate
  );
 
  /*
-  * DBが準備される前は
-  * ゲーム世界を更新しない。
-  */
+ * DB が準備される前は
+ * ゲーム世界を更新しない。
+ */
  if (
-  !worldDatabaseReady
+ !worldDatabaseReady
  ) {
-  return;
+ return;
  }
 
  const delta =
-  Math.min(
-   clock.getDelta(),
-   0.05
-  );
+ Math.min(
+ clock.getDelta(),
+ 0.05
+ );
 
  // --------------------------------------------------
  // PLAYER
  // --------------------------------------------------
  updatePlayer(
-  delta
+ delta
  );
 
  // --------------------------------------------------
  // WORLD
  // --------------------------------------------------
  updateWorldStreaming(
-  delta
+ delta
  );
 
  updateAreaSystem();
@@ -13283,22 +13283,22 @@ function animate() {
  // TITAN
  // --------------------------------------------------
  updateTitanParts(
-  delta
+ delta
  );
 
  // --------------------------------------------------
  // EQUIPMENT
  // --------------------------------------------------
  updateBladeAnimation(
-  delta
+ delta
  );
 
  updateWireVisual(
-  leftAnchor
+ leftAnchor
  );
 
  updateWireVisual(
-  rightAnchor
+ rightAnchor
  );
 
  // --------------------------------------------------
@@ -13310,17 +13310,17 @@ function animate() {
  // MAP
  // --------------------------------------------------
  if (
-  worldMapOpen
+ worldMapOpen
  ) {
-  drawWorldMap();
+ drawWorldMap();
  }
 
  // --------------------------------------------------
  // RENDER
  // --------------------------------------------------
  renderer.render(
-  scene,
-  camera
+ scene,
+ camera
  );
 }
 
@@ -13329,50 +13329,52 @@ function animate() {
 // --------------------------------------------------
 function startGameLoop() {
  if (
-  gameLoopStarted
+ gameLoopStarted
  ) {
-  return;
+ return;
  }
 
  gameLoopStarted =
-  true;
+ true;
 
  clock.start();
 
  animate();
 }
 
-// --------------------------------------------------
+// ==================================================
 // BOOT
-// --------------------------------------------------
+// ==================================================
 async function bootGame() {
  try {
-  // ------------------------------------------------
-  // WORLD DATABASE FIRST
-  // ------------------------------------------------
-  await initializeGameWorldDatabase(
-   false
-  );
+ // ------------------------------------------------
+ // WORLD DATABASE FIRST
+ // ------------------------------------------------
+ await initializeGameWorldDatabase(
+ false
+ );
 
-  // ------------------------------------------------
-  // THEN GAME
-  // ------------------------------------------------
-  startGameLoop();
+ // ------------------------------------------------
+ // THEN GAME
+ // ------------------------------------------------
+ startGameLoop();
+
  } catch (
-  error
-  console.error(
-   "GAME BOOT FAILED",
-   error
-  );
+ error
+ ) {
+ console.error(
+ "GAME BOOT FAILED",
+ error
+ );
 
-  worldLoadingStatus.textContent =
-   "WORLD GENERATION FAILED";
+ worldLoadingStatus.textContent =
+ "WORLD GENERATION FAILED";
 
-  worldLoadingDetails.textContent =
-   String(
-    error?.stack ||
-    error
-   );
+ worldLoadingDetails.textContent =
+ String(
+ error?.stack ||
+ error
+ );
  }
 }
 
