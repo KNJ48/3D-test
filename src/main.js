@@ -21,6 +21,13 @@ import {
  generateWorldChunkContent
 } from "./worldGenerator.js";
 
+import {
+ initializeWorldDatabase,
+ getWorldDatabase,
+ getWorldDatabaseChunk,
+ exportWorldDatabase
+} from "./worldDatabase.js";
+
 // ==================================================
 // WORLD SCALE
 // ==================================================
@@ -9759,6 +9766,199 @@ document.body.appendChild(
 );
 
 // ==================================================
+// WORLD LOADING HUD
+// ==================================================
+const worldLoadingHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldLoadingHUD.style,
+ {
+  position: "fixed",
+  inset: "0",
+
+  display: "flex",
+
+  alignItems: "center",
+  justifyContent: "center",
+
+  background:
+   "#0b100d",
+
+  color: "white",
+
+  fontFamily:
+   "Arial, sans-serif",
+
+  zIndex: "50000"
+ }
+);
+
+// --------------------------------------------------
+// PANEL
+// --------------------------------------------------
+const worldLoadingPanel =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldLoadingPanel.style,
+ {
+  width: "520px",
+
+  textAlign: "center"
+ }
+);
+
+worldLoadingHUD.appendChild(
+ worldLoadingPanel
+);
+
+// --------------------------------------------------
+// TITLE
+// --------------------------------------------------
+const worldLoadingTitle =
+ document.createElement(
+  "div"
+ );
+
+worldLoadingTitle.textContent =
+ "PARADIS ISLAND";
+
+Object.assign(
+ worldLoadingTitle.style,
+ {
+  fontSize: "42px",
+
+  fontWeight: "bold",
+
+  letterSpacing: "3px",
+
+  marginBottom: "25px"
+ }
+);
+
+worldLoadingPanel.appendChild(
+ worldLoadingTitle
+);
+
+// --------------------------------------------------
+// STATUS
+// --------------------------------------------------
+const worldLoadingStatus =
+ document.createElement(
+  "div"
+ );
+
+worldLoadingStatus.textContent =
+ "PREPARING WORLD...";
+
+Object.assign(
+ worldLoadingStatus.style,
+ {
+  color: "#ccc",
+
+  fontFamily: "monospace",
+
+  fontSize: "17px",
+
+  marginBottom: "20px"
+ }
+);
+
+worldLoadingPanel.appendChild(
+ worldLoadingStatus
+);
+
+// --------------------------------------------------
+// BAR BACKGROUND
+// --------------------------------------------------
+const worldLoadingBarBackground =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldLoadingBarBackground.style,
+ {
+  width: "100%",
+  height: "12px",
+
+  background:
+   "#202820",
+
+  border:
+   "1px solid #536253",
+
+  overflow: "hidden"
+ }
+);
+
+worldLoadingPanel.appendChild(
+ worldLoadingBarBackground
+);
+
+// --------------------------------------------------
+// BAR
+// --------------------------------------------------
+const worldLoadingBar =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldLoadingBar.style,
+ {
+  width: "0%",
+  height: "100%",
+
+  background:
+   "#6ca56c",
+
+  transition:
+   "width .15s"
+ }
+);
+
+worldLoadingBarBackground.appendChild(
+ worldLoadingBar
+);
+
+// --------------------------------------------------
+// DETAILS
+// --------------------------------------------------
+const worldLoadingDetails =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ worldLoadingDetails.style,
+ {
+  marginTop: "18px",
+
+  color: "#8f9b8f",
+
+  fontFamily: "monospace",
+
+  fontSize: "14px",
+
+  whiteSpace: "pre"
+ }
+);
+
+worldLoadingPanel.appendChild(
+ worldLoadingDetails
+);
+
+document.body.appendChild(
+ worldLoadingHUD
+);
+
+// ==================================================
 // TELEPORT SYSTEM
 // ==================================================
 let teleportMenuOpen =
@@ -10970,6 +11170,164 @@ terrainSeedInput.addEventListener(
 );
 
 // ==================================================
+// WORLD DATABASE SYSTEM
+// ==================================================
+let worldDatabaseReady =
+ false;
+
+let worldDatabase =
+ null;
+
+// --------------------------------------------------
+// LOADING STATUS
+// --------------------------------------------------
+function setWorldLoadingStatus(
+ text,
+ progress
+) {
+ worldLoadingStatus.textContent =
+  text;
+
+ worldLoadingBar.style.width =
+  `${
+   THREE.MathUtils.clamp(
+    progress,
+    0,
+    1
+   ) *
+   100
+  }%`;
+}
+
+// --------------------------------------------------
+// INITIALIZE DATABASE
+// --------------------------------------------------
+async function initializeGameWorldDatabase(
+ forceRegenerate = false
+) {
+ worldDatabaseReady =
+  false;
+
+ worldLoadingHUD.style.display =
+  "flex";
+
+ // ------------------------------------------------
+ // SEED
+ // ------------------------------------------------
+ const seed =
+  getTerrainSeed();
+
+ worldLoadingDetails.textContent =
+  `WORLD SEED: ${seed}`;
+
+ // ------------------------------------------------
+ // START
+ // ------------------------------------------------
+ setWorldLoadingStatus(
+  "LOADING WORLD DATABASE...",
+  0.10
+ );
+
+ /*
+  * UIが一度描画される時間を渡す。
+  */
+ await new Promise(
+  resolve => {
+   requestAnimationFrame(
+    resolve
+   );
+  }
+ );
+
+ // ------------------------------------------------
+ // GENERATE / LOAD
+ // ------------------------------------------------
+ setWorldLoadingStatus(
+  "GENERATING MAP...",
+  0.35
+ );
+
+ const result =
+  await initializeWorldDatabase(
+   seed,
+   {
+    forceRegenerate
+   }
+  );
+
+ worldDatabase =
+  result.database;
+
+ // ------------------------------------------------
+ // INDEX
+ // ------------------------------------------------
+ setWorldLoadingStatus(
+  "BUILDING CHUNK INDEX...",
+  0.78
+ );
+
+ await new Promise(
+  resolve => {
+   requestAnimationFrame(
+    resolve
+   );
+  }
+ );
+
+ // ------------------------------------------------
+ // STATISTICS
+ // ------------------------------------------------
+ const stats =
+  worldDatabase.statistics;
+
+ worldLoadingDetails.textContent =
+  `WORLD SEED: ${seed}\n` +
+  `SOURCE: ${result.source}\n` +
+  `BUILDINGS: ${stats.buildingCount}\n` +
+  `ROADS: ${stats.roadCount}\n` +
+  `FORESTS: ${stats.forestCount}\n` +
+  `INDEXED CHUNKS: ${stats.chunkCount}`;
+
+ // ------------------------------------------------
+ // COMPLETE
+ // ------------------------------------------------
+ setWorldLoadingStatus(
+  "WORLD READY",
+  1
+ );
+
+ await new Promise(
+  resolve => {
+   setTimeout(
+    resolve,
+    300
+   );
+  }
+ );
+
+ worldDatabaseReady =
+  true;
+
+ worldLoadingHUD.style.display =
+  "none";
+
+ console.log(
+  "WORLD DATABASE READY",
+  worldDatabase
+ );
+}
+
+// --------------------------------------------------
+// GET DATABASE
+// --------------------------------------------------
+function getActiveWorldDatabase() {
+ return (
+  worldDatabase ||
+  getWorldDatabase()
+ );
+}
+
+// ==================================================
 // KEYBOARD
 // ==================================================
 window.addEventListener(
@@ -11691,16 +12049,32 @@ window.addEventListener(
 const clock =
  new THREE.Clock();
 
+let gameLoopStarted =
+ false;
+
+// --------------------------------------------------
+// ANIMATE
+// --------------------------------------------------
 function animate() {
  requestAnimationFrame(
   animate
  );
 
+ /*
+  * DBが準備される前は
+  * ゲーム世界を更新しない。
+  */
+ if (
+  !worldDatabaseReady
+ ) {
+  return;
+ }
+
  const delta =
- Math.min(
-  clock.getDelta(),
-  0.05
- );
+  Math.min(
+   clock.getDelta(),
+   0.05
+  );
 
  // --------------------------------------------------
  // PLAYER
@@ -11746,6 +12120,15 @@ function animate() {
  updateHUD();
 
  // --------------------------------------------------
+ // MAP
+ // --------------------------------------------------
+ if (
+  worldMapOpen
+ ) {
+  drawWorldMap();
+ }
+
+ // --------------------------------------------------
  // RENDER
  // --------------------------------------------------
  renderer.render(
@@ -11754,4 +12137,57 @@ function animate() {
  );
 }
 
-animate();
+// --------------------------------------------------
+// START GAME LOOP
+// --------------------------------------------------
+function startGameLoop() {
+ if (
+  gameLoopStarted
+ ) {
+  return;
+ }
+
+ gameLoopStarted =
+  true;
+
+ clock.start();
+
+ animate();
+}
+
+// --------------------------------------------------
+// BOOT
+// --------------------------------------------------
+async function bootGame() {
+ try {
+  // ------------------------------------------------
+  // WORLD DATABASE FIRST
+  // ------------------------------------------------
+  await initializeGameWorldDatabase(
+   false
+  );
+
+  // ------------------------------------------------
+  // THEN GAME
+  // ------------------------------------------------
+  startGameLoop();
+ } catch (
+  error
+ ) {
+  console.error(
+   "GAME BOOT FAILED",
+   error
+  );
+
+  worldLoadingStatus.textContent =
+   "WORLD GENERATION FAILED";
+
+  worldLoadingDetails.textContent =
+   String(
+    error?.stack ||
+    error
+   );
+ }
+}
+
+bootGame();
