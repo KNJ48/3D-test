@@ -498,14 +498,51 @@ const AUTO_DEPTH_PRIORITY_EPSILON = 2;
 const ATTACK_RANGE =
  3.5;
 
+/*
+ * 1回の攻撃全体が長くなったので
+ * モーション終了まで再攻撃不可。
+ */
 const ATTACK_COOLDOWN =
- 0.42;
+ 1.4;
+
+// --------------------------------------------------
+// TIMING
+// --------------------------------------------------
+/*
+ * 0.5秒かけて
+ * 反対側へ振りかぶる。
+ */
+const BLADE_WINDUP_TIME =
+ 0.5;
+
+/*
+ * 0.7秒かけて
+ * 反対側まで振り抜く。
+ */
+const BLADE_SWING_TIME =
+ 0.7;
+
+/*
+ * 最後に構えへ戻る。
+ */
+const BLADE_RECOVERY_TIME =
+ 0.2;
 
 const BLADE_ATTACK_DURATION =
- 0.44;
+ BLADE_WINDUP_TIME +
+ BLADE_SWING_TIME +
+ BLADE_RECOVERY_TIME;
 
+/*
+ * 振りの中央付近で
+ * 攻撃判定。
+ *
+ * 0.5 + 0.35 = 0.85秒。
+ */
 const BLADE_HIT_TIME =
- 0.15;
+ BLADE_WINDUP_TIME +
+ BLADE_SWING_TIME *
+ 0.5;
 
 // --------------------------------------------------
 // ATTACK MOTIONS
@@ -528,10 +565,6 @@ const BLADE_MAX_WIND_PUSH =
 // --------------------------------------------------
 // ANCHOR RECOIL
 // --------------------------------------------------
-/*
- * アンカー射出時に
- * 対応する手を後方へ引く。
- */
 const BLADE_ANCHOR_RECOIL_DISTANCE =
  0.13;
 
@@ -5207,7 +5240,7 @@ function applyBladeHit() {
 // ==================================================
 
 // --------------------------------------------------
-// EASING
+// SMOOTH STEP
 // --------------------------------------------------
 function bladeSmoothStep(
  t
@@ -5230,51 +5263,8 @@ function bladeSmoothStep(
  );
 }
 
-function bladeEaseInCubic(
- t
-) {
- t =
-  THREE.MathUtils.clamp(
-   t,
-   0,
-   1
-  );
-
- /*
-  * 徐々に加速。
-  */
- return (
-  t *
-  t *
-  t
- );
-}
-
-function bladeEaseOutQuart(
- t
-) {
- t =
-  THREE.MathUtils.clamp(
-   t,
-   0,
-   1
-  );
-
- /*
-  * 高速から徐々に減速。
-  */
- return (
-  1 -
-  Math.pow(
-   1 -
-   t,
-   4
-  )
- );
-}
-
 // --------------------------------------------------
-// RESET BLADE
+// RESET
 // --------------------------------------------------
 function resetBladeSwing(
  blade
@@ -5301,107 +5291,11 @@ function resetBladeSwing(
 }
 
 // --------------------------------------------------
-// SET BLADE ARC POSE
+// HORIZONTAL SWING
 // --------------------------------------------------
-function setBladeArcPose(
+function applySimpleHorizontalSwing(
  blade,
- sideDirection,
- angle,
- handRadius,
- centerZ,
- bladeYaw
-) {
- const restP =
-  blade.userData
-  .restPosition;
-
- const restR =
-  blade.userData
-  .restRotation;
-
- const pivot =
-  blade.userData
-  .swingPivot;
-
- /*
-  * 上から見たXZ平面。
-  *
-  * angleによって
-  * 根元が小さな円弧を描く。
-  */
- const x =
-  sideDirection *
-  Math.sin(
-   angle
-  ) *
-  handRadius;
-
- const z =
-  centerZ -
-  Math.cos(
-   angle
-  ) *
-  handRadius;
-
- blade.position.x =
-  x;
-
- /*
-  * 横薙ぎなので
-  * 高さはほぼ固定。
-  */
- blade.position.y =
-  restP.y;
-
- blade.position.z =
-  z;
-
- // --------------------------------------------------
- // HAND ROTATION
- // --------------------------------------------------
- /*
-  * 手そのものも円弧方向へ
-  * わずかに回す。
-  */
- blade.rotation.x =
-  restR.x;
-
- blade.rotation.y =
-  restR.y +
-  sideDirection *
-  angle *
-  0.12;
-
- blade.rotation.z =
-  restR.z;
-
- // --------------------------------------------------
- // BLADE ROTATION
- // --------------------------------------------------
- /*
-  * 刀身はローカル-Z方向へ
-  * 伸びている。
-  *
-  * Y軸回転によって
-  * 上から見た剣先が
-  * 大きな円を描く。
-  */
- pivot.rotation.x =
-  0;
-
- pivot.rotation.y =
-  bladeYaw;
-
- pivot.rotation.z =
-  0;
-}
-
-// --------------------------------------------------
-// SWING BLADE
-// --------------------------------------------------
-function applyPreparedHorizontalSlash(
- blade,
- swingDirection,
+ direction,
  time
 ) {
  const restP =
@@ -5417,162 +5311,125 @@ function applyPreparedHorizontalSlash(
   .swingPivot;
 
  /*
-  * swingDirection:
+  * direction:
   *
   * +1
-  * 左 → 右
+  * 左から右へ振る。
   *
   * -1
-  * 右 → 左
-  *
-  *
-  * 右ブレード:
-  * +1
-  *
-  * 左ブレード:
-  * -1
+  * 右から左へ振る。
   */
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // ARC SETTINGS
- // --------------------------------------------------
- const handRadius =
-  0.55;
+ // ------------------------------------------------
+ /*
+  * 上から見たXZ平面。
+  *
+  * 手元はこの円弧を移動する。
+  */
+ const radius =
+  0.58;
 
  const centerZ =
-  -0.15;
+  -0.12;
 
  /*
-  * 根元の円運動角。
-  *
-  * -72°
-  * ↓
-  * +72°
-  *
-  * 約144°の横薙ぎ。
+  * 左右それぞれ約65°。
   */
- const backAngle =
+ const sideAngle =
   THREE.MathUtils.degToRad(
-   72
+   65
   );
 
+ // ------------------------------------------------
+ // WINDUP
+ // ------------------------------------------------
  /*
-  * 刀身自体は
-  * 根元より大きく回す。
-  */
- const bladeBackYaw =
-  THREE.MathUtils.degToRad(
-   42
-  );
-
- const bladeForwardYaw =
-  THREE.MathUtils.degToRad(
-   105
-  );
-
- // --------------------------------------------------
- // PREPARATION
- // --------------------------------------------------
- /*
-  * 0.00 ～ 0.12
+  * 0.5秒。
   *
-  * 一度、斬る方向とは
-  * 逆側へ引く。
+  * 振る方向とは逆側へ
+  * ゆっくり引く。
   */
  if (
   time <
-  0.12
+  BLADE_WINDUP_TIME
  ) {
   const t =
    bladeSmoothStep(
     time /
-    0.12
+    BLADE_WINDUP_TIME
    );
-
-  const angle =
-   THREE.MathUtils.lerp(
-    0,
-    -backAngle,
-    t
-   );
-
-  const bladeYaw =
-   swingDirection *
-   THREE.MathUtils.lerp(
-    0,
-    -bladeBackYaw,
-    t
-   );
-
-  // -----------------------------------------------
-  // ROOT ARC
-  // -----------------------------------------------
-  const targetX =
-   swingDirection *
-   Math.sin(
-    angle
-   ) *
-   handRadius;
-
-  const targetZ =
-   centerZ -
-   Math.cos(
-    angle
-   ) *
-   handRadius;
 
   /*
-   * 通常姿勢から
-   * 円弧開始地点へ補間。
+   * 通常位置から
+   * 円弧の開始地点へ。
    */
+  const startAngle =
+   -direction *
+   sideAngle;
+
+  const startX =
+   Math.sin(
+    startAngle
+   ) *
+   radius;
+
+  const startZ =
+   centerZ -
+   Math.cos(
+    startAngle
+   ) *
+   radius;
+
   blade.position.x =
    THREE.MathUtils.lerp(
     restP.x,
-    targetX,
+    startX,
     t
    );
 
   blade.position.y =
-   THREE.MathUtils.lerp(
-    restP.y,
-    restP.y +
-    0.025,
-    t
-   );
+   restP.y;
 
   blade.position.z =
    THREE.MathUtils.lerp(
     restP.z,
-    targetZ,
+    startZ,
     t
    );
 
+  /*
+   * 根元の向き。
+   */
   blade.rotation.x =
-   THREE.MathUtils.lerp(
-    restR.x,
-    restR.x -
-    0.025,
-    t
-   );
+   restR.x;
 
   blade.rotation.y =
    THREE.MathUtils.lerp(
     restR.y,
-    restR.y +
-    swingDirection *
-    angle *
-    0.12,
+    startAngle *
+    0.20,
     t
    );
 
   blade.rotation.z =
    restR.z;
 
+  /*
+   * 刀身も同じ側へ
+   * 振りかぶる。
+   */
   pivot.rotation.x =
    0;
 
   pivot.rotation.y =
-   bladeYaw;
+   THREE.MathUtils.lerp(
+    0,
+    startAngle *
+    0.90,
+    t
+   );
 
   pivot.rotation.z =
    0;
@@ -5580,287 +5437,156 @@ function applyPreparedHorizontalSlash(
   return;
  }
 
- // --------------------------------------------------
- // HOLD
- // --------------------------------------------------
+ // ------------------------------------------------
+ // SWING
+ // ------------------------------------------------
  /*
-  * 0.12 ～ 0.145
+  * 0.7秒。
   *
-  * 一瞬だけ溜める。
-  *
-  * 完全静止ではなく
-  * わずかに力を溜める動き。
+  * 円弧の片側から
+  * 反対側まで振る。
   */
  if (
   time <
-  0.145
+  BLADE_WINDUP_TIME +
+  BLADE_SWING_TIME
  ) {
   const t =
-   (
-    time -
-    0.12
-   ) /
-   0.025;
+   bladeSmoothStep(
+    (
+     time -
+     BLADE_WINDUP_TIME
+    ) /
+    BLADE_SWING_TIME
+   );
 
-  const tension =
+  const startAngle =
+   -direction *
+   sideAngle;
+
+  const endAngle =
+   direction *
+   sideAngle;
+
+  const angle =
+   THREE.MathUtils.lerp(
+    startAngle,
+    endAngle,
+    t
+   );
+
+  // -----------------------------------------------
+  // HAND ARC
+  // -----------------------------------------------
+  blade.position.x =
    Math.sin(
-    t *
-    Math.PI
-   );
-
-  const angle =
-   -backAngle -
-   THREE.MathUtils.degToRad(
-    2
+    angle
    ) *
-   tension;
-
-  const bladeYaw =
-   swingDirection *
-   (
-    -bladeBackYaw -
-    THREE.MathUtils.degToRad(
-     3
-    ) *
-    tension
-   );
-
-  setBladeArcPose(
-   blade,
-   swingDirection,
-   angle,
-   handRadius,
-   centerZ,
-   bladeYaw
-  );
+   radius;
 
   blade.position.y =
-   restP.y +
-   0.025;
+   restP.y;
 
-  return;
- }
-
- // --------------------------------------------------
- // ACCELERATION
- // --------------------------------------------------
- /*
-  * 0.145 ～ 0.285
-  *
-  * 本振り。
-  *
-  * easeInCubicを使うので
-  * 最初は遅く、
-  * 後半へ行くほど
-  * 急激に速くなる。
-  */
- if (
-  time <
-  0.285
- ) {
-  const rawT =
-   (
-    time -
-    0.145
-   ) /
-   0.140;
-
-  const t =
-   bladeEaseInCubic(
-    rawT
-   );
-
-  const angle =
-   THREE.MathUtils.lerp(
-    -backAngle,
-    backAngle,
-    t
-   );
-
-  /*
-   * 刀身は根元より
-   * 少し先行して振り抜く。
-   */
-  const bladeYaw =
-   swingDirection *
-   THREE.MathUtils.lerp(
-    -bladeBackYaw,
-    bladeForwardYaw,
-    t
-   );
-
-  setBladeArcPose(
-   blade,
-   swingDirection,
-   angle,
-   handRadius,
-   centerZ,
-   bladeYaw
-  );
-
-  /*
-   * 高さはほぼ一定。
-   * 中央通過時だけ
-   * ごく少し沈む。
-   */
-  blade.position.y =
-   restP.y -
-   Math.sin(
-    rawT *
-    Math.PI
+  blade.position.z =
+   centerZ -
+   Math.cos(
+    angle
    ) *
-   0.025;
+   radius;
+
+  // -----------------------------------------------
+  // HAND ROTATION
+  // -----------------------------------------------
+  blade.rotation.x =
+   restR.x;
+
+  blade.rotation.y =
+   angle *
+   0.20;
+
+  blade.rotation.z =
+   restR.z;
+
+  // -----------------------------------------------
+  // BLADE ROTATION
+  // -----------------------------------------------
+  /*
+   * 手の円運動と同じ方向へ
+   * 刀も回す。
+   *
+   * 上から見ると
+   * 剣先がさらに大きな円を描く。
+   */
+  pivot.rotation.x =
+   0;
+
+  pivot.rotation.y =
+   angle *
+   0.90;
+
+  pivot.rotation.z =
+   0;
 
   return;
  }
 
- // --------------------------------------------------
- // FOLLOW THROUGH
- // --------------------------------------------------
- /*
-  * 0.285 ～ 0.355
-  *
-  * 最大速度で振り切った後、
-  * 少しだけさらに進んで減速。
-  */
- if (
-  time <
-  0.355
- ) {
-  const rawT =
-   (
-    time -
-    0.285
-   ) /
-   0.070;
-
-  const t =
-   bladeEaseOutQuart(
-    rawT
-   );
-
-  const extraAngle =
-   THREE.MathUtils.degToRad(
-    14
-   );
-
-  const angle =
-   THREE.MathUtils.lerp(
-    backAngle,
-    backAngle +
-    extraAngle,
-    t
-   );
-
-  const bladeYaw =
-   swingDirection *
-   THREE.MathUtils.lerp(
-    bladeForwardYaw,
-    bladeForwardYaw +
-    THREE.MathUtils.degToRad(
-     15
-    ),
-    t
-   );
-
-  setBladeArcPose(
-   blade,
-   swingDirection,
-   angle,
-   handRadius,
-   centerZ,
-   bladeYaw
-  );
-
-  blade.position.y =
-   THREE.MathUtils.lerp(
-    restP.y -
-    0.025,
-    restP.y -
-    0.045,
-    t
-   );
-
-  return;
- }
-
- // --------------------------------------------------
+ // ------------------------------------------------
  // RECOVERY
- // --------------------------------------------------
+ // ------------------------------------------------
  /*
-  * 0.355 ～ 0.50
-  *
-  * 振り切った場所から
-  * 通常構えへ戻す。
+  * 0.2秒。
   */
  const t =
   bladeSmoothStep(
    (
     time -
-    0.355
+    BLADE_WINDUP_TIME -
+    BLADE_SWING_TIME
    ) /
-   0.145
+   BLADE_RECOVERY_TIME
   );
 
- /*
-  * フォロースルー終端を
-  * 再計算。
-  */
- const finalAngle =
-  backAngle +
-  THREE.MathUtils.degToRad(
-   14
-  );
+ const endAngle =
+  direction *
+  sideAngle;
 
- const finalX =
-  swingDirection *
+ const endX =
   Math.sin(
-   finalAngle
+   endAngle
   ) *
-  handRadius;
+  radius;
 
- const finalZ =
+ const endZ =
   centerZ -
   Math.cos(
-   finalAngle
+   endAngle
   ) *
-  handRadius;
+  radius;
 
  blade.position.x =
   THREE.MathUtils.lerp(
-   finalX,
+   endX,
    restP.x,
    t
   );
 
  blade.position.y =
-  THREE.MathUtils.lerp(
-   restP.y -
-   0.045,
-   restP.y,
-   t
-  );
+  restP.y;
 
  blade.position.z =
   THREE.MathUtils.lerp(
-   finalZ,
+   endZ,
    restP.z,
    t
   );
 
  blade.rotation.x =
-  THREE.MathUtils.lerp(
-   restR.x +
-   0.03,
-   restR.x,
-   t
-  );
+  restR.x;
 
  blade.rotation.y =
   THREE.MathUtils.lerp(
-   restR.y +
-   swingDirection *
-   0.12,
+   endAngle *
+   0.20,
    restR.y,
    t
   );
@@ -5872,12 +5598,9 @@ function applyPreparedHorizontalSlash(
   0;
 
  pivot.rotation.y =
-  swingDirection *
   THREE.MathUtils.lerp(
-   bladeForwardYaw +
-   THREE.MathUtils.degToRad(
-    15
-   ),
+   endAngle *
+   0.90,
    0,
    t
   );
@@ -5890,62 +5613,10 @@ function applyPreparedHorizontalSlash(
 // PASSIVE BLADE
 // --------------------------------------------------
 function applyPassiveBladeMotion(
- blade,
- time
+ blade
 ) {
- const restP =
-  blade.userData
-  .restPosition;
-
- const restR =
-  blade.userData
-  .restRotation;
-
- const pivot =
-  blade.userData
-  .swingPivot;
-
- const amount =
-  Math.sin(
-   THREE.MathUtils.clamp(
-    time /
-    BLADE_ATTACK_DURATION,
-    0,
-    1
-   ) *
-   Math.PI
-  );
-
- /*
-  * 片手斬り中、
-  * 反対の手も完全静止にはしない。
-  */
- blade.position.set(
-  restP.x,
-
-  restP.y -
-  0.012 *
-  amount,
-
-  restP.z +
-  0.018 *
-  amount
- );
-
- blade.rotation.set(
-  restR.x,
-  restR.y,
-  restR.z
- );
-
- pivot.rotation.set(
-  0,
-
-  blade.userData.side *
-  0.025 *
-  amount,
-
-  0
+ resetBladeSwing(
+  blade
  );
 }
 
@@ -5956,7 +5627,7 @@ function applyBladeAttackMotion(
  time
 ) {
  // ------------------------------------------------
- // MOTION 1
+ // 1
  // RIGHT BLADE
  // LEFT → RIGHT
  // ------------------------------------------------
@@ -5964,22 +5635,21 @@ function applyBladeAttackMotion(
   bladeAttackMotion ===
   1
  ) {
-  applyPreparedHorizontalSlash(
+  applySimpleHorizontalSwing(
    rightBlade,
    1,
    time
   );
 
   applyPassiveBladeMotion(
-   leftBlade,
-   time
+   leftBlade
   );
 
   return;
  }
 
  // ------------------------------------------------
- // MOTION 2
+ // 2
  // LEFT BLADE
  // RIGHT → LEFT
  // ------------------------------------------------
@@ -5987,40 +5657,30 @@ function applyBladeAttackMotion(
   bladeAttackMotion ===
   2
  ) {
-  applyPreparedHorizontalSlash(
+  applySimpleHorizontalSwing(
    leftBlade,
    -1,
    time
   );
 
   applyPassiveBladeMotion(
-   rightBlade,
-   time
+   rightBlade
   );
 
   return;
  }
 
  // ------------------------------------------------
- // MOTION 3
- // DUAL CROSS
+ // 3
+ // BOTH
  // ------------------------------------------------
- /*
-  * 右刀:
-  * 左 → 右
-  *
-  * 左刀:
-  * 右 → 左
-  *
-  * 中央ですれ違う。
-  */
- applyPreparedHorizontalSlash(
+ applySimpleHorizontalSwing(
   rightBlade,
   1,
   time
  );
 
- applyPreparedHorizontalSlash(
+ applySimpleHorizontalSwing(
   leftBlade,
   -1,
   time
@@ -6057,58 +5717,12 @@ function getBladeAnchorRecoil(
  if (
   state <= 0
  ) {
-  return {
-   back: 0,
-   down: 0,
-   outward: 0,
-   angle: 0
-  };
- }
-
- const elapsed =
-  (
-   1 -
-   state
-  ) *
-  BLADE_ANCHOR_RECOIL_DURATION;
-
- let strength =
-  0;
-
- // ------------------------------------------------
- // SHOT KICK
- // ------------------------------------------------
- if (
-  elapsed <
-  0.055
- ) {
-  strength =
-   bladeEaseOutQuart(
-    elapsed /
-    0.055
-   );
- } else {
-  // ------------------------------------------------
-  // RETURN
-  // ------------------------------------------------
-  strength =
-   1 -
-   bladeSmoothStep(
-    (
-     elapsed -
-     0.055
-    ) /
-    (
-     BLADE_ANCHOR_RECOIL_DURATION -
-     0.055
-    )
-   );
+  return 0;
  }
 
  state =
   Math.max(
    0,
-
    state -
    delta /
    BLADE_ANCHOR_RECOIL_DURATION
@@ -6117,105 +5731,17 @@ function getBladeAnchorRecoil(
  blade.userData.anchorRecoil =
   state;
 
- return {
-  back:
-   strength *
-   BLADE_ANCHOR_RECOIL_DISTANCE,
-
-  down:
-   strength *
-   0.025,
-
-  outward:
-   strength *
-   0.018,
-
-  angle:
-   strength *
-   BLADE_ANCHOR_RECOIL_ANGLE
- };
+ return (
+  Math.sin(
+   state *
+   Math.PI
+  ) *
+  BLADE_ANCHOR_RECOIL_DISTANCE
+ );
 }
 
 // --------------------------------------------------
-// WIRE FLIGHT POSE
-// --------------------------------------------------
-function getBladeWireFlightPose(
- blade
-) {
- const wireActive =
-  leftAnchor.pulling ||
-  rightAnchor.pulling;
-
- if (
-  !wireActive
- ) {
-  return {
-   back: 0,
-   down: 0,
-   outward: 0,
-   pitch: 0,
-   yaw: 0,
-   roll: 0
-  };
- }
-
- // ------------------------------------------------
- // SPEED
- // ------------------------------------------------
- const speedKmh =
-  velocity.length() *
-  METERS_PER_UNIT *
-  3.6;
-
- const strength =
-  THREE.MathUtils.clamp(
-   speedKmh /
-   180,
-   0.25,
-   1
-  );
-
- const side =
-  blade.userData.side;
-
- /*
-  * ワイヤー牽引中。
-  *
-  * 高速になるほど両手を後ろへ引き、
-  * 刀を身体側へ流す。
-  */
- return {
-  back:
-   0.23 *
-   strength,
-
-  down:
-   0.08 *
-   strength,
-
-  outward:
-   side *
-   0.055 *
-   strength,
-
-  pitch:
-   -0.22 *
-   strength,
-
-  yaw:
-   side *
-   0.12 *
-   strength,
-
-  roll:
-   side *
-   -0.08 *
-   strength
- };
-}
-
-// --------------------------------------------------
-// IDLE / WIRE / ANCHOR
+// IDLE / WIRE
 // --------------------------------------------------
 function updateBladeIdleMotion(
  blade,
@@ -6239,47 +5765,58 @@ function updateBladeIdleMotion(
   .swingPivot;
 
  // ------------------------------------------------
- // SPEED
+ // WIRE PULL
  // ------------------------------------------------
+ const wireActive =
+  leftAnchor.pulling ||
+  rightAnchor.pulling;
+
  const speedKmh =
   velocity.length() *
   METERS_PER_UNIT *
   3.6;
 
- const speedRatio =
-  THREE.MathUtils.clamp(
-   speedKmh /
-   BLADE_SWAY_REFERENCE_KMH,
-   0,
-   1
-  );
+ let wireStrength =
+  0;
+
+ if (
+  wireActive
+ ) {
+  wireStrength =
+   THREE.MathUtils.clamp(
+    speedKmh /
+    180,
+    0.25,
+    1
+   );
+ }
 
  // ------------------------------------------------
  // CAMERA SWAY
  // ------------------------------------------------
- const targetSwayX =
+ const swayX =
   THREE.MathUtils.clamp(
    -yawDelta *
-   4,
-   -0.045,
-   0.045
+   3,
+   -0.035,
+   0.035
   );
 
- const targetSwayY =
+ const swayY =
   THREE.MathUtils.clamp(
    pitchDelta *
-   3.5,
-   -0.04,
-   0.04
+   3,
+   -0.03,
+   0.03
   );
 
  blade.userData.swayX =
   THREE.MathUtils.lerp(
    blade.userData.swayX,
-   targetSwayX,
+   swayX,
    Math.min(
     delta *
-    14,
+    12,
     1
    )
   );
@@ -6287,41 +5824,13 @@ function updateBladeIdleMotion(
  blade.userData.swayY =
   THREE.MathUtils.lerp(
    blade.userData.swayY,
-   targetSwayY,
+   swayY,
    Math.min(
     delta *
-    14,
+    12,
     1
    )
   );
-
- // ------------------------------------------------
- // SPEED VIBRATION
- // ------------------------------------------------
- const now =
-  performance.now() *
-  0.001;
-
- const vibration =
-  speedRatio *
-  BLADE_MAX_VIBRATION;
-
- const vibrationX =
-  Math.sin(
-   now *
-   37 +
-   side
-  ) *
-  vibration;
-
- const vibrationY =
-  Math.sin(
-   now *
-   43 +
-   side *
-   2
-  ) *
-  vibration;
 
  // ------------------------------------------------
  // ANCHOR SHOT
@@ -6333,45 +5842,42 @@ function updateBladeIdleMotion(
   );
 
  // ------------------------------------------------
- // WIRE PULL
- // ------------------------------------------------
- const wirePose =
-  getBladeWireFlightPose(
-   blade
-  );
-
- // ------------------------------------------------
- // POSITION
+ // TARGET
  // ------------------------------------------------
  const targetX =
   restP.x +
   blade.userData.swayX +
-  vibrationX +
   side *
-  recoil.outward +
-  wirePose.outward;
+  0.05 *
+  wireStrength;
 
  const targetY =
   restP.y +
-  blade.userData.swayY +
-  vibrationY -
-  recoil.down -
-  wirePose.down;
+  blade.userData.swayY -
+  0.07 *
+  wireStrength;
 
+ /*
+  * ワイヤー牽引中と
+  * アンカー射出時は
+  * 手を後ろへ引く。
+  */
  const targetZ =
   restP.z +
-  speedRatio *
-  BLADE_MAX_WIND_PUSH +
-  recoil.back +
-  wirePose.back;
+  0.22 *
+  wireStrength +
+  recoil;
 
+ // ------------------------------------------------
+ // POSITION
+ // ------------------------------------------------
  blade.position.x =
   THREE.MathUtils.lerp(
    blade.position.x,
    targetX,
    Math.min(
     delta *
-    11,
+    10,
     1
    )
   );
@@ -6382,7 +5888,7 @@ function updateBladeIdleMotion(
    targetY,
    Math.min(
     delta *
-    11,
+    10,
     1
    )
   );
@@ -6393,7 +5899,7 @@ function updateBladeIdleMotion(
    targetZ,
    Math.min(
     delta *
-    11,
+    10,
     1
    )
   );
@@ -6406,12 +5912,12 @@ function updateBladeIdleMotion(
    blade.rotation.x,
 
    restR.x -
-   recoil.angle +
-   wirePose.pitch,
+   0.18 *
+   wireStrength,
 
    Math.min(
     delta *
-    11,
+    10,
     1
    )
   );
@@ -6421,13 +5927,13 @@ function updateBladeIdleMotion(
    blade.rotation.y,
 
    restR.y +
-   blade.userData.swayX *
-   0.7 +
-   wirePose.yaw,
+   side *
+   0.10 *
+   wireStrength,
 
    Math.min(
     delta *
-    11,
+    10,
     1
    )
   );
@@ -6435,19 +5941,16 @@ function updateBladeIdleMotion(
  blade.rotation.z =
   THREE.MathUtils.lerp(
    blade.rotation.z,
-
-   restR.z +
-   wirePose.roll,
-
+   restR.z,
    Math.min(
     delta *
-    11,
+    10,
     1
    )
   );
 
  // ------------------------------------------------
- // PIVOT RETURN
+ // PIVOT
  // ------------------------------------------------
  pivot.rotation.x =
   THREE.MathUtils.lerp(
@@ -6455,7 +5958,7 @@ function updateBladeIdleMotion(
    0,
    Math.min(
     delta *
-    16,
+    15,
     1
    )
   );
@@ -6466,7 +5969,7 @@ function updateBladeIdleMotion(
    0,
    Math.min(
     delta *
-    16,
+    15,
     1
    )
   );
@@ -6477,7 +5980,7 @@ function updateBladeIdleMotion(
    0,
    Math.min(
     delta *
-    16,
+    15,
     1
    )
   );
@@ -6558,7 +6061,7 @@ function updateBladeAnimation(
  }
 
  // ------------------------------------------------
- // NORMAL / WIRE
+ // NORMAL
  // ------------------------------------------------
  updateBladeIdleMotion(
   leftBlade,
