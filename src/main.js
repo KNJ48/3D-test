@@ -5267,6 +5267,44 @@ let bladeSwingStarted =
 let bladeSwingTimer =
  0;
 
+let bladeRecoveryStarted =
+ false;
+
+let bladeRecoveryTimer =
+ 0;
+
+// --------------------------------------------------
+// TIMING
+// --------------------------------------------------
+const BLADE_WINDUP_DURATION =
+ 0.5;
+
+const BLADE_SWING_DURATION =
+ 0.5;
+
+const BLADE_RECOVERY_DURATION =
+ 0.25;
+
+// --------------------------------------------------
+// ROTATION
+// --------------------------------------------------
+const BLADE_WINDUP_ANGLE =
+ THREE.MathUtils.degToRad(
+  75
+ );
+
+// --------------------------------------------------
+// TRANSLATION
+// --------------------------------------------------
+/*
+ * 攻撃時に手元を
+ * 反対側まで動かす距離。
+ *
+ * camera local X。
+ */
+const BLADE_ATTACK_SIDE_X =
+ 0.62;
+
 // --------------------------------------------------
 // SMOOTH STEP
 // --------------------------------------------------
@@ -5319,7 +5357,7 @@ function resetBladeSwing(
 }
 
 // --------------------------------------------------
-// SET BLADE ANGLE
+// SET ROTATION
 // --------------------------------------------------
 function setBladeSwingAngle(
  blade,
@@ -5329,12 +5367,6 @@ function setBladeSwingAngle(
   blade.userData
   .swingPivot;
 
- /*
-  * 今はテスト段階。
-  *
-  * Y軸回転以外は
-  * 一切動かさない。
-  */
  pivot.rotation.x =
   0;
 
@@ -5346,34 +5378,88 @@ function setBladeSwingAngle(
 }
 
 // --------------------------------------------------
-// APPLY WINDUP
+// SET SIDE POSITION
+// --------------------------------------------------
+function setBladeSidePosition(
+ blade,
+ x
+) {
+ /*
+  * 今回は平行移動だけ。
+  *
+  * Y/Zは通常位置を維持。
+  */
+ blade.position.x =
+  x;
+
+ blade.position.y =
+  blade.userData
+  .restPosition.y;
+
+ blade.position.z =
+  blade.userData
+  .restPosition.z;
+}
+
+// --------------------------------------------------
+// WINDUP
 // --------------------------------------------------
 function applyBladeWindup(
  blade,
  direction,
  time
 ) {
- const angle75 =
-  THREE.MathUtils.degToRad(
-   75
-  );
+ const restP =
+  blade.userData
+  .restPosition;
 
  const t =
   bladeSmoothStep(
    time /
-   0.5
+   BLADE_WINDUP_DURATION
   );
 
  /*
-  * 最終的に振る方向とは
-  * 反対へ75°。
+  * direction:
+  *
+  * 右刀 = +1
+  * 左刀 = -1
+  *
+  *
+  * 平行移動:
+  *
+  * 右刀なら左へ。
+  * 左刀なら右へ。
+  */
+ const targetX =
+  -direction *
+  BLADE_ATTACK_SIDE_X;
+
+ const x =
+  THREE.MathUtils.lerp(
+   restP.x,
+   targetX,
+   t
+  );
+
+ setBladeSidePosition(
+  blade,
+  x
+ );
+
+ // --------------------------------------------------
+ // ROTATION
+ // --------------------------------------------------
+ /*
+  * 前回「最初が逆」とのことなので
+  * ここで方向を反転。
   */
  const angle =
   THREE.MathUtils.lerp(
    0,
 
-   -direction *
-   angle75,
+   direction *
+   BLADE_WINDUP_ANGLE,
 
    t
   );
@@ -5385,39 +5471,162 @@ function applyBladeWindup(
 }
 
 // --------------------------------------------------
-// APPLY RELEASE SWING
+// HOLD WINDUP
+// --------------------------------------------------
+function holdBladeWindupPose(
+ blade,
+ direction
+) {
+ /*
+  * 右刀なら左側。
+  * 左刀なら右側。
+  */
+ setBladeSidePosition(
+  blade,
+
+  -direction *
+  BLADE_ATTACK_SIDE_X
+ );
+
+ setBladeSwingAngle(
+  blade,
+
+  direction *
+  BLADE_WINDUP_ANGLE
+ );
+}
+
+// --------------------------------------------------
+// RELEASE SWING
 // --------------------------------------------------
 function applyBladeReleaseSwing(
  blade,
  direction,
  time
 ) {
- const angle75 =
-  THREE.MathUtils.degToRad(
-   75
+ const t =
+  bladeSmoothStep(
+   time /
+   BLADE_SWING_DURATION
   );
+
+ // --------------------------------------------------
+ // TRANSLATION
+ // --------------------------------------------------
+ /*
+  * 0.5秒かけて
+  * 反対側まで平行移動。
+  *
+  * 右刀:
+  * 左 → 右
+  *
+  * 左刀:
+  * 右 → 左
+  */
+ const startX =
+  -direction *
+  BLADE_ATTACK_SIDE_X;
+
+ const endX =
+  direction *
+  BLADE_ATTACK_SIDE_X;
+
+ const x =
+  THREE.MathUtils.lerp(
+   startX,
+   endX,
+   t
+  );
+
+ setBladeSidePosition(
+  blade,
+  x
+ );
+
+ // --------------------------------------------------
+ // ROTATION
+ // --------------------------------------------------
+ /*
+  * +75°
+  * ↓
+  * -75°
+  *
+  * 移動量150°。
+  */
+ const startAngle =
+  direction *
+  BLADE_WINDUP_ANGLE;
+
+ const endAngle =
+  -direction *
+  BLADE_WINDUP_ANGLE;
+
+ const angle =
+  THREE.MathUtils.lerp(
+   startAngle,
+   endAngle,
+   t
+  );
+
+ setBladeSwingAngle(
+  blade,
+  angle
+ );
+}
+
+// --------------------------------------------------
+// RECOVERY
+// --------------------------------------------------
+function applyBladeRecovery(
+ blade,
+ direction,
+ time
+) {
+ const restP =
+  blade.userData
+  .restPosition;
 
  const t =
   bladeSmoothStep(
    time /
-   0.5
+   BLADE_RECOVERY_DURATION
   );
 
+ // --------------------------------------------------
+ // POSITION RETURN
+ // --------------------------------------------------
  /*
-  * -75°
-  * ↓
-  * +75°
-  *
-  * 合計150°。
+  * 振り切った反対側から
+  * 通常の手元位置へ戻す。
   */
+ const startX =
+  direction *
+  BLADE_ATTACK_SIDE_X;
+
+ blade.position.x =
+  THREE.MathUtils.lerp(
+   startX,
+   restP.x,
+   t
+  );
+
+ blade.position.y =
+  restP.y;
+
+ blade.position.z =
+  restP.z;
+
+ // --------------------------------------------------
+ // ROTATION RETURN
+ // --------------------------------------------------
+ const startAngle =
+  -direction *
+  BLADE_WINDUP_ANGLE;
+
  const angle =
   THREE.MathUtils.lerp(
-   -direction *
-   angle75,
-
-   direction *
-   angle75,
-
+   startAngle,
+   0,
    t
   );
 
@@ -5439,13 +5648,13 @@ function applyPassiveBladeMotion(
 }
 
 // --------------------------------------------------
-// APPLY WINDUP MOTION
+// WINDUP MOTION
 // --------------------------------------------------
 function applyBladeWindupMotion(
  time
 ) {
  // ------------------------------------------------
- // RIGHT
+ // RIGHT ONLY
  // ------------------------------------------------
  if (
   bladeAttackMotion ===
@@ -5465,7 +5674,7 @@ function applyBladeWindupMotion(
  }
 
  // ------------------------------------------------
- // LEFT
+ // LEFT ONLY
  // ------------------------------------------------
  if (
   bladeAttackMotion ===
@@ -5501,21 +5710,19 @@ function applyBladeWindupMotion(
 }
 
 // --------------------------------------------------
-// HOLD WINDUP
+// HOLD MOTION
 // --------------------------------------------------
 function holdBladeWindup() {
- const angle75 =
-  THREE.MathUtils.degToRad(
-   75
-  );
-
+ // ------------------------------------------------
+ // RIGHT
+ // ------------------------------------------------
  if (
   bladeAttackMotion ===
   1
  ) {
-  setBladeSwingAngle(
+  holdBladeWindupPose(
    rightBlade,
-   -angle75
+   1
   );
 
   resetBladeSwing(
@@ -5525,13 +5732,16 @@ function holdBladeWindup() {
   return;
  }
 
+ // ------------------------------------------------
+ // LEFT
+ // ------------------------------------------------
  if (
   bladeAttackMotion ===
   2
  ) {
-  setBladeSwingAngle(
+  holdBladeWindupPose(
    leftBlade,
-   angle75
+   -1
   );
 
   resetBladeSwing(
@@ -5541,23 +5751,29 @@ function holdBladeWindup() {
   return;
  }
 
- setBladeSwingAngle(
+ // ------------------------------------------------
+ // BOTH
+ // ------------------------------------------------
+ holdBladeWindupPose(
   rightBlade,
-  -angle75
+  1
  );
 
- setBladeSwingAngle(
+ holdBladeWindupPose(
   leftBlade,
-  angle75
+  -1
  );
 }
 
 // --------------------------------------------------
-// APPLY RELEASE MOTION
+// RELEASE MOTION
 // --------------------------------------------------
 function applyBladeReleaseMotion(
  time
 ) {
+ // ------------------------------------------------
+ // RIGHT
+ // ------------------------------------------------
  if (
   bladeAttackMotion ===
   1
@@ -5571,6 +5787,9 @@ function applyBladeReleaseMotion(
   return;
  }
 
+ // ------------------------------------------------
+ // LEFT
+ // ------------------------------------------------
  if (
   bladeAttackMotion ===
   2
@@ -5584,6 +5803,9 @@ function applyBladeReleaseMotion(
   return;
  }
 
+ // ------------------------------------------------
+ // BOTH
+ // ------------------------------------------------
  applyBladeReleaseSwing(
   rightBlade,
   1,
@@ -5591,6 +5813,68 @@ function applyBladeReleaseMotion(
  );
 
  applyBladeReleaseSwing(
+  leftBlade,
+  -1,
+  time
+ );
+}
+
+// --------------------------------------------------
+// RECOVERY MOTION
+// --------------------------------------------------
+function applyBladeRecoveryMotion(
+ time
+) {
+ // ------------------------------------------------
+ // RIGHT
+ // ------------------------------------------------
+ if (
+  bladeAttackMotion ===
+  1
+ ) {
+  applyBladeRecovery(
+   rightBlade,
+   1,
+   time
+  );
+
+  resetBladeSwing(
+   leftBlade
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // LEFT
+ // ------------------------------------------------
+ if (
+  bladeAttackMotion ===
+  2
+ ) {
+  applyBladeRecovery(
+   leftBlade,
+   -1,
+   time
+  );
+
+  resetBladeSwing(
+   rightBlade
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // BOTH
+ // ------------------------------------------------
+ applyBladeRecovery(
+  rightBlade,
+  1,
+  time
+ );
+
+ applyBladeRecovery(
   leftBlade,
   -1,
   time
@@ -5624,12 +5908,16 @@ function updateBladeAnimation(
    delta;
 
   /*
-   * 最初の0.5秒は
-   * 必ず75°まで振りかぶる。
+   * 0.5秒かけて
+   *
+   * ・反対側へ平行移動
+   * ・75°回転
+   *
+   * を同時に行う。
    */
   if (
    attackTimer <
-   0.5
+   BLADE_WINDUP_DURATION
   ) {
    applyBladeWindupMotion(
     attackTimer
@@ -5638,14 +5926,14 @@ function updateBladeAnimation(
    return;
   }
 
-  /*
-   * 75°まで到達。
-   */
+  // ------------------------------------------------
+  // HOLD
+  // ------------------------------------------------
   holdBladeWindup();
 
   /*
-   * まだクリック中なら
-   * ここで完全停止。
+   * 左クリックを押している間は
+   * この状態で待機。
    */
   if (
    bladeAttackHeld
@@ -5653,10 +5941,9 @@ function updateBladeAnimation(
    return;
   }
 
-  /*
-   * クリックが既に離されている。
-   * ここから本振り開始。
-   */
+  // ------------------------------------------------
+  // START RELEASE
+  // ------------------------------------------------
   bladeSwingStarted =
    true;
 
@@ -5665,42 +5952,86 @@ function updateBladeAnimation(
 
   bladeHitApplied =
    false;
+
+  return;
  }
 
  // --------------------------------------------------
- // RELEASE SWING
+ // RELEASE
  // --------------------------------------------------
- bladeSwingTimer +=
+ if (
+  !bladeRecoveryStarted
+ ) {
+  bladeSwingTimer +=
+   delta;
+
+  /*
+   * 0.5秒で
+   *
+   * ・反対側まで平行移動
+   * ・150°回転
+   */
+  applyBladeReleaseMotion(
+   bladeSwingTimer
+  );
+
+  // ------------------------------------------------
+  // HIT
+  // ------------------------------------------------
+  if (
+   !bladeHitApplied &&
+   bladeSwingTimer >=
+   BLADE_SWING_DURATION *
+   0.5
+  ) {
+   applyBladeHit();
+
+   bladeHitApplied =
+    true;
+  }
+
+  // ------------------------------------------------
+  // START RECOVERY
+  // ------------------------------------------------
+  if (
+   bladeSwingTimer >=
+   BLADE_SWING_DURATION
+  ) {
+   bladeRecoveryStarted =
+    true;
+
+   bladeRecoveryTimer =
+    0;
+  }
+
+  return;
+ }
+
+ // --------------------------------------------------
+ // RECOVERY
+ // --------------------------------------------------
+ bladeRecoveryTimer +=
   delta;
 
- applyBladeReleaseMotion(
-  bladeSwingTimer
+ applyBladeRecoveryMotion(
+  bladeRecoveryTimer
  );
-
- // --------------------------------------------------
- // HIT
- // --------------------------------------------------
- /*
-  * 150°の真ん中あたり。
-  */
- if (
-  !bladeHitApplied &&
-  bladeSwingTimer >=
-  0.25
- ) {
-  applyBladeHit();
-
-  bladeHitApplied =
-   true;
- }
 
  // --------------------------------------------------
  // FINISH
  // --------------------------------------------------
  if (
-  bladeSwingTimer >=
-  0.5
+  bladeRecoveryTimer >=
+  BLADE_RECOVERY_DURATION
  ) {
+  resetBladeSwing(
+   leftBlade
+  );
+
+  resetBladeSwing(
+   rightBlade
+  );
+
   attacking =
    false;
 
@@ -5710,19 +6041,17 @@ function updateBladeAnimation(
   bladeSwingTimer =
    0;
 
+  bladeRecoveryTimer =
+   0;
+
   bladeSwingStarted =
+   false;
+
+  bladeRecoveryStarted =
    false;
 
   bladeAttackReleased =
    false;
-
-  resetBladeSwing(
-   leftBlade
-  );
-
-  resetBladeSwing(
-   rightBlade
-  );
  }
 }
 
