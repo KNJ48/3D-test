@@ -5285,11 +5285,8 @@ const BLADE_RECOVERY_DURATION =
 /*
  * 振りかぶり角度。
  *
- * 50なら、
- *
- * +50° → -50°
- *
- * なので振り抜き全体は100°。
+ * 75° → -75°
+ * なので振り抜き全体は150°。
  */
 const BLADE_WINDUP_ANGLE =
  THREE.MathUtils.degToRad(
@@ -5301,28 +5298,47 @@ const BLADE_WINDUP_ANGLE =
 // --------------------------------------------------
 /*
  * 横方向の振れ幅。
- *
- * 大きくすると
- * より画面外まで振る。
  */
 const BLADE_SIDE_EDGE =
- 2;
+ 2.0;
 
 // --------------------------------------------------
 // ARC MOVEMENT SETTINGS
 // --------------------------------------------------
 /*
- * 上から見たときの
- * 円運動っぽさ。
- *
- * 斬撃中央で、
- * 手をどれだけ奥へ引くか。
- *
- * 大きくすると
- * 円弧が深くなる。
+ * 斬撃中央付近で
+ * 手元をどれだけ奥へ入れるか。
  */
 const BLADE_ARC_DEPTH =
  0.42;
+
+// --------------------------------------------------
+// SWING ACCELERATION
+// --------------------------------------------------
+/*
+ * 振り抜きの加速の強さ。
+ *
+ * 1.0 = 等速
+ * 1.5 = 軽い加速
+ * 2.0 = はっきり加速
+ * 2.4 = 今回
+ * 3.0 = かなり溜めてから加速
+ */
+const BLADE_SWING_ACCEL_POWER =
+ 2.4;
+
+// --------------------------------------------------
+// CLAMP
+// --------------------------------------------------
+function bladeClamp01(
+ t
+) {
+ return THREE.MathUtils.clamp(
+ t,
+ 0,
+ 1
+ );
+}
 
 // --------------------------------------------------
 // SMOOTH STEP
@@ -5331,10 +5347,8 @@ function bladeSmoothStep(
  t
 ) {
  t =
- THREE.MathUtils.clamp(
- t,
- 0,
- 1
+ bladeClamp01(
+ t
  );
 
  return (
@@ -5345,6 +5359,34 @@ function bladeSmoothStep(
  2 *
  t
  )
+ );
+}
+
+// --------------------------------------------------
+// ACCELERATION CURVE
+// --------------------------------------------------
+/*
+ * 振り抜き専用。
+ *
+ * t^power にすることで、
+ *
+ * 最初 = ゆっくり
+ * 中盤 = 加速
+ * 後半 = 高速
+ *
+ * となる。
+ */
+function bladeAccelerationCurve(
+ t
+) {
+ t =
+ bladeClamp01(
+ t
+ );
+
+ return Math.pow(
+ t,
+ BLADE_SWING_ACCEL_POWER
  );
 }
 
@@ -5414,10 +5456,6 @@ function setBladeHandPosition(
  blade.position.y =
  restP.y;
 
- /*
- * マイナス方向ほど
- * カメラから見て奥。
- */
  blade.position.z =
  restP.z -
  zOffset;
@@ -5431,14 +5469,21 @@ function applyBladeWindup(
  direction,
  time
 ) {
+ const rawT =
+ bladeClamp01(
+ time /
+ BLADE_WINDUP_DURATION
+ );
+
+ /*
+ * 振りかぶり側は、
+ * 今まで通り滑らかに構える。
+ *
+ * 加速カーブはまだ使わない。
+ */
  const t =
  bladeSmoothStep(
- THREE.MathUtils.clamp(
- time /
- BLADE_WINDUP_DURATION,
- 0,
- 1
- )
+ rawT
  );
 
  const restP =
@@ -5448,13 +5493,6 @@ function applyBladeWindup(
  // ------------------------------------------------
  // ROTATION
  // ------------------------------------------------
- /*
- * 右刀:
- * 0° → +50°
- *
- * 左刀:
- * 0° → -50°
- */
  const angle =
  THREE.MathUtils.lerp(
  0,
@@ -5471,10 +5509,6 @@ function applyBladeWindup(
  // ------------------------------------------------
  // SIDE MOVEMENT
  // ------------------------------------------------
- /*
- * 右刀 → 左側へ。
- * 左刀 → 右側へ。
- */
  const targetX =
  -direction *
  BLADE_SIDE_EDGE;
@@ -5486,12 +5520,6 @@ function applyBladeWindup(
  t
  );
 
- /*
- * WINDUPではまだ円弧を作らない。
- *
- * まず反対側の開始位置へ
- * 手を持っていくだけ。
- */
  setBladeHandPosition(
  blade,
  x,
@@ -5528,32 +5556,32 @@ function applyBladeReleaseSwing(
  direction,
  time
 ) {
- /*
- * 時間そのもの。
- *
- * 円運動の計算にも使うため
- * 0～1で保持する。
- */
  const rawT =
- THREE.MathUtils.clamp(
+ bladeClamp01(
  time /
- BLADE_SWING_DURATION,
- 0,
- 1
+ BLADE_SWING_DURATION
  );
 
+ // ------------------------------------------------
+ // ACCELERATED TIME
+ // ------------------------------------------------
  /*
- * 横移動と回転は
- * SmoothStep。
+ * ここが今回のポイント。
+ *
+ * 通常時間 rawT を
+ * 加速時間 swingT に変換する。
+ *
+ * 回転と横移動の両方が
+ * 同じ加速を使う。
  */
- const t =
- bladeSmoothStep(
+ const swingT =
+ bladeAccelerationCurve(
  rawT
  );
 
  // ------------------------------------------------
  // ROTATION
- // ------------------------------------------------
+// ------------------------------------------------
  const startAngle =
  direction *
  BLADE_WINDUP_ANGLE;
@@ -5566,7 +5594,7 @@ function applyBladeReleaseSwing(
  THREE.MathUtils.lerp(
  startAngle,
  endAngle,
- t
+ swingT
  );
 
  setBladeSwingAngle(
@@ -5577,15 +5605,6 @@ function applyBladeReleaseSwing(
  // ------------------------------------------------
  // SIDE MOVEMENT
  // ------------------------------------------------
- /*
- * 右刀:
- *
- * 左端 → 右端
- *
- * 左刀:
- *
- * 右端 → 左端
- */
  const startX =
  -direction *
  BLADE_SIDE_EDGE;
@@ -5598,37 +5617,27 @@ function applyBladeReleaseSwing(
  THREE.MathUtils.lerp(
  startX,
  endX,
- t
+ swingT
  );
 
  // ------------------------------------------------
- // ARC DEPTH
+ // ARC MOVEMENT
  // ------------------------------------------------
  /*
- * 上から見た手の軌道。
+ * 円弧も実際の手の進行度
+ * swingT に合わせる。
  *
+ * したがって、
  *
- *           奥
- *            ↑
- *          ●
- *       ／     ＼
- *     ●           ●
- *   START         END
+ * 横移動
+ * 回転
+ * 奥行き
  *
- *
- * sin(0)     = 0
- * sin(PI/2)  = 1
- * sin(PI)    = 0
- *
- * つまり、
- *
- * 開始地点 = 通常の奥行き
- * 中央     = 一番奥
- * 終了地点 = 通常の奥行き
+ * の3つが完全に同期する。
  */
  const arc =
  Math.sin(
- rawT *
+ swingT *
  Math.PI
  );
 
@@ -5656,11 +5665,9 @@ function applyBladeRecovery(
 ) {
  const t =
  bladeSmoothStep(
- THREE.MathUtils.clamp(
+ bladeClamp01(
  time /
- BLADE_RECOVERY_DURATION,
- 0,
- 1
+ BLADE_RECOVERY_DURATION
  )
  );
 
@@ -5690,13 +5697,6 @@ function applyBladeRecovery(
  // ------------------------------------------------
  // POSITION RETURN
  // ------------------------------------------------
- /*
- * 円弧は斬撃終了時点で
- * すでに0へ戻っている。
- *
- * なのでここでは横位置だけ
- * 通常位置へ戻す。
- */
  const startX =
  direction *
  BLADE_SIDE_EDGE;
@@ -6003,11 +6003,26 @@ function updateBladeAnimation(
  // ------------------------------------------------
  // HIT
  // ------------------------------------------------
+ /*
+ * 今回は加速カーブを使うため、
+ * 時間50%ではまだ刀が
+ * 中央へ到達していない。
+ *
+ * swingT = 0.5 になる時刻を
+ * 加速指数から逆算する。
+ */
+ const hitNormalizedTime =
+ Math.pow(
+ 0.5,
+ 1 /
+ BLADE_SWING_ACCEL_POWER
+ );
+
  if (
  !bladeHitApplied &&
  bladeSwingTimer >=
  BLADE_SWING_DURATION *
- 0.5
+ hitNormalizedTime
  ) {
  applyBladeHit();
 
@@ -13345,7 +13360,6 @@ async function bootGame() {
   startGameLoop();
  } catch (
   error
- ) {
   console.error(
    "GAME BOOT FAILED",
    error
