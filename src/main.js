@@ -5288,6 +5288,28 @@ const BLADE_WINDUP_ANGLE =
  );
 
 // --------------------------------------------------
+// HORIZONTAL MOVEMENT
+// --------------------------------------------------
+/*
+ * カメラローカル X 上での
+ * 左右の画面端位置。
+ *
+ * 右ブレード:
+ *
+ * 通常右側
+ * ↓
+ * -0.72 = 左側
+ * ↓
+ * HOLD
+ * ↓
+ * +0.72 = 右側
+ *
+ * 左ブレードは逆。
+ */
+const BLADE_SIDE_EDGE =
+ 0.72;
+
+// --------------------------------------------------
 // SMOOTH STEP
 // --------------------------------------------------
 function bladeSmoothStep(
@@ -5360,6 +5382,31 @@ function setBladeSwingAngle(
 }
 
 // --------------------------------------------------
+// SET HORIZONTAL POSITION
+// --------------------------------------------------
+function setBladeSidePosition(
+ blade,
+ x
+) {
+ /*
+ * 今回新しく追加する運動。
+ *
+ * X だけ変更する。
+ * Y / Z は通常位置を維持。
+ */
+ blade.position.x =
+ x;
+
+ blade.position.y =
+ blade.userData
+ .restPosition.y;
+
+ blade.position.z =
+ blade.userData
+ .restPosition.z;
+}
+
+// --------------------------------------------------
 // WINDUP
 // --------------------------------------------------
 function applyBladeWindup(
@@ -5377,19 +5424,26 @@ function applyBladeWindup(
  )
  );
 
+ const restP =
+ blade.userData
+ .restPosition;
+
+ // ------------------------------------------------
+ // ROTATION
+ // ------------------------------------------------
  /*
- * 前回とは回転方向を逆転。
+ * 回転方向は最初の仕様へ戻す。
  *
- * 右刀:
- * 0° → -50°
- *
- * 左刀:
+ * 右:
  * 0° → +50°
+ *
+ * 左:
+ * 0° → -50°
  */
  const angle =
  THREE.MathUtils.lerp(
  0,
- -direction *
+ direction *
  BLADE_WINDUP_ANGLE,
  t
  );
@@ -5397,6 +5451,32 @@ function applyBladeWindup(
  setBladeSwingAngle(
  blade,
  angle
+ );
+
+ // ------------------------------------------------
+ // HORIZONTAL MOVEMENT
+ // ------------------------------------------------
+ /*
+ * 持っている側とは逆の
+ * 画面端へ移動。
+ *
+ * 右刀 → 左
+ * 左刀 → 右
+ */
+ const targetX =
+ -direction *
+ BLADE_SIDE_EDGE;
+
+ const x =
+ THREE.MathUtils.lerp(
+ restP.x,
+ targetX,
+ t
+ );
+
+ setBladeSidePosition(
+ blade,
+ x
  );
 }
 
@@ -5408,13 +5488,24 @@ function holdBladeWindupPose(
  direction
 ) {
  /*
- * クリックを押している間は
- * ±50°で固定。
+ * 回転。
  */
  setBladeSwingAngle(
  blade,
- -direction *
+ direction *
  BLADE_WINDUP_ANGLE
+ );
+
+ /*
+ * 横位置。
+ *
+ * クリックを押している間、
+ * 反対側の画面端で停止。
+ */
+ setBladeSidePosition(
+ blade,
+ -direction *
+ BLADE_SIDE_EDGE
  );
 }
 
@@ -5436,23 +5527,24 @@ function applyBladeReleaseSwing(
  )
  );
 
+ // ------------------------------------------------
+ // ROTATION
+ // ------------------------------------------------
  /*
- * WINDUP の逆方向へ振る。
- *
- * 右刀:
- * -50° → +50°
- * 合計 +100°
- *
- * 左刀:
+ * 右:
  * +50° → -50°
- * 合計 -100°
+ *
+ * 左:
+ * -50° → +50°
+ *
+ * 合計 100°。
  */
  const startAngle =
- -direction *
+ direction *
  BLADE_WINDUP_ANGLE;
 
  const endAngle =
- direction *
+ -direction *
  BLADE_WINDUP_ANGLE;
 
  const angle =
@@ -5465,6 +5557,40 @@ function applyBladeReleaseSwing(
  setBladeSwingAngle(
  blade,
  angle
+ );
+
+ // ------------------------------------------------
+ // HORIZONTAL MOVEMENT
+ // ------------------------------------------------
+ /*
+ * 反対側の端から、
+ * ブレードを持っている側の端まで
+ * 0.5 秒で横断。
+ *
+ * 右刀:
+ * 左 → 右
+ *
+ * 左刀:
+ * 右 → 左
+ */
+ const startX =
+ -direction *
+ BLADE_SIDE_EDGE;
+
+ const endX =
+ direction *
+ BLADE_SIDE_EDGE;
+
+ const x =
+ THREE.MathUtils.lerp(
+ startX,
+ endX,
+ t
+ );
+
+ setBladeSidePosition(
+ blade,
+ x
  );
 }
 
@@ -5486,8 +5612,15 @@ function applyBladeRecovery(
  )
  );
 
+ const restP =
+ blade.userData
+ .restPosition;
+
+ // ------------------------------------------------
+ // ROTATION RETURN
+ // ------------------------------------------------
  const startAngle =
- direction *
+ -direction *
  BLADE_WINDUP_ANGLE;
 
  const angle =
@@ -5500,6 +5633,29 @@ function applyBladeRecovery(
  setBladeSwingAngle(
  blade,
  angle
+ );
+
+ // ------------------------------------------------
+ // POSITION RETURN
+// ------------------------------------------------
+ /*
+ * 振り切った画面端から
+ * 通常の手元位置へ戻る。
+ */
+ const startX =
+ direction *
+ BLADE_SIDE_EDGE;
+
+ const x =
+ THREE.MathUtils.lerp(
+ startX,
+ restP.x,
+ t
+ );
+
+ setBladeSidePosition(
+ blade,
+ x
  );
 }
 
@@ -5738,6 +5894,12 @@ function updateBladeAnimation(
  attackTimer +=
  delta;
 
+ /*
+ * 最初の 0.5 秒で同時に、
+ *
+ * 1. 50°回転
+ * 2. 反対側へ横移動
+ */
  if (
  attackTimer <
  BLADE_WINDUP_DURATION
@@ -5752,6 +5914,10 @@ function updateBladeAnimation(
  // ------------------------------------------------
  // HOLD
  // ------------------------------------------------
+ /*
+ * 回転も位置も、
+ * クリックを離すまで固定。
+ */
  holdBladeWindup();
 
  if (
@@ -5784,14 +5950,19 @@ function updateBladeAnimation(
  bladeSwingTimer +=
  delta;
 
+ /*
+ * 次の 0.5 秒で同時に、
+ *
+ * 1. 逆方向へ 100°回転
+ * 2. 反対側の画面端まで横断
+ */
  applyBladeReleaseMotion(
  bladeSwingTimer
  );
 
- /*
- * 100°の中央、
- * つまり 0°付近で攻撃判定。
- */
+ // ------------------------------------------------
+ // HIT
+ // ------------------------------------------------
  if (
  !bladeHitApplied &&
  bladeSwingTimer >=
@@ -5804,6 +5975,9 @@ function updateBladeAnimation(
  true;
  }
 
+ // ------------------------------------------------
+ // START RECOVERY
+ // ------------------------------------------------
  if (
  bladeSwingTimer >=
  BLADE_SWING_DURATION
