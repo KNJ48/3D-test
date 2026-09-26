@@ -5284,7 +5284,7 @@ const BLADE_RECOVERY_DURATION =
 // --------------------------------------------------
 const BLADE_WINDUP_ANGLE =
  THREE.MathUtils.degToRad(
- 50
+ 75
  );
 
 // --------------------------------------------------
