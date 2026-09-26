@@ -5270,62 +5270,46 @@ let bladeRecoveryTimer =
 // --------------------------------------------------
 // TIMING
 // --------------------------------------------------
+/*
+ * 0.5 秒で
+ * 反対側へ 75°振りかぶる。
+ */
 const BLADE_WINDUP_DURATION =
- 0.32;
+ 0.5;
 
+/*
+ * クリックを離した後、
+ * 0.5 秒で合計 150°振る。
+ */
 const BLADE_SWING_DURATION =
- 0.34;
+ 0.5;
 
+/*
+ * 振り切った後に
+ * 通常位置へ戻る時間。
+ */
 const BLADE_RECOVERY_DURATION =
- 0.30;
+ 0.25;
 
 // --------------------------------------------------
-// POSE
+// ROTATION
 // --------------------------------------------------
 const BLADE_WINDUP_ANGLE =
  THREE.MathUtils.degToRad(
- 82
+ 75
  );
-
-const BLADE_SLASH_END_ANGLE =
- THREE.MathUtils.degToRad(
- 96
- );
-
-const BLADE_ATTACK_SIDE_X =
- 0.67;
-
-const BLADE_WINDUP_BACK_Z =
- 0.17;
-
-const BLADE_SLASH_FORWARD_Z =
- 0.11;
-
-const BLADE_WINDUP_DROP_Y =
- 0.035;
-
-const BLADE_SLASH_DROP_Y =
- 0.085;
 
 // --------------------------------------------------
-// CURVES
+// SMOOTH STEP
 // --------------------------------------------------
-function bladeClamp01(
- t
-) {
- return THREE.MathUtils.clamp(
- t,
- 0,
- 1
- );
-}
-
 function bladeSmoothStep(
  t
 ) {
  t =
- bladeClamp01(
- t
+ THREE.MathUtils.clamp(
+ t,
+ 0,
+ 1
  );
 
  return (
@@ -5339,52 +5323,6 @@ function bladeSmoothStep(
  );
 }
 
-/*
- * 振り抜き専用。
- *
- * 最初から強く加速し、
- * 後半だけ減速する。
- *
- * 通常の smoothStep より
- * 「ブンッ」とした動きになる。
- */
-function bladeSlashCurve(
- t
-) {
- t =
- bladeClamp01(
- t
- );
-
- return (
- 1 -
- Math.pow(
- 1 -
- t,
- 3.2
- )
- );
-}
-
-/*
- * 斬撃中央で最大になる値。
- *
- * 0 → 1 → 0
- */
-function bladeSlashPulse(
- t
-) {
- t =
- bladeClamp01(
- t
- );
-
- return Math.sin(
- t *
- Math.PI
- );
-}
-
 // --------------------------------------------------
 // RESET
 // --------------------------------------------------
@@ -5395,10 +5333,10 @@ function resetBladeSwing(
  blade.userData
  .swingPivot;
 
- const weapon =
- blade.userData
- .weapon;
-
+ /*
+ * 手元そのものは
+ * 一切移動させない。
+ */
  blade.position.copy(
  blade.userData
  .restPosition
@@ -5409,13 +5347,10 @@ function resetBladeSwing(
  .restRotation
  );
 
+ /*
+ * 回転だけリセット。
+ */
  pivot.rotation.set(
- 0,
- 0,
- 0
- );
-
- weapon.rotation.set(
  0,
  0,
  0
@@ -5423,87 +5358,28 @@ function resetBladeSwing(
 }
 
 // --------------------------------------------------
-// SET BLADE POSE
+// SET ROTATION
 // --------------------------------------------------
-function setBladeAttackPose(
+function setBladeSwingAngle(
  blade,
- options
+ angle
 ) {
- const restP =
- blade.userData
- .restPosition;
-
- const restR =
- blade.userData
- .restRotation;
-
  const pivot =
  blade.userData
  .swingPivot;
 
- const weapon =
- blade.userData
- .weapon;
-
- blade.position.set(
- options.x,
- restP.y +
- (
- options.y ??
- 0
- ),
- restP.z +
- (
- options.z ??
- 0
- )
- );
-
  /*
- * 手・腕側にも少し回転を与える。
- * 刀身だけ回している感じを弱める。
+ * 今回動かすのは
+ * Y 回転だけ。
  */
- blade.rotation.set(
- restR.x +
- (
- options.handPitch ??
- 0
- ),
- restR.y +
- (
- options.handYaw ??
- 0
- ),
- restR.z +
- (
- options.handRoll ??
- 0
- )
- );
+ pivot.rotation.x =
+ 0;
 
- /*
- * 大きな斬撃軌道。
- */
- pivot.rotation.set(
- options.pitch ??
- 0,
- options.yaw ??
- 0,
- options.roll ??
- 0
- );
+ pivot.rotation.y =
+ angle;
 
- /*
- * 手首の返し。
- */
- weapon.rotation.set(
- options.weaponPitch ??
- 0,
- options.weaponYaw ??
- 0,
- options.weaponRoll ??
- 0
- );
+ pivot.rotation.z =
+ 0;
 }
 
 // --------------------------------------------------
@@ -5514,60 +5390,33 @@ function applyBladeWindup(
  direction,
  time
 ) {
- const restP =
- blade.userData
- .restPosition;
-
- const rawT =
- bladeClamp01(
- time /
- BLADE_WINDUP_DURATION
- );
-
  const t =
  bladeSmoothStep(
- rawT
+ THREE.MathUtils.clamp(
+ time /
+ BLADE_WINDUP_DURATION,
+ 0,
+ 1
+ )
  );
 
- // ------------------------------------------------
- // POSITION
- // ------------------------------------------------
  /*
+ * direction:
+ *
+ * 右刀 = +1
+ * 左刀 = -1
+ *
  * 右刀:
- * 左奥へ引く。
+ * 0° → +75°
  *
  * 左刀:
- * 右奥へ引く。
+ * 0° → -75°
+ *
+ * 現在のモデルではこれが
+ * それぞれ反対側への
+ * 振りかぶり方向。
  */
- const targetX =
- -direction *
- BLADE_ATTACK_SIDE_X;
-
- const x =
- THREE.MathUtils.lerp(
- restP.x,
- targetX,
- t
- );
-
- const z =
- THREE.MathUtils.lerp(
- 0,
- BLADE_WINDUP_BACK_Z,
- t
- );
-
- const y =
- THREE.MathUtils.lerp(
- 0,
- -BLADE_WINDUP_DROP_Y,
- t
- );
-
- // ------------------------------------------------
- // ROTATION
- // ------------------------------------------------
- const yaw =
+ const angle =
  THREE.MathUtils.lerp(
  0,
  direction *
@@ -5575,59 +5424,9 @@ function applyBladeWindup(
  t
  );
 
- /*
- * 振りかぶった側で
- * 刀を少し斜めに寝かせる。
- */
- const roll =
- THREE.MathUtils.lerp(
- 0,
- direction *
- THREE.MathUtils.degToRad(
- 12
- ),
- t
- );
-
- const pitch =
- THREE.MathUtils.lerp(
- 0,
- THREE.MathUtils.degToRad(
- -7
- ),
- t
- );
-
- /*
- * 手首も少し返す。
- */
- const weaponRoll =
- THREE.MathUtils.lerp(
- 0,
- direction *
- THREE.MathUtils.degToRad(
- 9
- ),
- t
- );
-
- setBladeAttackPose(
+ setBladeSwingAngle(
  blade,
- {
- x,
- y,
- z,
- yaw,
- pitch,
- roll,
- weaponRoll,
- handYaw:
- direction *
- THREE.MathUtils.degToRad(
- 5
- ) *
- t
- }
+ angle
  );
 }
 
@@ -5638,46 +5437,14 @@ function holdBladeWindupPose(
  blade,
  direction
 ) {
- setBladeAttackPose(
+ /*
+ * クリックしている間は
+ * 75°の位置で完全停止。
+ */
+ setBladeSwingAngle(
  blade,
- {
- x:
- -direction *
- BLADE_ATTACK_SIDE_X,
-
- y:
- -BLADE_WINDUP_DROP_Y,
-
- z:
- BLADE_WINDUP_BACK_Z,
-
- yaw:
  direction *
- BLADE_WINDUP_ANGLE,
-
- pitch:
- THREE.MathUtils.degToRad(
- -7
- ),
-
- roll:
- direction *
- THREE.MathUtils.degToRad(
- 12
- ),
-
- weaponRoll:
- direction *
- THREE.MathUtils.degToRad(
- 9
- ),
-
- handYaw:
- direction *
- THREE.MathUtils.degToRad(
- 5
- )
- }
+ BLADE_WINDUP_ANGLE
  );
 }
 
@@ -5689,197 +5456,52 @@ function applyBladeReleaseSwing(
  direction,
  time
 ) {
- const rawT =
- bladeClamp01(
+ const t =
+ bladeSmoothStep(
+ THREE.MathUtils.clamp(
  time /
- BLADE_SWING_DURATION
+ BLADE_SWING_DURATION,
+ 0,
+ 1
+ )
  );
 
  /*
- * メインの横断は速い。
- */
- const slashT =
- bladeSlashCurve(
- rawT
- );
-
- /*
- * 中央通過時だけ大きく働く。
- */
- const pulse =
- bladeSlashPulse(
- rawT
- );
-
- // ------------------------------------------------
- // SIDE MOVEMENT
- // ------------------------------------------------
- const startX =
- -direction *
- BLADE_ATTACK_SIDE_X;
-
- /*
- * 最後は待機位置ではなく、
- * 明確に反対側まで振り切る。
- */
- const endX =
- direction *
- (
- BLADE_ATTACK_SIDE_X +
- 0.10
- );
-
- const x =
- THREE.MathUtils.lerp(
- startX,
- endX,
- slashT
- );
-
- // ------------------------------------------------
- // DEPTH
- // ------------------------------------------------
- /*
- * 構えでは奥。
+ * 右刀の場合:
  *
- * 斬っている最中に
- * 一度手前へ走らせる。
- */
- const z =
- THREE.MathUtils.lerp(
- BLADE_WINDUP_BACK_Z,
- -BLADE_SLASH_FORWARD_Z,
- slashT
- ) -
- pulse *
- 0.055;
-
- // ------------------------------------------------
- // HEIGHT
- // ------------------------------------------------
- /*
- * 横一文字より少し斜め。
+ * +75°
+ * ↓
+ * -75°
  *
- * 振り抜くにつれて
- * 刀が少し下へ落ちる。
+ * つまり右方向へ合計 150°。
+ *
+ *
+ * 左刀の場合:
+ *
+ * -75°
+ * ↓
+ * +75°
+ *
+ * つまり左方向へ合計 150°。
  */
- const y =
- THREE.MathUtils.lerp(
- -BLADE_WINDUP_DROP_Y,
- -BLADE_SLASH_DROP_Y,
- slashT
- ) -
- pulse *
- 0.035;
-
- // ------------------------------------------------
- // MAIN ROTATION
- // ------------------------------------------------
- const startYaw =
+ const startAngle =
  direction *
  BLADE_WINDUP_ANGLE;
 
- const endYaw =
+ const endAngle =
  -direction *
- BLADE_SLASH_END_ANGLE;
+ BLADE_WINDUP_ANGLE;
 
- const yaw =
+ const angle =
  THREE.MathUtils.lerp(
- startYaw,
- endYaw,
- slashT
+ startAngle,
+ endAngle,
+ t
  );
 
- /*
- * 中央を横切る瞬間、
- * 斬撃面へ刀を少し倒す。
- */
- const pitch =
- THREE.MathUtils.lerp(
- THREE.MathUtils.degToRad(
- -7
- ),
- THREE.MathUtils.degToRad(
- 8
- ),
- slashT
- ) +
- pulse *
- THREE.MathUtils.degToRad(
- 9
- );
-
- const roll =
- direction *
- THREE.MathUtils.lerp(
- THREE.MathUtils.degToRad(
- 12
- ),
- THREE.MathUtils.degToRad(
- -17
- ),
- slashT
- );
-
- // ------------------------------------------------
- // WRIST SNAP
- // ------------------------------------------------
- /*
- * 中央付近で手首を返す。
- *
- * これが刀を単純な棒回転ではなく
- * 「振っている」ように見せる部分。
- */
- const weaponYaw =
- -direction *
- pulse *
- THREE.MathUtils.degToRad(
- 13
- );
-
- const weaponRoll =
- direction *
- THREE.MathUtils.lerp(
- THREE.MathUtils.degToRad(
- 9
- ),
- THREE.MathUtils.degToRad(
- -15
- ),
- slashT
- );
-
- // ------------------------------------------------
- // HAND FOLLOW THROUGH
- // ------------------------------------------------
- const handYaw =
- -direction *
- THREE.MathUtils.degToRad(
- 7
- ) *
- slashT;
-
- const handRoll =
- -direction *
- THREE.MathUtils.degToRad(
- 5
- ) *
- pulse;
-
- setBladeAttackPose(
+ setBladeSwingAngle(
  blade,
- {
- x,
- y,
- z,
- yaw,
- pitch,
- roll,
- weaponYaw,
- weaponRoll,
- handYaw,
- handRoll
- }
+ angle
  );
 }
 
@@ -5891,117 +5513,37 @@ function applyBladeRecovery(
  direction,
  time
 ) {
- const restP =
- blade.userData
- .restPosition;
-
- const rawT =
- bladeClamp01(
+ const t =
+ bladeSmoothStep(
+ THREE.MathUtils.clamp(
  time /
- BLADE_RECOVERY_DURATION
+ BLADE_RECOVERY_DURATION,
+ 0,
+ 1
+ )
  );
 
  /*
- * 復帰は斬撃より柔らかくする。
+ * 振り切った位置
+ *
+ * -75° / +75°
+ *
+ * から 0°へ戻す。
  */
- const t =
- bladeSmoothStep(
- rawT
- );
-
- // ------------------------------------------------
- // POSITION
- // ------------------------------------------------
- const startX =
- direction *
- (
- BLADE_ATTACK_SIDE_X +
- 0.10
- );
-
- const x =
- THREE.MathUtils.lerp(
- startX,
- restP.x,
- t
- );
-
- const y =
- THREE.MathUtils.lerp(
- -BLADE_SLASH_DROP_Y,
- 0,
- t
- );
-
- const z =
- THREE.MathUtils.lerp(
- -BLADE_SLASH_FORWARD_Z,
- 0,
- t
- );
-
- // ------------------------------------------------
- // ROTATION
- // ------------------------------------------------
- const yaw =
- THREE.MathUtils.lerp(
+ const startAngle =
  -direction *
- BLADE_SLASH_END_ANGLE,
- 0,
- t
- );
+ BLADE_WINDUP_ANGLE;
 
- const pitch =
+ const angle =
  THREE.MathUtils.lerp(
- THREE.MathUtils.degToRad(
- 8
- ),
+ startAngle,
  0,
  t
  );
 
- const roll =
- THREE.MathUtils.lerp(
- -direction *
- THREE.MathUtils.degToRad(
- 17
- ),
- 0,
- t
- );
-
- const weaponRoll =
- THREE.MathUtils.lerp(
- -direction *
- THREE.MathUtils.degToRad(
- 15
- ),
- 0,
- t
- );
-
- const handYaw =
- THREE.MathUtils.lerp(
- -direction *
- THREE.MathUtils.degToRad(
- 7
- ),
- 0,
- t
- );
-
- setBladeAttackPose(
+ setBladeSwingAngle(
  blade,
- {
- x,
- y,
- z,
- yaw,
- pitch,
- roll,
- weaponRoll,
- handYaw
- }
+ angle
  );
 }
 
@@ -6023,7 +5565,7 @@ function applyBladeWindupMotion(
  time
 ) {
  // ------------------------------------------------
- // RIGHT ONLY
+ // RIGHT
  // ------------------------------------------------
  if (
  bladeAttackMotion ===
@@ -6043,7 +5585,7 @@ function applyBladeWindupMotion(
  }
 
  // ------------------------------------------------
- // LEFT ONLY
+ // LEFT
  // ------------------------------------------------
  if (
  bladeAttackMotion ===
@@ -6175,12 +5717,6 @@ function applyBladeReleaseMotion(
  // ------------------------------------------------
  // BOTH
  // ------------------------------------------------
- /*
- * 両刀は左右対称に振る。
- *
- * 二本が中央へ飛び込んで、
- * そのまま左右反対側へ抜ける。
- */
  applyBladeReleaseSwing(
  rightBlade,
  1,
@@ -6283,8 +5819,9 @@ function updateBladeAnimation(
  delta;
 
  /*
- * クリックした直後、
- * 素早く反対側へ構える。
+ * 最初の 0.5 秒。
+ *
+ * その場で 75°回転するだけ。
  */
  if (
  attackTimer <
@@ -6301,8 +5838,9 @@ function updateBladeAnimation(
  // HOLD
  // ------------------------------------------------
  /*
- * 構えが完成したら、
- * クリックを離すまで完全に保持。
+ * 75°まで到達したら、
+ * クリックを押している限り
+ * その位置で止める。
  */
  holdBladeWindup();
 
@@ -6313,7 +5851,7 @@ function updateBladeAnimation(
  }
 
  // ------------------------------------------------
- // START SLASH
+ // START SWING
  // ------------------------------------------------
  bladeSwingStarted =
  true;
@@ -6328,7 +5866,7 @@ function updateBladeAnimation(
  }
 
  // ------------------------------------------------
- // SLASH
+ // SWING
  // ------------------------------------------------
  if (
  !bladeRecoveryStarted
@@ -6336,6 +5874,10 @@ function updateBladeAnimation(
  bladeSwingTimer +=
  delta;
 
+ /*
+ * 0.5 秒で
+ * 合計 150°回転。
+ */
  applyBladeReleaseMotion(
  bladeSwingTimer
  );
@@ -6344,17 +5886,16 @@ function updateBladeAnimation(
  // HIT
  // ------------------------------------------------
  /*
- * 見た目上、刀が画面中央を
- * 抜ける辺りで攻撃判定。
+ * 150°回転の中央。
  *
- * SlashCurve は前半が速いため
- * 従来の 50% より早め。
+ * 刀が 0°付近を通過するときに
+ * 攻撃判定。
  */
  if (
  !bladeHitApplied &&
  bladeSwingTimer >=
  BLADE_SWING_DURATION *
- 0.28
+ 0.5
  ) {
  applyBladeHit();
 
