@@ -5254,22 +5254,16 @@ function applyBladeHit() {
 // ==================================================
 // BLADE ANIMATION
 // ==================================================
-
 let bladeAttackHeld =
  false;
-
 let bladeAttackReleased =
  false;
-
 let bladeSwingStarted =
  false;
-
 let bladeSwingTimer =
  0;
-
 let bladeRecoveryStarted =
  false;
-
 let bladeRecoveryTimer =
  0;
 
@@ -5277,55 +5271,117 @@ let bladeRecoveryTimer =
 // TIMING
 // --------------------------------------------------
 const BLADE_WINDUP_DURATION =
- 0.5;
+ 0.32;
 
 const BLADE_SWING_DURATION =
- 0.5;
+ 0.34;
 
 const BLADE_RECOVERY_DURATION =
- 0.25;
+ 0.30;
 
 // --------------------------------------------------
-// ROTATION
+// POSE
 // --------------------------------------------------
 const BLADE_WINDUP_ANGLE =
  THREE.MathUtils.degToRad(
-  75
+ 82
  );
 
-// --------------------------------------------------
-// TRANSLATION
-// --------------------------------------------------
-/*
- * 攻撃時に手元を
- * 反対側まで動かす距離。
- *
- * camera local X。
- */
+const BLADE_SLASH_END_ANGLE =
+ THREE.MathUtils.degToRad(
+ 96
+ );
+
 const BLADE_ATTACK_SIDE_X =
- 0.62;
+ 0.67;
+
+const BLADE_WINDUP_BACK_Z =
+ 0.17;
+
+const BLADE_SLASH_FORWARD_Z =
+ 0.11;
+
+const BLADE_WINDUP_DROP_Y =
+ 0.035;
+
+const BLADE_SLASH_DROP_Y =
+ 0.085;
 
 // --------------------------------------------------
-// SMOOTH STEP
+// CURVES
 // --------------------------------------------------
+function bladeClamp01(
+ t
+) {
+ return THREE.MathUtils.clamp(
+ t,
+ 0,
+ 1
+ );
+}
+
 function bladeSmoothStep(
  t
 ) {
  t =
-  THREE.MathUtils.clamp(
-   t,
-   0,
-   1
-  );
+ bladeClamp01(
+ t
+ );
 
  return (
-  t *
-  t *
-  (
-   3 -
-   2 *
-   t
-  )
+ t *
+ t *
+ (
+ 3 -
+ 2 *
+ t
+ )
+ );
+}
+
+/*
+ * 振り抜き専用。
+ *
+ * 最初から強く加速し、
+ * 後半だけ減速する。
+ *
+ * 通常の smoothStep より
+ * 「ブンッ」とした動きになる。
+ */
+function bladeSlashCurve(
+ t
+) {
+ t =
+ bladeClamp01(
+ t
+ );
+
+ return (
+ 1 -
+ Math.pow(
+ 1 -
+ t,
+ 3.2
+ )
+ );
+}
+
+/*
+ * 斬撃中央で最大になる値。
+ *
+ * 0 → 1 → 0
+ */
+function bladeSlashPulse(
+ t
+) {
+ t =
+ bladeClamp01(
+ t
+ );
+
+ return Math.sin(
+ t *
+ Math.PI
  );
 }
 
@@ -5336,69 +5392,118 @@ function resetBladeSwing(
  blade
 ) {
  const pivot =
-  blade.userData
-  .swingPivot;
+ blade.userData
+ .swingPivot;
+
+ const weapon =
+ blade.userData
+ .weapon;
 
  blade.position.copy(
-  blade.userData
-  .restPosition
+ blade.userData
+ .restPosition
  );
 
  blade.rotation.copy(
-  blade.userData
-  .restRotation
+ blade.userData
+ .restRotation
  );
 
  pivot.rotation.set(
-  0,
-  0,
-  0
+ 0,
+ 0,
+ 0
+ );
+
+ weapon.rotation.set(
+ 0,
+ 0,
+ 0
  );
 }
 
 // --------------------------------------------------
-// SET ROTATION
+// SET BLADE POSE
 // --------------------------------------------------
-function setBladeSwingAngle(
+function setBladeAttackPose(
  blade,
- angle
+ options
 ) {
+ const restP =
+ blade.userData
+ .restPosition;
+
+ const restR =
+ blade.userData
+ .restRotation;
+
  const pivot =
-  blade.userData
-  .swingPivot;
+ blade.userData
+ .swingPivot;
 
- pivot.rotation.x =
-  0;
+ const weapon =
+ blade.userData
+ .weapon;
 
- pivot.rotation.y =
-  angle;
+ blade.position.set(
+ options.x,
+ restP.y +
+ (
+ options.y ??
+ 0
+ ),
+ restP.z +
+ (
+ options.z ??
+ 0
+ )
+ );
 
- pivot.rotation.z =
-  0;
-}
-
-// --------------------------------------------------
-// SET SIDE POSITION
-// --------------------------------------------------
-function setBladeSidePosition(
- blade,
- x
-) {
  /*
-  * 今回は平行移動だけ。
-  *
-  * Y/Zは通常位置を維持。
-  */
- blade.position.x =
-  x;
+ * 手・腕側にも少し回転を与える。
+ * 刀身だけ回している感じを弱める。
+ */
+ blade.rotation.set(
+ restR.x +
+ (
+ options.handPitch ??
+ 0
+ ),
+ restR.y +
+ (
+ options.handYaw ??
+ 0
+ ),
+ restR.z +
+ (
+ options.handRoll ??
+ 0
+ )
+ );
 
- blade.position.y =
-  blade.userData
-  .restPosition.y;
+ /*
+ * 大きな斬撃軌道。
+ */
+ pivot.rotation.set(
+ options.pitch ??
+ 0,
+ options.yaw ??
+ 0,
+ options.roll ??
+ 0
+ );
 
- blade.position.z =
-  blade.userData
-  .restPosition.z;
+ /*
+ * 手首の返し。
+ */
+ weapon.rotation.set(
+ options.weaponPitch ??
+ 0,
+ options.weaponYaw ??
+ 0,
+ options.weaponRoll ??
+ 0
+ );
 }
 
 // --------------------------------------------------
@@ -5410,63 +5515,119 @@ function applyBladeWindup(
  time
 ) {
  const restP =
-  blade.userData
-  .restPosition;
+ blade.userData
+ .restPosition;
 
- const t =
-  bladeSmoothStep(
-   time /
-   BLADE_WINDUP_DURATION
-  );
-
- /*
-  * direction:
-  *
-  * 右刀 = +1
-  * 左刀 = -1
-  *
-  *
-  * 平行移動:
-  *
-  * 右刀なら左へ。
-  * 左刀なら右へ。
-  */
- const targetX =
-  -direction *
-  BLADE_ATTACK_SIDE_X;
-
- const x =
-  THREE.MathUtils.lerp(
-   restP.x,
-   targetX,
-   t
-  );
-
- setBladeSidePosition(
-  blade,
-  x
+ const rawT =
+ bladeClamp01(
+ time /
+ BLADE_WINDUP_DURATION
  );
 
- // --------------------------------------------------
- // ROTATION
- // --------------------------------------------------
+ const t =
+ bladeSmoothStep(
+ rawT
+ );
+
+ // ------------------------------------------------
+ // POSITION
+ // ------------------------------------------------
  /*
-  * 前回「最初が逆」とのことなので
-  * ここで方向を反転。
-  */
- const angle =
-  THREE.MathUtils.lerp(
-   0,
+ * 右刀:
+ * 左奥へ引く。
+ *
+ * 左刀:
+ * 右奥へ引く。
+ */
+ const targetX =
+ -direction *
+ BLADE_ATTACK_SIDE_X;
 
-   direction *
-   BLADE_WINDUP_ANGLE,
+ const x =
+ THREE.MathUtils.lerp(
+ restP.x,
+ targetX,
+ t
+ );
 
-   t
-  );
+ const z =
+ THREE.MathUtils.lerp(
+ 0,
+ BLADE_WINDUP_BACK_Z,
+ t
+ );
 
- setBladeSwingAngle(
-  blade,
-  angle
+ const y =
+ THREE.MathUtils.lerp(
+ 0,
+ -BLADE_WINDUP_DROP_Y,
+ t
+ );
+
+ // ------------------------------------------------
+ // ROTATION
+ // ------------------------------------------------
+ const yaw =
+ THREE.MathUtils.lerp(
+ 0,
+ direction *
+ BLADE_WINDUP_ANGLE,
+ t
+ );
+
+ /*
+ * 振りかぶった側で
+ * 刀を少し斜めに寝かせる。
+ */
+ const roll =
+ THREE.MathUtils.lerp(
+ 0,
+ direction *
+ THREE.MathUtils.degToRad(
+ 12
+ ),
+ t
+ );
+
+ const pitch =
+ THREE.MathUtils.lerp(
+ 0,
+ THREE.MathUtils.degToRad(
+ -7
+ ),
+ t
+ );
+
+ /*
+ * 手首も少し返す。
+ */
+ const weaponRoll =
+ THREE.MathUtils.lerp(
+ 0,
+ direction *
+ THREE.MathUtils.degToRad(
+ 9
+ ),
+ t
+ );
+
+ setBladeAttackPose(
+ blade,
+ {
+ x,
+ y,
+ z,
+ yaw,
+ pitch,
+ roll,
+ weaponRoll,
+ handYaw:
+ direction *
+ THREE.MathUtils.degToRad(
+ 5
+ ) *
+ t
+ }
  );
 }
 
@@ -5477,22 +5638,46 @@ function holdBladeWindupPose(
  blade,
  direction
 ) {
- /*
-  * 右刀なら左側。
-  * 左刀なら右側。
-  */
- setBladeSidePosition(
-  blade,
+ setBladeAttackPose(
+ blade,
+ {
+ x:
+ -direction *
+ BLADE_ATTACK_SIDE_X,
 
-  -direction *
-  BLADE_ATTACK_SIDE_X
- );
+ y:
+ -BLADE_WINDUP_DROP_Y,
 
- setBladeSwingAngle(
-  blade,
+ z:
+ BLADE_WINDUP_BACK_Z,
 
-  direction *
-  BLADE_WINDUP_ANGLE
+ yaw:
+ direction *
+ BLADE_WINDUP_ANGLE,
+
+ pitch:
+ THREE.MathUtils.degToRad(
+ -7
+ ),
+
+ roll:
+ direction *
+ THREE.MathUtils.degToRad(
+ 12
+ ),
+
+ weaponRoll:
+ direction *
+ THREE.MathUtils.degToRad(
+ 9
+ ),
+
+ handYaw:
+ direction *
+ THREE.MathUtils.degToRad(
+ 5
+ )
+ }
  );
 }
 
@@ -5504,73 +5689,197 @@ function applyBladeReleaseSwing(
  direction,
  time
 ) {
- const t =
-  bladeSmoothStep(
-   time /
-   BLADE_SWING_DURATION
-  );
-
- // --------------------------------------------------
- // TRANSLATION
- // --------------------------------------------------
- /*
-  * 0.5秒かけて
-  * 反対側まで平行移動。
-  *
-  * 右刀:
-  * 左 → 右
-  *
-  * 左刀:
-  * 右 → 左
-  */
- const startX =
-  -direction *
-  BLADE_ATTACK_SIDE_X;
-
- const endX =
-  direction *
-  BLADE_ATTACK_SIDE_X;
-
- const x =
-  THREE.MathUtils.lerp(
-   startX,
-   endX,
-   t
-  );
-
- setBladeSidePosition(
-  blade,
-  x
+ const rawT =
+ bladeClamp01(
+ time /
+ BLADE_SWING_DURATION
  );
 
- // --------------------------------------------------
- // ROTATION
- // --------------------------------------------------
  /*
-  * +75°
-  * ↓
-  * -75°
-  *
-  * 移動量150°。
-  */
- const startAngle =
-  direction *
-  BLADE_WINDUP_ANGLE;
+ * メインの横断は速い。
+ */
+ const slashT =
+ bladeSlashCurve(
+ rawT
+ );
 
- const endAngle =
-  -direction *
-  BLADE_WINDUP_ANGLE;
+ /*
+ * 中央通過時だけ大きく働く。
+ */
+ const pulse =
+ bladeSlashPulse(
+ rawT
+ );
 
- const angle =
-  THREE.MathUtils.lerp(
-   startAngle,
-   endAngle,
-   t
-  );
+ // ------------------------------------------------
+ // SIDE MOVEMENT
+ // ------------------------------------------------
+ const startX =
+ -direction *
+ BLADE_ATTACK_SIDE_X;
 
- setBladeSwingAngle(
-  blade,
-  angle
+ /*
+ * 最後は待機位置ではなく、
+ * 明確に反対側まで振り切る。
+ */
+ const endX =
+ direction *
+ (
+ BLADE_ATTACK_SIDE_X +
+ 0.10
+ );
+
+ const x =
+ THREE.MathUtils.lerp(
+ startX,
+ endX,
+ slashT
+ );
+
+ // ------------------------------------------------
+ // DEPTH
+ // ------------------------------------------------
+ /*
+ * 構えでは奥。
+ *
+ * 斬っている最中に
+ * 一度手前へ走らせる。
+ */
+ const z =
+ THREE.MathUtils.lerp(
+ BLADE_WINDUP_BACK_Z,
+ -BLADE_SLASH_FORWARD_Z,
+ slashT
+ ) -
+ pulse *
+ 0.055;
+
+ // ------------------------------------------------
+ // HEIGHT
+ // ------------------------------------------------
+ /*
+ * 横一文字より少し斜め。
+ *
+ * 振り抜くにつれて
+ * 刀が少し下へ落ちる。
+ */
+ const y =
+ THREE.MathUtils.lerp(
+ -BLADE_WINDUP_DROP_Y,
+ -BLADE_SLASH_DROP_Y,
+ slashT
+ ) -
+ pulse *
+ 0.035;
+
+ // ------------------------------------------------
+ // MAIN ROTATION
+ // ------------------------------------------------
+ const startYaw =
+ direction *
+ BLADE_WINDUP_ANGLE;
+
+ const endYaw =
+ -direction *
+ BLADE_SLASH_END_ANGLE;
+
+ const yaw =
+ THREE.MathUtils.lerp(
+ startYaw,
+ endYaw,
+ slashT
+ );
+
+ /*
+ * 中央を横切る瞬間、
+ * 斬撃面へ刀を少し倒す。
+ */
+ const pitch =
+ THREE.MathUtils.lerp(
+ THREE.MathUtils.degToRad(
+ -7
+ ),
+ THREE.MathUtils.degToRad(
+ 8
+ ),
+ slashT
+ ) +
+ pulse *
+ THREE.MathUtils.degToRad(
+ 9
+ );
+
+ const roll =
+ direction *
+ THREE.MathUtils.lerp(
+ THREE.MathUtils.degToRad(
+ 12
+ ),
+ THREE.MathUtils.degToRad(
+ -17
+ ),
+ slashT
+ );
+
+ // ------------------------------------------------
+ // WRIST SNAP
+ // ------------------------------------------------
+ /*
+ * 中央付近で手首を返す。
+ *
+ * これが刀を単純な棒回転ではなく
+ * 「振っている」ように見せる部分。
+ */
+ const weaponYaw =
+ -direction *
+ pulse *
+ THREE.MathUtils.degToRad(
+ 13
+ );
+
+ const weaponRoll =
+ direction *
+ THREE.MathUtils.lerp(
+ THREE.MathUtils.degToRad(
+ 9
+ ),
+ THREE.MathUtils.degToRad(
+ -15
+ ),
+ slashT
+ );
+
+ // ------------------------------------------------
+ // HAND FOLLOW THROUGH
+ // ------------------------------------------------
+ const handYaw =
+ -direction *
+ THREE.MathUtils.degToRad(
+ 7
+ ) *
+ slashT;
+
+ const handRoll =
+ -direction *
+ THREE.MathUtils.degToRad(
+ 5
+ ) *
+ pulse;
+
+ setBladeAttackPose(
+ blade,
+ {
+ x,
+ y,
+ z,
+ yaw,
+ pitch,
+ roll,
+ weaponYaw,
+ weaponRoll,
+ handYaw,
+ handRoll
+ }
  );
 }
 
@@ -5583,56 +5892,116 @@ function applyBladeRecovery(
  time
 ) {
  const restP =
-  blade.userData
-  .restPosition;
+ blade.userData
+ .restPosition;
 
- const t =
-  bladeSmoothStep(
-   time /
-   BLADE_RECOVERY_DURATION
-  );
+ const rawT =
+ bladeClamp01(
+ time /
+ BLADE_RECOVERY_DURATION
+ );
 
- // --------------------------------------------------
- // POSITION RETURN
- // --------------------------------------------------
  /*
-  * 振り切った反対側から
-  * 通常の手元位置へ戻す。
-  */
+ * 復帰は斬撃より柔らかくする。
+ */
+ const t =
+ bladeSmoothStep(
+ rawT
+ );
+
+ // ------------------------------------------------
+ // POSITION
+ // ------------------------------------------------
  const startX =
-  direction *
-  BLADE_ATTACK_SIDE_X;
+ direction *
+ (
+ BLADE_ATTACK_SIDE_X +
+ 0.10
+ );
 
- blade.position.x =
-  THREE.MathUtils.lerp(
-   startX,
-   restP.x,
-   t
-  );
+ const x =
+ THREE.MathUtils.lerp(
+ startX,
+ restP.x,
+ t
+ );
 
- blade.position.y =
-  restP.y;
+ const y =
+ THREE.MathUtils.lerp(
+ -BLADE_SLASH_DROP_Y,
+ 0,
+ t
+ );
 
- blade.position.z =
-  restP.z;
+ const z =
+ THREE.MathUtils.lerp(
+ -BLADE_SLASH_FORWARD_Z,
+ 0,
+ t
+ );
 
- // --------------------------------------------------
- // ROTATION RETURN
- // --------------------------------------------------
- const startAngle =
-  -direction *
-  BLADE_WINDUP_ANGLE;
+ // ------------------------------------------------
+ // ROTATION
+ // ------------------------------------------------
+ const yaw =
+ THREE.MathUtils.lerp(
+ -direction *
+ BLADE_SLASH_END_ANGLE,
+ 0,
+ t
+ );
 
- const angle =
-  THREE.MathUtils.lerp(
-   startAngle,
-   0,
-   t
-  );
+ const pitch =
+ THREE.MathUtils.lerp(
+ THREE.MathUtils.degToRad(
+ 8
+ ),
+ 0,
+ t
+ );
 
- setBladeSwingAngle(
-  blade,
-  angle
+ const roll =
+ THREE.MathUtils.lerp(
+ -direction *
+ THREE.MathUtils.degToRad(
+ 17
+ ),
+ 0,
+ t
+ );
+
+ const weaponRoll =
+ THREE.MathUtils.lerp(
+ -direction *
+ THREE.MathUtils.degToRad(
+ 15
+ ),
+ 0,
+ t
+ );
+
+ const handYaw =
+ THREE.MathUtils.lerp(
+ -direction *
+ THREE.MathUtils.degToRad(
+ 7
+ ),
+ 0,
+ t
+ );
+
+ setBladeAttackPose(
+ blade,
+ {
+ x,
+ y,
+ z,
+ yaw,
+ pitch,
+ roll,
+ weaponRoll,
+ handYaw
+ }
  );
 }
 
@@ -5643,7 +6012,7 @@ function applyPassiveBladeMotion(
  blade
 ) {
  resetBladeSwing(
-  blade
+ blade
  );
 }
 
@@ -5657,55 +6026,55 @@ function applyBladeWindupMotion(
  // RIGHT ONLY
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  1
+ bladeAttackMotion ===
+ 1
  ) {
-  applyBladeWindup(
-   rightBlade,
-   1,
-   time
-  );
+ applyBladeWindup(
+ rightBlade,
+ 1,
+ time
+ );
 
-  applyPassiveBladeMotion(
-   leftBlade
-  );
+ applyPassiveBladeMotion(
+ leftBlade
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // LEFT ONLY
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  2
+ bladeAttackMotion ===
+ 2
  ) {
-  applyBladeWindup(
-   leftBlade,
-   -1,
-   time
-  );
+ applyBladeWindup(
+ leftBlade,
+ -1,
+ time
+ );
 
-  applyPassiveBladeMotion(
-   rightBlade
-  );
+ applyPassiveBladeMotion(
+ rightBlade
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // BOTH
  // ------------------------------------------------
  applyBladeWindup(
-  rightBlade,
-  1,
-  time
+ rightBlade,
+ 1,
+ time
  );
 
  applyBladeWindup(
-  leftBlade,
-  -1,
-  time
+ leftBlade,
+ -1,
+ time
  );
 }
 
@@ -5717,51 +6086,51 @@ function holdBladeWindup() {
  // RIGHT
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  1
+ bladeAttackMotion ===
+ 1
  ) {
-  holdBladeWindupPose(
-   rightBlade,
-   1
-  );
+ holdBladeWindupPose(
+ rightBlade,
+ 1
+ );
 
-  resetBladeSwing(
-   leftBlade
-  );
+ resetBladeSwing(
+ leftBlade
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // LEFT
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  2
+ bladeAttackMotion ===
+ 2
  ) {
-  holdBladeWindupPose(
-   leftBlade,
-   -1
-  );
+ holdBladeWindupPose(
+ leftBlade,
+ -1
+ );
 
-  resetBladeSwing(
-   rightBlade
-  );
+ resetBladeSwing(
+ rightBlade
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // BOTH
  // ------------------------------------------------
  holdBladeWindupPose(
-  rightBlade,
-  1
+ rightBlade,
+ 1
  );
 
  holdBladeWindupPose(
-  leftBlade,
-  -1
+ leftBlade,
+ -1
  );
 }
 
@@ -5775,47 +6144,53 @@ function applyBladeReleaseMotion(
  // RIGHT
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  1
+ bladeAttackMotion ===
+ 1
  ) {
-  applyBladeReleaseSwing(
-   rightBlade,
-   1,
-   time
-  );
+ applyBladeReleaseSwing(
+ rightBlade,
+ 1,
+ time
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // LEFT
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  2
+ bladeAttackMotion ===
+ 2
  ) {
-  applyBladeReleaseSwing(
-   leftBlade,
-   -1,
-   time
-  );
+ applyBladeReleaseSwing(
+ leftBlade,
+ -1,
+ time
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // BOTH
  // ------------------------------------------------
+ /*
+ * 両刀は左右対称に振る。
+ *
+ * 二本が中央へ飛び込んで、
+ * そのまま左右反対側へ抜ける。
+ */
  applyBladeReleaseSwing(
-  rightBlade,
-  1,
-  time
+ rightBlade,
+ 1,
+ time
  );
 
  applyBladeReleaseSwing(
-  leftBlade,
-  -1,
-  time
+ leftBlade,
+ -1,
+ time
  );
 }
 
@@ -5829,55 +6204,55 @@ function applyBladeRecoveryMotion(
  // RIGHT
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  1
+ bladeAttackMotion ===
+ 1
  ) {
-  applyBladeRecovery(
-   rightBlade,
-   1,
-   time
-  );
+ applyBladeRecovery(
+ rightBlade,
+ 1,
+ time
+ );
 
-  resetBladeSwing(
-   leftBlade
-  );
+ resetBladeSwing(
+ leftBlade
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // LEFT
  // ------------------------------------------------
  if (
-  bladeAttackMotion ===
-  2
+ bladeAttackMotion ===
+ 2
  ) {
-  applyBladeRecovery(
-   leftBlade,
-   -1,
-   time
-  );
+ applyBladeRecovery(
+ leftBlade,
+ -1,
+ time
+ );
 
-  resetBladeSwing(
-   rightBlade
-  );
+ resetBladeSwing(
+ rightBlade
+ );
 
-  return;
+ return;
  }
 
  // ------------------------------------------------
  // BOTH
  // ------------------------------------------------
  applyBladeRecovery(
-  rightBlade,
-  1,
-  time
+ rightBlade,
+ 1,
+ time
  );
 
  applyBladeRecovery(
-  leftBlade,
-  -1,
-  time
+ leftBlade,
+ -1,
+ time
  );
 }
 
@@ -5888,170 +6263,167 @@ function updateBladeAnimation(
  delta
 ) {
  attackCooldownTimer =
-  Math.max(
-   0,
-   attackCooldownTimer -
-   delta
-  );
-
- if (!attacking) {
-  return;
- }
-
- // --------------------------------------------------
- // WINDUP
- // --------------------------------------------------
- if (
-  !bladeSwingStarted
- ) {
-  attackTimer +=
-   delta;
-
-  /*
-   * 0.5秒かけて
-   *
-   * ・反対側へ平行移動
-   * ・75°回転
-   *
-   * を同時に行う。
-   */
-  if (
-   attackTimer <
-   BLADE_WINDUP_DURATION
-  ) {
-   applyBladeWindupMotion(
-    attackTimer
-   );
-
-   return;
-  }
-
-  // ------------------------------------------------
-  // HOLD
-  // ------------------------------------------------
-  holdBladeWindup();
-
-  /*
-   * 左クリックを押している間は
-   * この状態で待機。
-   */
-  if (
-   bladeAttackHeld
-  ) {
-   return;
-  }
-
-  // ------------------------------------------------
-  // START RELEASE
-  // ------------------------------------------------
-  bladeSwingStarted =
-   true;
-
-  bladeSwingTimer =
-   0;
-
-  bladeHitApplied =
-   false;
-
-  return;
- }
-
- // --------------------------------------------------
- // RELEASE
- // --------------------------------------------------
- if (
-  !bladeRecoveryStarted
- ) {
-  bladeSwingTimer +=
-   delta;
-
-  /*
-   * 0.5秒で
-   *
-   * ・反対側まで平行移動
-   * ・150°回転
-   */
-  applyBladeReleaseMotion(
-   bladeSwingTimer
-  );
-
-  // ------------------------------------------------
-  // HIT
-  // ------------------------------------------------
-  if (
-   !bladeHitApplied &&
-   bladeSwingTimer >=
-   BLADE_SWING_DURATION *
-   0.5
-  ) {
-   applyBladeHit();
-
-   bladeHitApplied =
-    true;
-  }
-
-  // ------------------------------------------------
-  // START RECOVERY
-  // ------------------------------------------------
-  if (
-   bladeSwingTimer >=
-   BLADE_SWING_DURATION
-  ) {
-   bladeRecoveryStarted =
-    true;
-
-   bladeRecoveryTimer =
-    0;
-  }
-
-  return;
- }
-
- // --------------------------------------------------
- // RECOVERY
- // --------------------------------------------------
- bladeRecoveryTimer +=
-  delta;
-
- applyBladeRecoveryMotion(
-  bladeRecoveryTimer
+ Math.max(
+ 0,
+ attackCooldownTimer -
+ delta
  );
 
- // --------------------------------------------------
- // FINISH
- // --------------------------------------------------
+ if (!attacking) {
+ return;
+ }
+
+ // ------------------------------------------------
+ // WINDUP
+ // ------------------------------------------------
  if (
-  bladeRecoveryTimer >=
-  BLADE_RECOVERY_DURATION
+ !bladeSwingStarted
  ) {
-  resetBladeSwing(
-   leftBlade
-  );
+ attackTimer +=
+ delta;
 
-  resetBladeSwing(
-   rightBlade
-  );
+ /*
+ * クリックした直後、
+ * 素早く反対側へ構える。
+ */
+ if (
+ attackTimer <
+ BLADE_WINDUP_DURATION
+ ) {
+ applyBladeWindupMotion(
+ attackTimer
+ );
 
-  attacking =
-   false;
+ return;
+ }
 
-  attackTimer =
-   0;
+ // ------------------------------------------------
+ // HOLD
+ // ------------------------------------------------
+ /*
+ * 構えが完成したら、
+ * クリックを離すまで完全に保持。
+ */
+ holdBladeWindup();
 
-  bladeSwingTimer =
-   0;
+ if (
+ bladeAttackHeld
+ ) {
+ return;
+ }
 
-  bladeRecoveryTimer =
-   0;
+ // ------------------------------------------------
+ // START SLASH
+ // ------------------------------------------------
+ bladeSwingStarted =
+ true;
 
-  bladeSwingStarted =
-   false;
+ bladeSwingTimer =
+ 0;
 
-  bladeRecoveryStarted =
-   false;
+ bladeHitApplied =
+ false;
 
-  bladeAttackReleased =
-   false;
+ return;
+ }
+
+ // ------------------------------------------------
+ // SLASH
+ // ------------------------------------------------
+ if (
+ !bladeRecoveryStarted
+ ) {
+ bladeSwingTimer +=
+ delta;
+
+ applyBladeReleaseMotion(
+ bladeSwingTimer
+ );
+
+ // ------------------------------------------------
+ // HIT
+ // ------------------------------------------------
+ /*
+ * 見た目上、刀が画面中央を
+ * 抜ける辺りで攻撃判定。
+ *
+ * SlashCurve は前半が速いため
+ * 従来の 50% より早め。
+ */
+ if (
+ !bladeHitApplied &&
+ bladeSwingTimer >=
+ BLADE_SWING_DURATION *
+ 0.28
+ ) {
+ applyBladeHit();
+
+ bladeHitApplied =
+ true;
+ }
+
+ // ------------------------------------------------
+ // START RECOVERY
+ // ------------------------------------------------
+ if (
+ bladeSwingTimer >=
+ BLADE_SWING_DURATION
+ ) {
+ bladeRecoveryStarted =
+ true;
+
+ bladeRecoveryTimer =
+ 0;
+ }
+
+ return;
+ }
+
+ // ------------------------------------------------
+ // RECOVERY
+ // ------------------------------------------------
+ bladeRecoveryTimer +=
+ delta;
+
+ applyBladeRecoveryMotion(
+ bladeRecoveryTimer
+ );
+
+ // ------------------------------------------------
+ // FINISH
+ // ------------------------------------------------
+ if (
+ bladeRecoveryTimer >=
+ BLADE_RECOVERY_DURATION
+ ) {
+ resetBladeSwing(
+ leftBlade
+ );
+
+ resetBladeSwing(
+ rightBlade
+ );
+
+ attacking =
+ false;
+
+ attackTimer =
+ 0;
+
+ bladeSwingTimer =
+ 0;
+
+ bladeRecoveryTimer =
+ 0;
+
+ bladeSwingStarted =
+ false;
+
+ bladeRecoveryStarted =
+ false;
+
+ bladeAttackReleased =
+ false;
  }
 }
 
