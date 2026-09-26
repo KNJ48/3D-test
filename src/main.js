@@ -5280,34 +5280,49 @@ const BLADE_RECOVERY_DURATION =
  0.25;
 
 // --------------------------------------------------
-// ROTATION
+// ROTATION SETTINGS
 // --------------------------------------------------
+/*
+ * 振りかぶり角度。
+ *
+ * 50なら、
+ *
+ * +50° → -50°
+ *
+ * なので振り抜き全体は100°。
+ */
 const BLADE_WINDUP_ANGLE =
  THREE.MathUtils.degToRad(
  75
  );
 
 // --------------------------------------------------
-// HORIZONTAL MOVEMENT
+// SIDE MOVEMENT SETTINGS
 // --------------------------------------------------
 /*
- * カメラローカル X 上での
- * 左右の画面端位置。
+ * 横方向の振れ幅。
  *
- * 右ブレード:
- *
- * 通常右側
- * ↓
- * -0.72 = 左側
- * ↓
- * HOLD
- * ↓
- * +0.72 = 右側
- *
- * 左ブレードは逆。
+ * 大きくすると
+ * より画面外まで振る。
  */
 const BLADE_SIDE_EDGE =
  2;
+
+// --------------------------------------------------
+// ARC MOVEMENT SETTINGS
+// --------------------------------------------------
+/*
+ * 上から見たときの
+ * 円運動っぽさ。
+ *
+ * 斬撃中央で、
+ * 手をどれだけ奥へ引くか。
+ *
+ * 大きくすると
+ * 円弧が深くなる。
+ */
+const BLADE_ARC_DEPTH =
+ 0.42;
 
 // --------------------------------------------------
 // SMOOTH STEP
@@ -5382,28 +5397,30 @@ function setBladeSwingAngle(
 }
 
 // --------------------------------------------------
-// SET HORIZONTAL POSITION
+// SET HAND POSITION
 // --------------------------------------------------
-function setBladeSidePosition(
+function setBladeHandPosition(
  blade,
- x
+ x,
+ zOffset = 0
 ) {
- /*
- * 今回新しく追加する運動。
- *
- * X だけ変更する。
- * Y / Z は通常位置を維持。
- */
+ const restP =
+ blade.userData
+ .restPosition;
+
  blade.position.x =
  x;
 
  blade.position.y =
- blade.userData
- .restPosition.y;
+ restP.y;
 
+ /*
+ * マイナス方向ほど
+ * カメラから見て奥。
+ */
  blade.position.z =
- blade.userData
- .restPosition.z;
+ restP.z -
+ zOffset;
 }
 
 // --------------------------------------------------
@@ -5432,12 +5449,10 @@ function applyBladeWindup(
  // ROTATION
  // ------------------------------------------------
  /*
- * 回転方向は最初の仕様へ戻す。
- *
- * 右:
+ * 右刀:
  * 0° → +50°
  *
- * 左:
+ * 左刀:
  * 0° → -50°
  */
  const angle =
@@ -5454,14 +5469,11 @@ function applyBladeWindup(
  );
 
  // ------------------------------------------------
- // HORIZONTAL MOVEMENT
+ // SIDE MOVEMENT
  // ------------------------------------------------
  /*
- * 持っている側とは逆の
- * 画面端へ移動。
- *
- * 右刀 → 左
- * 左刀 → 右
+ * 右刀 → 左側へ。
+ * 左刀 → 右側へ。
  */
  const targetX =
  -direction *
@@ -5474,9 +5486,16 @@ function applyBladeWindup(
  t
  );
 
- setBladeSidePosition(
+ /*
+ * WINDUPではまだ円弧を作らない。
+ *
+ * まず反対側の開始位置へ
+ * 手を持っていくだけ。
+ */
+ setBladeHandPosition(
  blade,
- x
+ x,
+ 0
  );
 }
 
@@ -5487,25 +5506,17 @@ function holdBladeWindupPose(
  blade,
  direction
 ) {
- /*
- * 回転。
- */
  setBladeSwingAngle(
  blade,
  direction *
  BLADE_WINDUP_ANGLE
  );
 
- /*
- * 横位置。
- *
- * クリックを押している間、
- * 反対側の画面端で停止。
- */
- setBladeSidePosition(
+ setBladeHandPosition(
  blade,
  -direction *
- BLADE_SIDE_EDGE
+ BLADE_SIDE_EDGE,
+ 0
  );
 }
 
@@ -5517,28 +5528,32 @@ function applyBladeReleaseSwing(
  direction,
  time
 ) {
- const t =
- bladeSmoothStep(
+ /*
+ * 時間そのもの。
+ *
+ * 円運動の計算にも使うため
+ * 0～1で保持する。
+ */
+ const rawT =
  THREE.MathUtils.clamp(
  time /
  BLADE_SWING_DURATION,
  0,
  1
- )
+ );
+
+ /*
+ * 横移動と回転は
+ * SmoothStep。
+ */
+ const t =
+ bladeSmoothStep(
+ rawT
  );
 
  // ------------------------------------------------
  // ROTATION
  // ------------------------------------------------
- /*
- * 右:
- * +50° → -50°
- *
- * 左:
- * -50° → +50°
- *
- * 合計 100°。
- */
  const startAngle =
  direction *
  BLADE_WINDUP_ANGLE;
@@ -5560,18 +5575,16 @@ function applyBladeReleaseSwing(
  );
 
  // ------------------------------------------------
- // HORIZONTAL MOVEMENT
+ // SIDE MOVEMENT
  // ------------------------------------------------
  /*
- * 反対側の端から、
- * ブレードを持っている側の端まで
- * 0.5 秒で横断。
- *
  * 右刀:
- * 左 → 右
+ *
+ * 左端 → 右端
  *
  * 左刀:
- * 右 → 左
+ *
+ * 右端 → 左端
  */
  const startX =
  -direction *
@@ -5588,9 +5601,48 @@ function applyBladeReleaseSwing(
  t
  );
 
- setBladeSidePosition(
+ // ------------------------------------------------
+ // ARC DEPTH
+ // ------------------------------------------------
+ /*
+ * 上から見た手の軌道。
+ *
+ *
+ *           奥
+ *            ↑
+ *          ●
+ *       ／     ＼
+ *     ●           ●
+ *   START         END
+ *
+ *
+ * sin(0)     = 0
+ * sin(PI/2)  = 1
+ * sin(PI)    = 0
+ *
+ * つまり、
+ *
+ * 開始地点 = 通常の奥行き
+ * 中央     = 一番奥
+ * 終了地点 = 通常の奥行き
+ */
+ const arc =
+ Math.sin(
+ rawT *
+ Math.PI
+ );
+
+ const zOffset =
+ arc *
+ BLADE_ARC_DEPTH;
+
+ // ------------------------------------------------
+ // APPLY
+ // ------------------------------------------------
+ setBladeHandPosition(
  blade,
- x
+ x,
+ zOffset
  );
 }
 
@@ -5637,10 +5689,13 @@ function applyBladeRecovery(
 
  // ------------------------------------------------
  // POSITION RETURN
-// ------------------------------------------------
+ // ------------------------------------------------
  /*
- * 振り切った画面端から
- * 通常の手元位置へ戻る。
+ * 円弧は斬撃終了時点で
+ * すでに0へ戻っている。
+ *
+ * なのでここでは横位置だけ
+ * 通常位置へ戻す。
  */
  const startX =
  direction *
@@ -5653,9 +5708,10 @@ function applyBladeRecovery(
  t
  );
 
- setBladeSidePosition(
+ setBladeHandPosition(
  blade,
- x
+ x,
+ 0
  );
 }
 
@@ -5894,12 +5950,6 @@ function updateBladeAnimation(
  attackTimer +=
  delta;
 
- /*
- * 最初の 0.5 秒で同時に、
- *
- * 1. 50°回転
- * 2. 反対側へ横移動
- */
  if (
  attackTimer <
  BLADE_WINDUP_DURATION
@@ -5914,10 +5964,6 @@ function updateBladeAnimation(
  // ------------------------------------------------
  // HOLD
  // ------------------------------------------------
- /*
- * 回転も位置も、
- * クリックを離すまで固定。
- */
  holdBladeWindup();
 
  if (
@@ -5950,12 +5996,6 @@ function updateBladeAnimation(
  bladeSwingTimer +=
  delta;
 
- /*
- * 次の 0.5 秒で同時に、
- *
- * 1. 逆方向へ 100°回転
- * 2. 反対側の画面端まで横断
- */
  applyBladeReleaseMotion(
  bladeSwingTimer
  );
