@@ -5614,7 +5614,7 @@ const BLADE_ARC_DEPTH =
  * 3.0 = かなり溜めてから加速
  */
 const BLADE_SWING_ACCEL_POWER =
- 2.4;
+ 5;
 
 // --------------------------------------------------
 // CLAMP
