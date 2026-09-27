@@ -31,8 +31,7 @@ import {
 import {
  loadFixedWorld,
  getFixedWorld,
- loadFixedWorldChunk,
- clearFixedWorldCache
+ getFixedWorldChunk
 } from "./fixedWorld.js";
 
 // ==================================================
@@ -2629,7 +2628,51 @@ function removeArrayItem(
 }
 
 // --------------------------------------------------
-// CREATE GENERATED HOUSE
+// STABLE VARIANT
+// --------------------------------------------------
+function getWorldObjectVariant(
+ descriptor
+) {
+ if (
+ Number.isFinite(
+ descriptor.variant
+ )
+ ) {
+ return Math.abs(
+ descriptor.variant
+ );
+ }
+
+ const text =
+ String(
+ descriptor.id ??
+ ""
+ );
+
+ let value =
+ 0;
+
+ for (
+ let i = 0;
+ i < text.length;
+ i++
+ ) {
+ value =
+ (
+ value *
+ 31 +
+ text.charCodeAt(
+ i
+ )
+ ) >>>
+ 0;
+ }
+
+ return value;
+}
+
+// --------------------------------------------------
+// CREATE FIXED HOUSE
 // --------------------------------------------------
 function createGeneratedHouse(
  descriptor,
@@ -2678,28 +2721,12 @@ function createGeneratedHouse(
  );
 
  const variant =
- descriptor.variant ??
- Math.abs(
- String(
- descriptor.id ??
- ""
- )
- .split("")
- .reduce(
- (
- value,
- character
- ) =>
- value +
- character.charCodeAt(
- 0
- ),
- 0
- )
+ getWorldObjectVariant(
+ descriptor
  );
 
  // ------------------------------------------------
- // HOUSE
+ // BODY
  // ------------------------------------------------
  const house =
  new THREE.Mesh(
@@ -2824,7 +2851,7 @@ function createGeneratedHouse(
 }
 
 // --------------------------------------------------
-// CREATE GENERATED TREE
+// CREATE FIXED TREE
 // --------------------------------------------------
 function createGeneratedTree(
  descriptor,
@@ -2983,45 +3010,28 @@ function createGeneratedTree(
 }
 
 // --------------------------------------------------
-// CREATE FIXED WORLD OBJECT
+// CREATE CHUNK WORLD CONTENT
 // --------------------------------------------------
-function createFixedWorldObject(
- descriptor,
- chunkData
+/*
+ * ここではもう
+ * generateWorldChunkContent()を使わない。
+ *
+ * paradis-world.jsonから作った
+ * メモリ内INDEXだけを使う。
+ */
+function createChunkWorldContent(
+ chunkX,
+ chunkZ
 ) {
- if (
- !descriptor
- ) {
- return;
- }
-
- if (
- descriptor.type ===
- "house"
- ) {
- createGeneratedHouse(
- descriptor,
- chunkData
+ const fixedChunk =
+ getFixedWorldChunk(
+ chunkX,
+ chunkZ
  );
 
- return;
- }
+ const descriptors =
+ fixedChunk.objects;
 
- if (
- descriptor.type ===
- "tree"
- ) {
- createGeneratedTree(
- descriptor,
- chunkData
- );
- }
-}
-
-// --------------------------------------------------
-// CREATE EMPTY CHUNK CONTENT
-// --------------------------------------------------
-function createEmptyChunkWorldContent() {
  const group =
  new THREE.Group();
 
@@ -3033,38 +3043,41 @@ function createEmptyChunkWorldContent() {
  anchorTargets: []
  };
 
+ // ------------------------------------------------
+ // OBJECTS
+ // ------------------------------------------------
+ for (
+ const descriptor
+ of descriptors
+ ) {
+ if (
+ descriptor.type ===
+ "house"
+ ) {
+ createGeneratedHouse(
+ descriptor,
+ chunkData
+ );
+
+ continue;
+ }
+
+ if (
+ descriptor.type ===
+ "tree"
+ ) {
+ createGeneratedTree(
+ descriptor,
+ chunkData
+ );
+ }
+ }
+
  scene.add(
  group
  );
 
  return chunkData;
-}
-
-// --------------------------------------------------
-// POPULATE FIXED CHUNK
-// --------------------------------------------------
-function populateFixedChunkWorldContent(
- data,
- descriptors
-) {
- if (
- !data ||
- !Array.isArray(
- descriptors
- )
- ) {
- return;
- }
-
- for (
- const descriptor
- of descriptors
- ) {
- createFixedWorldObject(
- descriptor,
- data
- );
- }
 }
 
 // --------------------------------------------------
@@ -3106,14 +3119,14 @@ function destroyChunkWorldContent(
  }
 
  // ------------------------------------------------
- // REMOVE GROUP
+ // REMOVE
  // ------------------------------------------------
  scene.remove(
  data.group
  );
 
  // ------------------------------------------------
- // DISPOSE
+ // DISPOSE GEOMETRY
  // ------------------------------------------------
  data.group.traverse(
  object => {
@@ -14289,14 +14302,52 @@ function startGameLoop() {
 async function bootGame() {
  try {
  // ------------------------------------------------
- // WORLD DATABASE FIRST
+ // FIXED WORLD FIRST
  // ------------------------------------------------
+ worldLoadingHUD.style.display =
+ "flex";
+
+ setWorldLoadingStatus(
+ "LOADING FIXED WORLD...",
+ 0.05
+ );
+
+ /*
+ * ここで、
+ *
+ * /public/world/paradis-world.json
+ *
+ * ↓
+ *
+ * /world/paradis-world.json
+ *
+ * を一度だけ読み込む。
+ */
+ const fixedWorld =
+ await loadFixedWorld();
+
+ console.log(
+ "PARADIS FIXED WORLD",
+ fixedWorld
+ );
+
+ // ------------------------------------------------
+ // OLD DATABASE
+ // ------------------------------------------------
+ /*
+ * 現段階ではMマップ等との
+ * 互換性維持のため
+ * 既存DBも初期化しておく。
+ *
+ * 後でMマップも固定Worldへ
+ * 完全移行した時に削除可能。
+ */
  await initializeGameWorldDatabase(
  false
  );
 
  // ------------------------------------------------
- // THEN GAME
+ // START GAME
  // ------------------------------------------------
  startGameLoop();
 
@@ -14307,6 +14358,9 @@ async function bootGame() {
  "GAME BOOT FAILED",
  error
  );
+
+ worldLoadingHUD.style.display =
+ "flex";
 
  worldLoadingStatus.textContent =
  "WORLD GENERATION FAILED";
