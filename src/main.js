@@ -5407,7 +5407,7 @@ const BLADE_SWING_ACCEL_POWER =
  */
 const BLADE_TWIST_ANGLE =
  THREE.MathUtils.degToRad(
- 90
+ 180
  );
 
 /*
