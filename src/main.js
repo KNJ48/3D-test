@@ -5694,12 +5694,27 @@ let bladeRecoveryTimer =
 // --------------------------------------------------
 // ATTACK TIMING
 // --------------------------------------------------
+/*
+ * クリック開始から
+ * 構えが完成するまで。
+ */
 const BLADE_WINDUP_DURATION =
  0.5;
 
+/*
+ * クリックを離してから
+ * 振り切るまで。
+ *
+ * 確定値:
+ * 0.4秒
+ */
 const BLADE_SWING_DURATION =
- 0.5;
+ 0.4;
 
+/*
+ * 振り切った後、
+ * 通常姿勢へ戻る時間。
+ */
 const BLADE_RECOVERY_DURATION =
  0.25;
 
@@ -5707,19 +5722,20 @@ const BLADE_RECOVERY_DURATION =
 // ATTACK ROTATION
 // --------------------------------------------------
 /*
- * 構え:
+ * 確定値:
+ * 70°
  *
- * 0° → 75°
+ * 構え:
+ * 0° → +70°
  *
  * 振り抜き:
+ * +70° → -70°
  *
- * +75° → -75°
- *
- * 合計150°。
+ * 合計140°。
  */
 const BLADE_WINDUP_ANGLE =
  THREE.MathUtils.degToRad(
- 75
+ 70
  );
 
 // --------------------------------------------------
@@ -5727,6 +5743,9 @@ const BLADE_WINDUP_ANGLE =
 // --------------------------------------------------
 /*
  * 横方向の振れ幅。
+ *
+ * 現在:
+ * 2.0
  */
 const BLADE_SIDE_EDGE =
  2.0;
@@ -5735,9 +5754,10 @@ const BLADE_SIDE_EDGE =
 // DEPTH ARC
 // --------------------------------------------------
 /*
- * 上から見た時、
- * 斬撃中央で手元が
- * どれだけ奥へ入るか。
+ * 上から見た時の円弧。
+ *
+ * 斬撃中央で、
+ * 手元が最も奥へ入る。
  */
 const BLADE_ARC_DEPTH =
  0.42;
@@ -5746,11 +5766,14 @@ const BLADE_ARC_DEPTH =
 // SWING ACCELERATION
 // --------------------------------------------------
 /*
+ * 振り始めは遅く、
+ * 後半へ向かって加速。
+ *
  * 1.0 = 等速
  * 1.5 = 軽い加速
  * 2.0 = 現在
  * 2.5 = 強い加速
- * 3.0 = 終盤にかなり加速
+ * 3.0 = 終盤へ集中
  */
 const BLADE_SWING_ACCEL_POWER =
  2.0;
@@ -5759,18 +5782,21 @@ const BLADE_SWING_ACCEL_POWER =
 // BLADE TWIST
 // --------------------------------------------------
 /*
- * 刃を斬撃方向へ向ける
- * ドアノブ方向の回転。
+ * 刀身そのものを
+ * 長手方向へひねる量。
+ *
+ * 確定値:
+ * 180°
  */
 const BLADE_TWIST_ANGLE =
  THREE.MathUtils.degToRad(
- 90
+ 180
  );
 
 /*
  * ひねり方向。
  *
- * 逆にしたければ
+ * 実画面で逆方向へしたい場合は
  * 1 → -1。
  */
 const BLADE_TWIST_DIRECTION =
@@ -5780,43 +5806,51 @@ const BLADE_TWIST_DIRECTION =
 // WIRE PULLBACK
 // --------------------------------------------------
 /*
- * Wで実際にワイヤー牽引している時だけ
- * 手元を後ろへ引く。
+ * Wで実際にワイヤー牽引している間だけ
+ * 手元をプレイヤー側へ引く。
  *
- * +Z = プレイヤー側。
+ * アンカー射出時:
+ * 動かない。
+ *
+ * FIRING中:
+ * 動かない。
+ *
+ * CONNECTEDのみ:
+ * 動かない。
  */
 const BLADE_WIRE_PULLBACK =
  0.65;
 
 /*
- * 高速時に追加される
- * 後退量。
+ * 速度による追加後退量。
+ *
+ * 300km/hで最大値。
  */
 const BLADE_WIRE_SPEED_PULLBACK =
  0.25;
 
 /*
- * W牽引開始時、
+ * W牽引を始めた時、
  * 後ろへ移動する速度。
  *
- * 前の10より大幅に遅くする。
+ * ゆっくり動かす。
  */
 const BLADE_WIRE_PULL_IN_SPEED =
  1.6;
 
 /*
- * Wを離した時、
+ * Wを離した後、
  * 通常位置へ戻る速度。
  */
 const BLADE_WIRE_RETURN_SPEED =
  1.8;
 
 /*
- * W牽引中に
- * ごく少し外へ開く角度。
+ * W牽引中の
+ * 小さな外開き。
  *
- * 0にすれば完全に
- * 後退だけになる。
+ * 0にすると
+ * 純粋な後退のみ。
  */
 const BLADE_WIRE_OPEN_ANGLE =
  THREE.MathUtils.degToRad(
@@ -5864,6 +5898,9 @@ function bladeSmoothStep(
  );
 }
 
+/*
+ * 攻撃専用の加速カーブ。
+ */
 function bladeAccelerationCurve(
  value
 ) {
@@ -5904,7 +5941,7 @@ function bladeMoveTowards(
 // ANCHOR SHOT COMPATIBILITY
 // --------------------------------------------------
 /*
- * fireAnchorAtPoint()には現在、
+ * fireAnchorAtPoint()側には、
  *
  * triggerBladeAnchorRecoil(
  *  anchor.side
@@ -5912,12 +5949,9 @@ function bladeMoveTowards(
  *
  * が残っている。
  *
- * 今回の仕様では
- * 「射出時にはブレードを動かさない」
- * ので、この関数は意図的に何もしない。
- *
- * これを残すことで
- * ANCHOR側を変更しなくて済む。
+ * 現在の仕様では
+ * 射出時に刀を動かさないので
+ * 何もしない。
  */
 function triggerBladeAnchorRecoil(
  side
@@ -5945,36 +5979,32 @@ function updateBladeWirePullback(
  300
  );
 
- // ------------------------------------------------
- // LEFT ACTIVE
- // ------------------------------------------------
  /*
- * FIRINGでは動かない。
- *
- * CONNECTEDだけでも動かない。
- *
- * updateWire()が実際に
- * pulling=trueにしている時だけ。
+ * W牽引中の目標後退量。
  */
- const leftActive =
- leftAnchor.pulling &&
- keys["KeyW"];
-
- // ------------------------------------------------
- // RIGHT ACTIVE
- // ------------------------------------------------
- const rightActive =
- rightAnchor.pulling &&
- keys["KeyW"];
-
- // ------------------------------------------------
- // TARGET DEPTH
- // ------------------------------------------------
  const activePullback =
  BLADE_WIRE_PULLBACK +
  BLADE_WIRE_SPEED_PULLBACK *
  speedFactor;
 
+ // ------------------------------------------------
+ // ACTIVE STATE
+ // ------------------------------------------------
+ /*
+ * updateWire()が
+ * pulling=true にしている時だけ。
+ */
+ const leftActive =
+ leftAnchor.pulling &&
+ keys["KeyW"];
+
+ const rightActive =
+ rightAnchor.pulling &&
+ keys["KeyW"];
+
+ // ------------------------------------------------
+ // TARGET
+ // ------------------------------------------------
  const leftTarget =
  leftActive
  ? activePullback
@@ -5986,7 +6016,7 @@ function updateBladeWirePullback(
  : 0;
 
  // ------------------------------------------------
- // LEFT SPEED
+ // LEFT
  // ------------------------------------------------
  const leftSpeed =
  leftTarget >
@@ -6003,7 +6033,7 @@ function updateBladeWirePullback(
  );
 
  // ------------------------------------------------
- // RIGHT SPEED
+ // RIGHT
  // ------------------------------------------------
  const rightSpeed =
  rightTarget >
@@ -6029,20 +6059,16 @@ function getBladeWireMotion(
  const side =
  blade.userData.side;
 
- const pullback =
- side < 0
- ? leftBladeWirePullback
- : rightBladeWirePullback;
-
  const anchor =
  side < 0
  ? leftAnchor
  : rightAnchor;
 
- /*
- * 外開きについても
- * W牽引している時だけ。
- */
+ const pullback =
+ side < 0
+ ? leftBladeWirePullback
+ : rightBladeWirePullback;
+
  const active =
  anchor.pulling &&
  keys["KeyW"];
@@ -6075,11 +6101,6 @@ function setBladeSwingAngle(
  blade
  );
 
- /*
- * 攻撃回転
- * +
- * W牽引中の小さな外開き。
- */
  swingPivot.rotation.x =
  0;
 
@@ -6097,8 +6118,8 @@ function setBladeSwingAngle(
 /*
  * amount:
  *
- * 0 = 通常
- * 1 = 90°ひねり
+ * 0 = 0°
+ * 1 = 180°
  */
 function setBladeTwist(
  blade,
@@ -6109,8 +6130,7 @@ function setBladeTwist(
  .twistPivot;
 
  const side =
- blade.userData
- .side;
+ blade.userData.side;
 
  twistPivot.rotation.x =
  0;
@@ -6144,31 +6164,24 @@ function setBladeMotionPosition(
  blade
  );
 
- // ------------------------------------------------
- // X
- // ------------------------------------------------
+ // X = 攻撃横移動
  blade.position.x =
  x;
 
- // ------------------------------------------------
- // Y
- // ------------------------------------------------
+ // Y = 現在は通常位置
  blade.position.y =
  rest.y;
 
- // ------------------------------------------------
- // Z
- // ------------------------------------------------
  /*
- * -attackDepth
+ * Z:
  *
- * = 攻撃円弧によって奥へ。
+ * - attackDepth
+ * =
+ * 斬撃中央で奥へ。
  *
- *
- * +wireMotion.pullback
- *
- * = W牽引中だけ
- *   プレイヤー側へゆっくり後退。
+ * + pullback
+ * =
+ * W牽引中にプレイヤー側へ。
  */
  blade.position.z =
  rest.z -
@@ -6192,8 +6205,8 @@ function resetBladeSwing(
  );
 
  /*
- * W牽引の後退量は
- * RESETしても維持する。
+ * W牽引による後退位置は
+ * 攻撃していなくても維持。
  */
  setBladeMotionPosition(
  blade,
@@ -6247,8 +6260,11 @@ function applyBladeWindup(
  );
 
  // ------------------------------------------------
- // HORIZONTAL MOVEMENT
+ // SIDE MOVEMENT
  // ------------------------------------------------
+ /*
+ * 持っている側とは逆方向へ。
+ */
  const x =
  THREE.MathUtils.lerp(
  rest.x,
@@ -6267,8 +6283,9 @@ function applyBladeWindup(
  // TWIST
  // ------------------------------------------------
  /*
- * 振りかぶりと同時に
- * 0° → 90°。
+ * 振りかぶる0.5秒と同時に
+ *
+ * 0° → 180°
  */
  setBladeTwist(
  blade,
@@ -6297,8 +6314,8 @@ function holdBladeWindupPose(
  );
 
  /*
- * クリックを離すまで
- * 90°で保持。
+ * 長押し中は
+ * 180°で固定。
  */
  setBladeTwist(
  blade,
@@ -6321,7 +6338,12 @@ function applyBladeReleaseSwing(
  );
 
  /*
- * 徐々に加速。
+ * rawT:
+ * 時間。
+ *
+ * swingT:
+ * 加速を適用した
+ * 実際のモーション進行度。
  */
  const swingT =
  bladeAccelerationCurve(
@@ -6331,6 +6353,11 @@ function applyBladeReleaseSwing(
  // ------------------------------------------------
  // ROTATION
  // ------------------------------------------------
+ /*
+ * +70° → -70°
+ *
+ * 合計140°。
+ */
  const angle =
  THREE.MathUtils.lerp(
  direction *
@@ -6346,8 +6373,13 @@ function applyBladeReleaseSwing(
  );
 
  // ------------------------------------------------
- // HORIZONTAL MOVEMENT
+ // SIDE MOVEMENT
  // ------------------------------------------------
+ /*
+ * -2 → +2
+ *
+ * 左右はdirectionで反転。
+ */
  const x =
  THREE.MathUtils.lerp(
  -direction *
@@ -6361,14 +6393,13 @@ function applyBladeReleaseSwing(
  // DEPTH ARC
  // ------------------------------------------------
  /*
- * 端:
- * 0
+ * 上から見ると、
  *
- * 中央:
- * 最大
+ * START ─╮
+ *        ╰─ 奥 ─╮
+ *               ╰─ END
  *
- * 反対端:
- * 0
+ * のような円弧。
  */
  const depth =
  Math.sin(
@@ -6387,8 +6418,8 @@ function applyBladeReleaseSwing(
  // TWIST HOLD
  // ------------------------------------------------
  /*
- * 振っている間は
- * 刃の向きを90°に維持。
+ * 斬撃中は
+ * 180°を維持。
  */
  setBladeTwist(
  blade,
@@ -6451,7 +6482,9 @@ function applyBladeRecovery(
  // TWIST RETURN
  // ------------------------------------------------
  /*
- * 90° → 0°。
+ * 振り終わってから
+ *
+ * 180° → 0°
  */
  setBladeTwist(
  blade,
@@ -6477,9 +6510,7 @@ function applyPassiveBladeMotion(
 function applyBladeWindupMotion(
  time
 ) {
- // ------------------------------------------------
- // RIGHT ONLY
- // ------------------------------------------------
+ // RIGHT
  if (
  bladeAttackMotion ===
  1
@@ -6497,9 +6528,7 @@ function applyBladeWindupMotion(
  return;
  }
 
- // ------------------------------------------------
- // LEFT ONLY
- // ------------------------------------------------
+ // LEFT
  if (
  bladeAttackMotion ===
  2
@@ -6517,9 +6546,7 @@ function applyBladeWindupMotion(
  return;
  }
 
- // ------------------------------------------------
  // BOTH
- // ------------------------------------------------
  applyBladeWindup(
  rightBlade,
  1,
@@ -6537,9 +6564,7 @@ function applyBladeWindupMotion(
 // HOLD MOTION
 // --------------------------------------------------
 function holdBladeWindup() {
- // ------------------------------------------------
  // RIGHT
- // ------------------------------------------------
  if (
  bladeAttackMotion ===
  1
@@ -6556,9 +6581,7 @@ function holdBladeWindup() {
  return;
  }
 
- // ------------------------------------------------
  // LEFT
- // ------------------------------------------------
  if (
  bladeAttackMotion ===
  2
@@ -6575,9 +6598,7 @@ function holdBladeWindup() {
  return;
  }
 
- // ------------------------------------------------
  // BOTH
- // ------------------------------------------------
  holdBladeWindupPose(
  rightBlade,
  1
@@ -6595,9 +6616,7 @@ function holdBladeWindup() {
 function applyBladeReleaseMotion(
  time
 ) {
- // ------------------------------------------------
  // RIGHT
- // ------------------------------------------------
  if (
  bladeAttackMotion ===
  1
@@ -6611,9 +6630,7 @@ function applyBladeReleaseMotion(
  return;
  }
 
- // ------------------------------------------------
  // LEFT
- // ------------------------------------------------
  if (
  bladeAttackMotion ===
  2
@@ -6627,9 +6644,7 @@ function applyBladeReleaseMotion(
  return;
  }
 
- // ------------------------------------------------
  // BOTH
- // ------------------------------------------------
  applyBladeReleaseSwing(
  rightBlade,
  1,
@@ -6649,9 +6664,7 @@ function applyBladeReleaseMotion(
 function applyBladeRecoveryMotion(
  time
 ) {
- // ------------------------------------------------
  // RIGHT
- // ------------------------------------------------
  if (
  bladeAttackMotion ===
  1
@@ -6669,9 +6682,7 @@ function applyBladeRecoveryMotion(
  return;
  }
 
- // ------------------------------------------------
  // LEFT
- // ------------------------------------------------
  if (
  bladeAttackMotion ===
  2
@@ -6689,9 +6700,7 @@ function applyBladeRecoveryMotion(
  return;
  }
 
- // ------------------------------------------------
  // BOTH
- // ------------------------------------------------
  applyBladeRecovery(
  rightBlade,
  1,
@@ -6722,20 +6731,20 @@ function updateBladeAnimation(
  );
 
  // ------------------------------------------------
- // WIRE MOTION
+ // WIRE
  // ------------------------------------------------
  /*
- * アンカー射出とは無関係。
+ * 射出しただけでは動かない。
  *
- * Wで実際に牽引している時だけ
- * targetが後方になる。
+ * 実際にW牽引している時だけ
+ * 徐々に後ろへ移動。
  */
  updateBladeWirePullback(
  delta
  );
 
  // ------------------------------------------------
- // NORMAL
+ // NO ATTACK
  // ------------------------------------------------
  if (
  !attacking
@@ -6813,6 +6822,12 @@ function updateBladeAnimation(
  // ------------------------------------------------
  // HIT
  // ------------------------------------------------
+ /*
+ * 加速カーブにより
+ * 時刻50%では刀が中央にいないため、
+ * モーション進行度が50%になる時刻を
+ * 逆算する。
+ */
  const hitNormalizedTime =
  Math.pow(
  0.5,
@@ -6833,7 +6848,7 @@ function updateBladeAnimation(
  }
 
  // ------------------------------------------------
- // START RECOVERY
+ // RECOVERY START
  // ------------------------------------------------
  if (
  bladeSwingTimer >=
