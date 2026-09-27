@@ -4069,7 +4069,14 @@ const bladeGripMaterial =
  new THREE.MeshStandardMaterial({
  color: 0x63372f,
  metalness: 0.04,
- roughness: 0.91
+ roughness: 0.82
+ });
+
+const bladeGripDarkMaterial =
+ new THREE.MeshStandardMaterial({
+ color: 0x201716,
+ metalness: 0.06,
+ roughness: 0.86
  });
 
 // --------------------------------------------------
@@ -4089,6 +4096,29 @@ const BLADE_TIP_CUT =
 
 const BLADE_CENTER_PIVOT_Z =
  -1.45;
+
+// --------------------------------------------------
+// GRIP SETTINGS
+// --------------------------------------------------
+/*
+ * 持ち手の太さ。
+ */
+const BLADE_GRIP_RADIUS =
+ 0.078;
+
+/*
+ * 曲線の滑らかさ。
+ *
+ * 大きいほど滑らか。
+ */
+const BLADE_GRIP_SEGMENTS =
+ 32;
+
+/*
+ * 断面の滑らかさ。
+ */
+const BLADE_GRIP_RADIAL_SEGMENTS =
+ 12;
 
 // --------------------------------------------------
 // FLAT GEOMETRY
@@ -4170,6 +4200,331 @@ function createBladeFlatMesh(
 }
 
 // --------------------------------------------------
+// CREATE SMOOTH GRIP
+// --------------------------------------------------
+function createSmoothBladeGrip(
+ side
+) {
+ const group =
+ new THREE.Group();
+
+ // ------------------------------------------------
+ // CURVE
+ // ------------------------------------------------
+ /*
+ * 参考画像のように、
+ *
+ * 機構部
+ *   │
+ *    ╲
+ *     ╲
+ *      ）
+ *
+ * と後ろへ湾曲する中心線。
+ *
+ * 全てXY平面内。
+ */
+ const curve =
+ new THREE.CatmullRomCurve3(
+ [
+ new THREE.Vector3(
+ 0,
+ 0,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.025,
+ -0.11,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.065,
+ -0.23,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.115,
+ -0.36,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.155,
+ -0.49,
+ 0
+ )
+ ],
+ false,
+ "catmullrom",
+ 0.45
+ );
+
+ // ------------------------------------------------
+ // GRIP CORE
+ // ------------------------------------------------
+ const gripGeometry =
+ new THREE.TubeGeometry(
+ curve,
+ BLADE_GRIP_SEGMENTS,
+ BLADE_GRIP_RADIUS,
+ BLADE_GRIP_RADIAL_SEGMENTS,
+ false
+ );
+
+ const grip =
+ new THREE.Mesh(
+ gripGeometry,
+ bladeGripMaterial
+ );
+
+ /*
+ * 完全な丸棒ではなく
+ * 平たいピストルグリップへ。
+ *
+ * Z方向だけ薄くする。
+ */
+ grip.scale.z =
+ 0.62;
+
+ grip.castShadow =
+ true;
+
+ grip.receiveShadow =
+ true;
+
+ group.add(
+ grip
+ );
+
+ // ------------------------------------------------
+ // DARK BACK STRIP
+ // ------------------------------------------------
+ /*
+ * 参考画像のグリップ後ろ側にある
+ * 黒い縁取りを細いTubeで追加。
+ */
+ const backCurve =
+ new THREE.CatmullRomCurve3(
+ [
+ new THREE.Vector3(
+ -side *
+ 0.050,
+ 0.005,
+ 0.002
+ ),
+
+ new THREE.Vector3(
+ -side *
+ 0.025,
+ -0.12,
+ 0.002
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.020,
+ -0.25,
+ 0.002
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.070,
+ -0.38,
+ 0.002
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.112,
+ -0.49,
+ 0.002
+ )
+ ],
+ false,
+ "catmullrom",
+ 0.45
+ );
+
+ const backGeometry =
+ new THREE.TubeGeometry(
+ backCurve,
+ BLADE_GRIP_SEGMENTS,
+ 0.020,
+ 8,
+ false
+ );
+
+ const backStrip =
+ new THREE.Mesh(
+ backGeometry,
+ bladeGripDarkMaterial
+ );
+
+ backStrip.scale.z =
+ 0.58;
+
+ group.add(
+ backStrip
+ );
+
+ // ------------------------------------------------
+ // GRIP RINGS
+ // ------------------------------------------------
+ /*
+ * グリップ表面へ細い暗色リングを入れて、
+ * のっぺりしたゴム棒っぽさを減らす。
+ */
+ for (
+ let i = 1;
+ i <= 6;
+ i++
+ ) {
+ const t =
+ i /
+ 7;
+
+ const center =
+ curve.getPointAt(
+ t
+ );
+
+ const tangent =
+ curve.getTangentAt(
+ t
+ );
+
+ const ring =
+ new THREE.Mesh(
+ new THREE.TorusGeometry(
+ BLADE_GRIP_RADIUS *
+ 1.01,
+ 0.006,
+ 6,
+ 14
+ ),
+ bladeGripDarkMaterial
+ );
+
+ ring.position.copy(
+ center
+ );
+
+ /*
+ * Torusの法線軸を
+ * 曲線の接線方向へ合わせる。
+ */
+ ring.quaternion.setFromUnitVectors(
+ new THREE.Vector3(
+ 0,
+ 0,
+ 1
+ ),
+ tangent.clone()
+ .normalize()
+ );
+
+ ring.scale.z =
+ 0.62;
+
+ group.add(
+ ring
+ );
+ }
+
+ // ------------------------------------------------
+ // TOP COLLAR
+ // ------------------------------------------------
+ const topCollar =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.18,
+ 0.075,
+ 0.10
+ ),
+ bladeLightMetalMaterial
+ );
+
+ topCollar.position.set(
+ 0,
+ 0.005,
+ 0
+ );
+
+ group.add(
+ topCollar
+ );
+
+ // ------------------------------------------------
+ // POMMEL
+ // ------------------------------------------------
+ const endPoint =
+ curve.getPointAt(
+ 1
+ );
+
+ const pommel =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.19,
+ 0.078,
+ 0.105
+ ),
+ bladeLightMetalMaterial
+ );
+
+ pommel.position.copy(
+ endPoint
+ );
+
+ pommel.rotation.z =
+ -side *
+ THREE.MathUtils.degToRad(
+ 17
+ );
+
+ group.add(
+ pommel
+ );
+
+ // ------------------------------------------------
+ // END SCREW
+ // ------------------------------------------------
+ const screw =
+ new THREE.Mesh(
+ new THREE.CylinderGeometry(
+ 0.025,
+ 0.021,
+ 0.065,
+ 10
+ ),
+ bladeDarkMetalMaterial
+ );
+
+ screw.position.set(
+ endPoint.x +
+ side *
+ 0.020,
+ endPoint.y -
+ 0.065,
+ 0
+ );
+
+ group.add(
+ screw
+ );
+
+ return group;
+}
+
+// --------------------------------------------------
 // CREATE VISUAL
 // --------------------------------------------------
 function createBladeVisual(
@@ -4191,9 +4546,18 @@ function createBladeVisual(
  side < 0
  ) {
  bladePoints = [
- [-halfWidth, 0],
- [halfWidth, 0],
- [halfWidth, BLADE_MODEL_LENGTH],
+ [
+ -halfWidth,
+ 0
+ ],
+ [
+ halfWidth,
+ 0
+ ],
+ [
+ halfWidth,
+ BLADE_MODEL_LENGTH
+ ],
  [
  -halfWidth,
  BLADE_MODEL_LENGTH -
@@ -4202,14 +4566,23 @@ function createBladeVisual(
  ];
  } else {
  bladePoints = [
- [-halfWidth, 0],
- [halfWidth, 0],
+ [
+ -halfWidth,
+ 0
+ ],
+ [
+ halfWidth,
+ 0
+ ],
  [
  halfWidth,
  BLADE_MODEL_LENGTH -
  BLADE_TIP_CUT
  ],
- [-halfWidth, BLADE_MODEL_LENGTH]
+ [
+ -halfWidth,
+ BLADE_MODEL_LENGTH
+ ]
  ];
  }
 
@@ -4241,7 +4614,10 @@ function createBladeVisual(
  BLADE_EDGE_WIDTH,
  0
  ],
- [halfWidth, 0],
+ [
+ halfWidth,
+ 0
+ ],
  [
  halfWidth,
  BLADE_MODEL_LENGTH
@@ -4256,7 +4632,10 @@ function createBladeVisual(
  ];
  } else {
  edgePoints = [
- [-halfWidth, 0],
+ [
+ -halfWidth,
+ 0
+ ],
  [
  -halfWidth +
  BLADE_EDGE_WIDTH,
@@ -4413,12 +4792,15 @@ function createBladeVisual(
  0
  );
 
+ mechanism.castShadow =
+ true;
+
  visual.add(
  mechanism
  );
 
  // ------------------------------------------------
- // PLATE
+ // MECHANISM PLATE
  // ------------------------------------------------
  const plate =
  new THREE.Mesh(
@@ -4441,107 +4823,27 @@ function createBladeVisual(
  );
 
  // ------------------------------------------------
- // GRIP
+ // SMOOTH GRIP
  // ------------------------------------------------
- const gripGroup =
- new THREE.Group();
+ /*
+ * ここが今回の変更点。
+ *
+ * Box7個方式ではなく、
+ * 1本の連続した曲線グリップ。
+ */
+ const grip =
+ createSmoothBladeGrip(
+ side
+ );
 
- gripGroup.position.set(
+ grip.position.set(
  0,
  -0.37,
  0
  );
 
  visual.add(
- gripGroup
- );
-
- const gripCount =
- 7;
-
- for (
- let i = 0;
- i < gripCount;
- i++
- ) {
- const t =
- i /
- (
- gripCount -
- 1
- );
-
- const x =
- side *
- (
- 0.025 +
- Math.pow(
- t,
- 1.35
- ) *
- 0.14
- );
-
- const y =
- -t *
- 0.52;
-
- const grip =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.15,
- 0.095,
- 0.085
- ),
- bladeGripMaterial
- );
-
- grip.position.set(
- x,
- y,
- 0
- );
-
- grip.rotation.z =
- -side *
- THREE.MathUtils.degToRad(
- 19
- ) *
- t;
-
- gripGroup.add(
  grip
- );
- }
-
- // ------------------------------------------------
- // POMMEL
- // ------------------------------------------------
- const pommel =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.18,
- 0.075,
- 0.10
- ),
- bladeLightMetalMaterial
- );
-
- pommel.position.set(
- side *
- 0.15,
- -0.56,
- 0
- );
-
- pommel.rotation.z =
- -side *
- THREE.MathUtils.degToRad(
- 18
- );
-
- gripGroup.add(
- pommel
  );
 
  // ------------------------------------------------
@@ -4564,6 +4866,12 @@ function createBladeVisual(
  0
  );
 
+ trigger.rotation.z =
+ side *
+ THREE.MathUtils.degToRad(
+ 10
+ );
+
  visual.add(
  trigger
  );
@@ -4571,72 +4879,107 @@ function createBladeVisual(
  // ------------------------------------------------
  // TRIGGER GUARD
  // ------------------------------------------------
- const guardVertical =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.025,
- 0.20,
- 0.06
+ const guardCurve =
+ new THREE.CatmullRomCurve3(
+ [
+ new THREE.Vector3(
+ -side *
+ 0.08,
+ -0.30,
+ 0
  ),
- bladeLightMetalMaterial
- );
 
- guardVertical.position.set(
+ new THREE.Vector3(
+ -side *
+ 0.14,
+ -0.39,
+ 0
+ ),
+
+ new THREE.Vector3(
  -side *
  0.12,
- -0.43,
+ -0.51,
  0
+ ),
+
+ new THREE.Vector3(
+ -side *
+ 0.045,
+ -0.54,
+ 0
+ )
+ ],
+ false,
+ "catmullrom",
+ 0.4
  );
 
- visual.add(
- guardVertical
- );
-
- const guardBottom =
+ const guard =
  new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.15,
- 0.025,
- 0.06
+ new THREE.TubeGeometry(
+ guardCurve,
+ 16,
+ 0.014,
+ 8,
+ false
  ),
  bladeLightMetalMaterial
  );
 
- guardBottom.position.set(
- -side *
- 0.065,
- -0.53,
- 0
- );
-
  visual.add(
- guardBottom
+ guard
  );
 
  // ------------------------------------------------
  // CONTROL LEVER
  // ------------------------------------------------
+ const leverCurve =
+ new THREE.CatmullRomCurve3(
+ [
+ new THREE.Vector3(
+ side *
+ 0.13,
+ -0.28,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.16,
+ -0.38,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.18,
+ -0.49,
+ 0
+ ),
+
+ new THREE.Vector3(
+ side *
+ 0.16,
+ -0.59,
+ 0
+ )
+ ],
+ false,
+ "catmullrom",
+ 0.4
+ );
+
  const lever =
  new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.035,
- 0.32,
- 0.055
+ new THREE.TubeGeometry(
+ leverCurve,
+ 16,
+ 0.016,
+ 8,
+ false
  ),
  bladeLightMetalMaterial
- );
-
- lever.position.set(
- side *
- 0.15,
- -0.42,
- 0
- );
-
- lever.rotation.z =
- -side *
- THREE.MathUtils.degToRad(
- 13
  );
 
  visual.add(
@@ -4644,12 +4987,8 @@ function createBladeVisual(
  );
 
  // ------------------------------------------------
- // FINAL MODEL ORIENTATION
+ // FINAL ORIENTATION
  // ------------------------------------------------
- /*
- * 2D設計図の上方向を
- * カメラ前方へ向ける。
- */
  visual.rotation.x =
  -Math.PI /
  2;
@@ -4669,23 +5008,12 @@ function createBlade(
  // ------------------------------------------------
  // SWING PIVOT
  // ------------------------------------------------
- /*
- * 腕による斬撃軌道。
- */
  const swingPivot =
  new THREE.Group();
 
  // ------------------------------------------------
  // TWIST PIVOT
  // ------------------------------------------------
- /*
- * NEW
- *
- * 手首で刀を長手方向へ
- * ひねる専用Pivot。
- *
- * swingPivotとは完全に独立。
- */
  const twistPivot =
  new THREE.Group();
 
@@ -4708,7 +5036,7 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // SWING CENTER
+ // PIVOTS
  // ------------------------------------------------
  swingPivot.position.set(
  0,
@@ -4716,21 +5044,12 @@ function createBlade(
  BLADE_CENTER_PIVOT_Z
  );
 
- /*
- * twistPivotは
- * swingPivotの中心から
- * 手元位置まで戻す。
- */
  twistPivot.position.set(
  0,
  -0.065,
  -BLADE_CENTER_PIVOT_Z
  );
 
- /*
- * weapon自体は
- * twistPivot原点から開始。
- */
  weapon.position.set(
  0,
  0,
@@ -4806,6 +5125,9 @@ function createBlade(
  handGroup.userData.anchorRecoil =
  0;
 
+ // ------------------------------------------------
+ // CAMERA
+ // ------------------------------------------------
  camera.add(
  handGroup
  );
