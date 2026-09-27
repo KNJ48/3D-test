@@ -4419,9 +4419,46 @@ titanAttackTargets.push(
 // ==================================================
 // BUILD WORLD
 // ==================================================
+/*
+ * 固定ワールド移行後は、
+ *
+ * createCity()
+ *
+ * を絶対に呼ばない。
+ *
+ * createCity()は旧システムで
+ * Math.random()を使って家を配置するため、
+ * リロードごとに街並みが変化してしまう。
+ *
+ *
+ * 家・木・道路・都市配置の正本は、
+ *
+ * /world/paradis-world.json
+ *
+ * のみ。
+ */
+
+// --------------------------------------------------
+// TRAINING
+// --------------------------------------------------
 createTrainingArea();
+
+/*
+ * WALLは固定Worldロード後の情報を使う。
+ *
+ * createCityWall()自体は
+ * WORLD_MAPへのfallbackも持っているので
+ * 初期化だけ可能。
+ */
 createCityWall();
-createCity();
+
+/*
+ * IMPORTANT:
+ *
+ * createCity();
+ *
+ * は呼ばない。
+ */
 
 // ==================================================
 // PLAYER STATE
@@ -12772,26 +12809,42 @@ function getWorldMapVisibleObjects(
 function drawDatabaseBuildings(
  database
 ) {
+ // --------------------------------------------------
+ // ZOOM
+ // --------------------------------------------------
+ /*
+ * 世界が巨大なので、
+ * 家一軒表示は100倍から。
+ */
  if (
  worldMapZoom <
- 4
+ 100
  ) {
  return;
  }
 
+ // --------------------------------------------------
+ // FIXED OBJECTS ONLY
+ // --------------------------------------------------
  /*
- * 全世界ではなく
- * 画面周辺のみ。
+ * 必ずparadis-world.jsonから
+ * 作られたチャンクINDEXを使用。
+ *
+ * database.buildings等の
+ * 旧DBは一切使用しない。
  */
  const objects =
  getWorldMapVisibleObjects(
- 500
+ 1000
  );
 
  const scale =
  getWorldMapBaseScale() *
  worldMapZoom;
 
+ // --------------------------------------------------
+ // DRAW
+ // --------------------------------------------------
  for (
  const building
  of objects
@@ -12799,6 +12852,17 @@ function drawDatabaseBuildings(
  if (
  building.type !==
  "house"
+ ) {
+ continue;
+ }
+
+ if (
+ !Number.isFinite(
+ building.xMeters
+ ) ||
+ !Number.isFinite(
+ building.zMeters
+ )
  ) {
  continue;
  }
@@ -12813,7 +12877,7 @@ function drawDatabaseBuildings(
  !mapPointVisible(
  position.x,
  position.y,
- 40
+ 60
  )
  ) {
  continue;
@@ -12823,7 +12887,9 @@ function drawDatabaseBuildings(
  Math.max(
  2,
  (
- building.widthMeters ??
+ Number(
+ building.widthMeters
+ ) ||
  15
  ) *
  scale
@@ -12833,7 +12899,9 @@ function drawDatabaseBuildings(
  Math.max(
  2,
  (
- building.depthMeters ??
+ Number(
+ building.depthMeters
+ ) ||
  18
  ) *
  scale
@@ -12847,10 +12915,15 @@ function drawDatabaseBuildings(
  );
 
  worldMapContext.rotate(
- building.rotation ??
+ Number(
+ building.rotation
+ ) ||
  0
  );
 
+ // ------------------------------------------------
+ // BUILDING
+ // ------------------------------------------------
  worldMapContext.fillStyle =
  WORLD_MAP_COLORS
  .building;
@@ -12864,9 +12937,12 @@ function drawDatabaseBuildings(
  depth
  );
 
+ // ------------------------------------------------
+ // OUTLINE
+ // ------------------------------------------------
  if (
  worldMapZoom >=
- 8
+ 500
  ) {
  worldMapContext.strokeStyle =
  WORLD_MAP_COLORS
@@ -12895,19 +12971,19 @@ function drawDatabaseBuildings(
 function drawDatabaseTrees(
  database
 ) {
+ /*
+ * 木一本表示は150倍以上。
+ */
  if (
  worldMapZoom <
- 6
+ 150
  ) {
  return;
  }
 
- /*
- * ここも全世界走査を廃止。
- */
  const objects =
  getWorldMapVisibleObjects(
- 500
+ 1000
  );
 
  const scale =
@@ -12925,6 +13001,17 @@ function drawDatabaseTrees(
  continue;
  }
 
+ if (
+ !Number.isFinite(
+ tree.xMeters
+ ) ||
+ !Number.isFinite(
+ tree.zMeters
+ )
+ ) {
+ continue;
+ }
+
  const position =
  worldToMap(
  tree.xMeters,
@@ -12935,7 +13022,7 @@ function drawDatabaseTrees(
  !mapPointVisible(
  position.x,
  position.y,
- 30
+ 50
  )
  ) {
  continue;
@@ -12947,7 +13034,9 @@ function drawDatabaseTrees(
  ? 3
  : 1.5,
  (
- tree.crownRadiusMeters ??
+ Number(
+ tree.crownRadiusMeters
+ ) ||
  5
  ) *
  scale
@@ -12966,14 +13055,14 @@ function drawDatabaseTrees(
 
  worldMapContext.fillStyle =
  tree.giant
- ? "#194f28"
+ ? "#174d25"
  : "#315f31";
 
  worldMapContext.fill();
 
  if (
  worldMapZoom >=
- 12
+ 500
  ) {
  worldMapContext.strokeStyle =
  "#173a1d";
