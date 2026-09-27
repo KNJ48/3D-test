@@ -14302,52 +14302,160 @@ function startGameLoop() {
 async function bootGame() {
  try {
  // ------------------------------------------------
- // FIXED WORLD FIRST
+ // LOADING SCREEN
  // ------------------------------------------------
  worldLoadingHUD.style.display =
  "flex";
 
  setWorldLoadingStatus(
- "LOADING FIXED WORLD...",
+ "LOADING PARADIS WORLD...",
  0.05
  );
 
+ worldLoadingDetails.textContent =
+ "Loading fixed world data...";
+
+ // ------------------------------------------------
+ // FIXED WORLD
+ // ------------------------------------------------
  /*
- * ここで、
+ * 今後の正本。
  *
- * /public/world/paradis-world.json
+ * public/world/paradis-world.json
  *
- * ↓
- *
- * /world/paradis-world.json
- *
- * を一度だけ読み込む。
+ * これ1個だけをロードする。
  */
  const fixedWorld =
  await loadFixedWorld();
 
+ // ------------------------------------------------
+ // CHECK
+ // ------------------------------------------------
+ if (
+ !fixedWorld
+ ) {
+ throw new Error(
+ "Fixed world data is empty."
+ );
+ }
+
+ // ------------------------------------------------
+ // INFORMATION
+ // ------------------------------------------------
+ const objectCount =
+ Array.isArray(
+ fixedWorld.objects
+ )
+ ? fixedWorld.objects.length
+ : 0;
+
+ const roadCount =
+ Array.isArray(
+ fixedWorld.roads
+ )
+ ? fixedWorld.roads.length
+ : 0;
+
+ const districtCount =
+ Array.isArray(
+ fixedWorld.districts
+ )
+ ? fixedWorld.districts.length
+ : 0;
+
+ const villageCount =
+ Array.isArray(
+ fixedWorld.villages
+ )
+ ? fixedWorld.villages.length
+ : 0;
+
+ const forestCount =
+ Array.isArray(
+ fixedWorld.forests
+ )
+ ? fixedWorld.forests.length
+ : 0;
+
+ // ------------------------------------------------
+ // LOADING DISPLAY
+ // ------------------------------------------------
+ setWorldLoadingStatus(
+ "FIXED WORLD READY",
+ 0.85
+ );
+
+ worldLoadingDetails.textContent =
+ `WORLD: ${
+ fixedWorld.name ??
+ "Paradis Island"
+ }\n` +
+ `OBJECTS: ${
+ objectCount
+ }\n` +
+ `ROADS: ${
+ roadCount
+ }\n` +
+ `DISTRICTS: ${
+ districtCount
+ }\n` +
+ `VILLAGES: ${
+ villageCount
+ }\n` +
+ `FORESTS: ${
+ forestCount
+ }`;
+
  console.log(
- "PARADIS FIXED WORLD",
+ "PARADIS FIXED WORLD READY",
  fixedWorld
  );
 
  // ------------------------------------------------
- // OLD DATABASE
+ // IMPORTANT
  // ------------------------------------------------
  /*
- * 現段階ではMマップ等との
- * 互換性維持のため
- * 既存DBも初期化しておく。
+ * 旧:
  *
- * 後でMマップも固定Worldへ
- * 完全移行した時に削除可能。
+ * initializeGameWorldDatabase()
+ *
+ * はもう呼ばない。
+ *
+ * WORLD_MAP / Seedから
+ * 家や村を再生成すると
+ * 固定Worldとの二重管理になるため。
  */
- await initializeGameWorldDatabase(
- false
- );
 
  // ------------------------------------------------
- // START GAME
+ // FINISH
+ // ------------------------------------------------
+ setWorldLoadingStatus(
+ "WORLD READY",
+ 1
+ );
+
+ await new Promise(
+ resolve => {
+ setTimeout(
+ resolve,
+ 250
+ );
+ }
+ );
+
+ /*
+ * animate()はこの値を
+ * 起動条件として使っているので
+ * 固定Worldロード完了後にtrue。
+ */
+ worldDatabaseReady =
+ true;
+
+ worldLoadingHUD.style.display =
+ "none";
+
+ // ------------------------------------------------
+ // GAME LOOP
  // ------------------------------------------------
  startGameLoop();
 
@@ -14359,11 +14467,14 @@ async function bootGame() {
  error
  );
 
+ worldDatabaseReady =
+ false;
+
  worldLoadingHUD.style.display =
  "flex";
 
  worldLoadingStatus.textContent =
- "WORLD GENERATION FAILED";
+ "WORLD LOAD FAILED";
 
  worldLoadingDetails.textContent =
  String(
