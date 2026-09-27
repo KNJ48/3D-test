@@ -5,10 +5,6 @@
 // --------------------------------------------------
 // FILE
 // --------------------------------------------------
-/*
- * ゲームが読む世界ファイルは
- * これ1個だけ。
- */
 const FIXED_WORLD_URL =
  "/world/paradis-world.json";
 
@@ -17,6 +13,9 @@ const FIXED_WORLD_URL =
 // --------------------------------------------------
 let fixedWorld =
  null;
+
+let fixedWorldChunkSizeMeters =
+ 500;
 
 /*
  * key:
@@ -27,21 +26,14 @@ let fixedWorld =
  *
  * [
  *  object,
- *  object,
- *  ...
+ *  object...
  * ]
  */
 const fixedWorldChunkIndex =
  new Map();
 
-// --------------------------------------------------
-// SETTINGS
-// --------------------------------------------------
-let fixedWorldChunkSizeMeters =
- 500;
-
 // ==================================================
-// CHUNK KEY
+// KEY
 // ==================================================
 function getFixedWorldChunkKey(
  chunkX,
@@ -53,7 +45,7 @@ function getFixedWorldChunkKey(
 }
 
 // ==================================================
-// BUILD CHUNK INDEX
+// BUILD INDEX
 // ==================================================
 function buildFixedWorldChunkIndex() {
  fixedWorldChunkIndex.clear();
@@ -64,6 +56,12 @@ function buildFixedWorldChunkIndex() {
  return;
  }
 
+ fixedWorldChunkSizeMeters =
+ Number(
+ fixedWorld.chunkSizeMeters
+ ) ||
+ 500;
+
  const objects =
  Array.isArray(
  fixedWorld.objects
@@ -71,25 +69,10 @@ function buildFixedWorldChunkIndex() {
  ? fixedWorld.objects
  : [];
 
- fixedWorldChunkSizeMeters =
- Number(
- fixedWorld.chunkSizeMeters
- ) ||
- 500;
-
- // --------------------------------------------------
- // OBJECTS
- // --------------------------------------------------
  for (
  const object
  of objects
  ) {
- if (
- !object
- ) {
- continue;
- }
-
  const xMeters =
  Number(
  object.xMeters
@@ -129,29 +112,31 @@ function buildFixedWorldChunkIndex() {
  chunkZ
  );
 
- if (
- !fixedWorldChunkIndex.has(
+ let chunk =
+ fixedWorldChunkIndex.get(
  key
- )
+ );
+
+ if (
+ !chunk
  ) {
+ chunk =
+ [];
+
  fixedWorldChunkIndex.set(
  key,
- []
+ chunk
  );
  }
 
- fixedWorldChunkIndex
- .get(
- key
- )
- .push(
+ chunk.push(
  object
  );
  }
 }
 
 // ==================================================
-// LOAD FIXED WORLD
+// LOAD
 // ==================================================
 export async function loadFixedWorld() {
  if (
@@ -187,7 +172,7 @@ export async function loadFixedWorld() {
  buildFixedWorldChunkIndex();
 
  console.log(
- "FIXED WORLD READY",
+ "FIXED WORLD INDEX READY",
  {
  objects:
  Array.isArray(
@@ -199,12 +184,8 @@ export async function loadFixedWorld() {
  chunks:
  fixedWorldChunkIndex.size,
 
- roads:
- Array.isArray(
- fixedWorld.roads
- )
- ? fixedWorld.roads.length
- : 0
+ chunkSizeMeters:
+ fixedWorldChunkSizeMeters
  }
  );
 
@@ -212,22 +193,15 @@ export async function loadFixedWorld() {
 }
 
 // ==================================================
-// GET FIXED WORLD
+// GET WORLD
 // ==================================================
 export function getFixedWorld() {
  return fixedWorld;
 }
 
 // ==================================================
-// GET FIXED WORLD CHUNK
+// GET CHUNK
 // ==================================================
-/*
- * fetchはしない。
- *
- * 起動時にロードした
- * paradis-world.jsonから
- * メモリ内INDEXを参照するだけ。
- */
 export function getFixedWorldChunk(
  chunkX,
  chunkZ
@@ -240,6 +214,7 @@ export function getFixedWorldChunk(
 
  return {
  chunkX,
+
  chunkZ,
 
  objects:
@@ -248,6 +223,64 @@ export function getFixedWorldChunk(
  ) ??
  []
  };
+}
+
+// ==================================================
+// GET OBJECTS IN CHUNK RANGE
+// ==================================================
+/*
+ * Mマップ用。
+ *
+ * 全世界objectsを走査せず、
+ * 指定されたチャンクだけ返す。
+ */
+export function getFixedWorldObjectsInChunkRange(
+ minChunkX,
+ minChunkZ,
+ maxChunkX,
+ maxChunkZ
+) {
+ const output =
+ [];
+
+ for (
+ let chunkX =
+ minChunkX;
+ chunkX <=
+ maxChunkX;
+ chunkX++
+ ) {
+ for (
+ let chunkZ =
+ minChunkZ;
+ chunkZ <=
+ maxChunkZ;
+ chunkZ++
+ ) {
+ const key =
+ getFixedWorldChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ const objects =
+ fixedWorldChunkIndex.get(
+ key
+ );
+
+ if (
+ !objects
+ ) {
+ continue;
+ }
+
+ output.push(
+ ...objects
+ );
+ }
+ }
+
+ return output;
 }
 
 // ==================================================
