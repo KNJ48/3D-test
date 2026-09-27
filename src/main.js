@@ -12365,6 +12365,9 @@ function drawDatabaseBuildings(
 function drawDatabaseTrees(
  database
 ) {
+ // --------------------------------------------------
+ // ZOOM CHECK
+ // --------------------------------------------------
  /*
  * 木一本単位は
  * 6倍以上から表示。
@@ -12376,6 +12379,9 @@ function drawDatabaseTrees(
  return;
  }
 
+ // --------------------------------------------------
+ // OBJECTS
+ // --------------------------------------------------
  const objects =
  Array.isArray(
  database.objects
@@ -12387,10 +12393,16 @@ function drawDatabaseTrees(
  getWorldMapBaseScale() *
  worldMapZoom;
 
+ // --------------------------------------------------
+ // TREES
+ // --------------------------------------------------
  for (
  const tree
  of objects
  ) {
+ // ------------------------------------------------
+ // TREE ONLY
+ // ------------------------------------------------
  if (
  tree.type !==
  "tree"
@@ -12398,12 +12410,18 @@ function drawDatabaseTrees(
  continue;
  }
 
+ // ------------------------------------------------
+ // POSITION
+ // ------------------------------------------------
  const position =
  worldToMap(
  tree.xMeters,
  tree.zMeters
  );
 
+ // ------------------------------------------------
+ // SCREEN CHECK
+ // ------------------------------------------------
  if (
  !mapPointVisible(
  position.x,
@@ -12414,6 +12432,9 @@ function drawDatabaseTrees(
  continue;
  }
 
+ // ------------------------------------------------
+ // RADIUS
+ // ------------------------------------------------
  const radius =
  Math.max(
  tree.giant
@@ -12426,6 +12447,9 @@ function drawDatabaseTrees(
  scale
  );
 
+ // ------------------------------------------------
+ // CROWN
+ // ------------------------------------------------
  worldMapContext.beginPath();
 
  worldMapContext.arc(
@@ -12444,6 +12468,9 @@ function drawDatabaseTrees(
 
  worldMapContext.fill();
 
+ // ------------------------------------------------
+ // OUTLINE
+ // ------------------------------------------------
  if (
  worldMapZoom >=
  12
@@ -12456,8 +12483,8 @@ function drawDatabaseTrees(
 
  worldMapContext.stroke();
  }
+ }
 }
-
 // ==================================================
 // DRAW LANDMARKS
 // ==================================================
@@ -14377,10 +14404,9 @@ function animate() {
  animate
  );
 
- /*
- * DB が準備される前は
- * ゲーム世界を更新しない。
- */
+ // ------------------------------------------------
+ // WORLD READY CHECK
+ // ------------------------------------------------
  if (
  !worldDatabaseReady
  ) {
@@ -14393,32 +14419,32 @@ function animate() {
  0.05
  );
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // PLAYER
- // --------------------------------------------------
+ // ------------------------------------------------
  updatePlayer(
  delta
  );
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // WORLD
- // --------------------------------------------------
+ // ------------------------------------------------
  updateWorldStreaming(
  delta
  );
 
  updateAreaSystem();
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // TITAN
- // --------------------------------------------------
+ // ------------------------------------------------
  updateTitanParts(
  delta
  );
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // EQUIPMENT
- // --------------------------------------------------
+ // ------------------------------------------------
  updateBladeAnimation(
  delta
  );
@@ -14431,23 +14457,23 @@ function animate() {
  rightAnchor
  );
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // HUD
- // --------------------------------------------------
+ // ------------------------------------------------
  updateHUD();
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // MAP
- // --------------------------------------------------
+ // ------------------------------------------------
  if (
  worldMapOpen
  ) {
  drawWorldMap();
  }
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // RENDER
- // --------------------------------------------------
+ // ------------------------------------------------
  renderer.render(
  scene,
  camera
@@ -14472,6 +14498,7 @@ function startGameLoop() {
  animate();
 }
 
+
 // ==================================================
 // BOOT
 // ==================================================
@@ -14489,24 +14516,14 @@ async function bootGame() {
  );
 
  worldLoadingDetails.textContent =
- "Loading fixed world data...";
+ "Loading /world/paradis-world.json";
 
  // ------------------------------------------------
  // FIXED WORLD
  // ------------------------------------------------
- /*
- * 今後の正本。
- *
- * public/world/paradis-world.json
- *
- * これ1個だけをロードする。
- */
  const fixedWorld =
  await loadFixedWorld();
 
- // ------------------------------------------------
- // CHECK
- // ------------------------------------------------
  if (
  !fixedWorld
  ) {
@@ -14516,99 +14533,95 @@ async function bootGame() {
  }
 
  // ------------------------------------------------
- // INFORMATION
+ // ACTIVE WORLD
  // ------------------------------------------------
- const objectCount =
+ /*
+ * 旧コードとの互換性のため
+ * worldDatabaseにも同じ固定Worldを入れる。
+ */
+ worldDatabase =
+ fixedWorld;
+
+ // ------------------------------------------------
+ // STATISTICS
+ // ------------------------------------------------
+ const objects =
  Array.isArray(
  fixedWorld.objects
  )
- ? fixedWorld.objects.length
- : 0;
+ ? fixedWorld.objects
+ : [];
 
- const roadCount =
+ const roads =
  Array.isArray(
  fixedWorld.roads
  )
- ? fixedWorld.roads.length
- : 0;
+ ? fixedWorld.roads
+ : [];
 
- const districtCount =
+ const districts =
  Array.isArray(
  fixedWorld.districts
  )
- ? fixedWorld.districts.length
- : 0;
+ ? fixedWorld.districts
+ : [];
 
- const villageCount =
+ const villages =
  Array.isArray(
  fixedWorld.villages
  )
- ? fixedWorld.villages.length
- : 0;
+ ? fixedWorld.villages
+ : [];
 
- const forestCount =
+ const forests =
  Array.isArray(
  fixedWorld.forests
  )
- ? fixedWorld.forests.length
- : 0;
+ ? fixedWorld.forests
+ : [];
+
+ const houseCount =
+ objects.filter(
+ object =>
+ object.type ===
+ "house"
+ ).length;
+
+ const treeCount =
+ objects.filter(
+ object =>
+ object.type ===
+ "tree"
+ ).length;
 
  // ------------------------------------------------
- // LOADING DISPLAY
+ // LOADING DETAILS
  // ------------------------------------------------
- setWorldLoadingStatus(
- "FIXED WORLD READY",
- 0.85
- );
-
  worldLoadingDetails.textContent =
  `WORLD: ${
  fixedWorld.name ??
  "Paradis Island"
  }\n` +
- `OBJECTS: ${
- objectCount
- }\n` +
- `ROADS: ${
- roadCount
- }\n` +
- `DISTRICTS: ${
- districtCount
- }\n` +
- `VILLAGES: ${
- villageCount
- }\n` +
- `FORESTS: ${
- forestCount
- }`;
-
- console.log(
- "PARADIS FIXED WORLD READY",
- fixedWorld
- );
+ `HOUSES: ${houseCount}\n` +
+ `TREES: ${treeCount}\n` +
+ `ROADS: ${roads.length}\n` +
+ `DISTRICTS: ${districts.length}\n` +
+ `VILLAGES: ${villages.length}\n` +
+ `FORESTS: ${forests.length}`;
 
  // ------------------------------------------------
- // IMPORTANT
- // ------------------------------------------------
- /*
- * 旧:
- *
- * initializeGameWorldDatabase()
- *
- * はもう呼ばない。
- *
- * WORLD_MAP / Seedから
- * 家や村を再生成すると
- * 固定Worldとの二重管理になるため。
- */
-
- // ------------------------------------------------
- // FINISH
+ // READY
  // ------------------------------------------------
  setWorldLoadingStatus(
  "WORLD READY",
  1
  );
+
+ /*
+ * animate()の起動条件。
+ */
+ worldDatabaseReady =
+ true;
 
  await new Promise(
  resolve => {
@@ -14619,19 +14632,16 @@ async function bootGame() {
  }
  );
 
- /*
- * animate()はこの値を
- * 起動条件として使っているので
- * 固定Worldロード完了後にtrue。
- */
- worldDatabaseReady =
- true;
-
  worldLoadingHUD.style.display =
  "none";
 
+ console.log(
+ "PARADIS FIXED WORLD READY",
+ fixedWorld
+ );
+
  // ------------------------------------------------
- // GAME LOOP
+ // START
  // ------------------------------------------------
  startGameLoop();
 
@@ -14660,4 +14670,8 @@ async function bootGame() {
  }
 }
 
+
+// ==================================================
+// START
+// ==================================================
 bootGame();
