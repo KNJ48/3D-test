@@ -31,7 +31,9 @@ import {
 import {
  loadFixedWorld,
  getFixedWorld,
- getFixedWorldChunk
+ getFixedWorldChunk,
+ getFixedWorldObjectsInChunkRange,
+ getFixedWorldChunkSizeMeters
 } from "./fixedWorld.js";
 
 // ==================================================
@@ -12220,18 +12222,97 @@ function drawDatabaseRoads(
 }
 
 // ==================================================
+// WORLD MAP VISIBLE OBJECTS
+// ==================================================
+/*
+ * 現在画面に入っている
+ * 500mチャンクだけ取得する。
+ */
+function getWorldMapVisibleObjects(
+ paddingMeters =
+ 500
+) {
+ const topLeft =
+ mapToWorld(
+ 0,
+ 0
+ );
+
+ const bottomRight =
+ mapToWorld(
+ window.innerWidth,
+ window.innerHeight
+ );
+
+ const chunkSize =
+ getFixedWorldChunkSizeMeters();
+
+ const minX =
+ Math.min(
+ topLeft.xMeters,
+ bottomRight.xMeters
+ ) -
+ paddingMeters;
+
+ const maxX =
+ Math.max(
+ topLeft.xMeters,
+ bottomRight.xMeters
+ ) +
+ paddingMeters;
+
+ const minZ =
+ Math.min(
+ topLeft.zMeters,
+ bottomRight.zMeters
+ ) -
+ paddingMeters;
+
+ const maxZ =
+ Math.max(
+ topLeft.zMeters,
+ bottomRight.zMeters
+ ) +
+ paddingMeters;
+
+ const minChunkX =
+ Math.floor(
+ minX /
+ chunkSize
+ );
+
+ const maxChunkX =
+ Math.floor(
+ maxX /
+ chunkSize
+ );
+
+ const minChunkZ =
+ Math.floor(
+ minZ /
+ chunkSize
+ );
+
+ const maxChunkZ =
+ Math.floor(
+ maxZ /
+ chunkSize
+ );
+
+ return getFixedWorldObjectsInChunkRange(
+ minChunkX,
+ minChunkZ,
+ maxChunkX,
+ maxChunkZ
+ );
+}
+
+// ==================================================
 // DRAW BUILDINGS
 // ==================================================
 function drawDatabaseBuildings(
  database
 ) {
- /*
- * 4倍未満では家一軒一軒を
- * 描かない。
- *
- * 世界全体表示で
- * 数万軒を描画する必要はない。
- */
  if (
  worldMapZoom <
  4
@@ -12239,23 +12320,19 @@ function drawDatabaseBuildings(
  return;
  }
 
- // --------------------------------------------------
- // OBJECTS
- // --------------------------------------------------
+ /*
+ * 全世界ではなく
+ * 画面周辺のみ。
+ */
  const objects =
- Array.isArray(
- database.objects
- )
- ? database.objects
- : [];
+ getWorldMapVisibleObjects(
+ 500
+ );
 
  const scale =
  getWorldMapBaseScale() *
  worldMapZoom;
 
- // --------------------------------------------------
- // BUILDINGS
- // --------------------------------------------------
  for (
  const building
  of objects
@@ -12303,9 +12380,6 @@ function drawDatabaseBuildings(
  scale
  );
 
- // ------------------------------------------------
- // DRAW
- // ------------------------------------------------
  worldMapContext.save();
 
  worldMapContext.translate(
@@ -12331,9 +12405,6 @@ function drawDatabaseBuildings(
  depth
  );
 
- // ------------------------------------------------
- // OUTLINE
- // ------------------------------------------------
  if (
  worldMapZoom >=
  8
@@ -12365,13 +12436,6 @@ function drawDatabaseBuildings(
 function drawDatabaseTrees(
  database
 ) {
- // --------------------------------------------------
- // ZOOM CHECK
- // --------------------------------------------------
- /*
- * 木一本単位は
- * 6倍以上から表示。
- */
  if (
  worldMapZoom <
  6
@@ -12379,30 +12443,22 @@ function drawDatabaseTrees(
  return;
  }
 
- // --------------------------------------------------
- // OBJECTS
- // --------------------------------------------------
+ /*
+ * ここも全世界走査を廃止。
+ */
  const objects =
- Array.isArray(
- database.objects
- )
- ? database.objects
- : [];
+ getWorldMapVisibleObjects(
+ 500
+ );
 
  const scale =
  getWorldMapBaseScale() *
  worldMapZoom;
 
- // --------------------------------------------------
- // TREES
- // --------------------------------------------------
  for (
  const tree
  of objects
  ) {
- // ------------------------------------------------
- // TREE ONLY
- // ------------------------------------------------
  if (
  tree.type !==
  "tree"
@@ -12410,18 +12466,12 @@ function drawDatabaseTrees(
  continue;
  }
 
- // ------------------------------------------------
- // POSITION
- // ------------------------------------------------
  const position =
  worldToMap(
  tree.xMeters,
  tree.zMeters
  );
 
- // ------------------------------------------------
- // SCREEN CHECK
- // ------------------------------------------------
  if (
  !mapPointVisible(
  position.x,
@@ -12432,9 +12482,6 @@ function drawDatabaseTrees(
  continue;
  }
 
- // ------------------------------------------------
- // RADIUS
- // ------------------------------------------------
  const radius =
  Math.max(
  tree.giant
@@ -12447,9 +12494,6 @@ function drawDatabaseTrees(
  scale
  );
 
- // ------------------------------------------------
- // CROWN
- // ------------------------------------------------
  worldMapContext.beginPath();
 
  worldMapContext.arc(
@@ -12468,9 +12512,6 @@ function drawDatabaseTrees(
 
  worldMapContext.fill();
 
- // ------------------------------------------------
- // OUTLINE
- // ------------------------------------------------
  if (
  worldMapZoom >=
  12
@@ -12485,6 +12526,7 @@ function drawDatabaseTrees(
  }
  }
 }
+
 // ==================================================
 // DRAW LANDMARKS
 // ==================================================
@@ -14404,9 +14446,6 @@ function animate() {
  animate
  );
 
- // ------------------------------------------------
- // WORLD READY CHECK
- // ------------------------------------------------
  if (
  !worldDatabaseReady
  ) {
@@ -14463,13 +14502,28 @@ function animate() {
  updateHUD();
 
  // ------------------------------------------------
- // MAP
+ // WORLD MAP
  // ------------------------------------------------
- if (
- worldMapOpen
- ) {
- drawWorldMap();
- }
+ /*
+ * 以前:
+ *
+ * if (worldMapOpen) {
+ *   drawWorldMap();
+ * }
+ *
+ * を毎フレーム実行していた。
+ *
+ * 廃止。
+ *
+ * MAPは、
+ *
+ * ・OPEN
+ * ・ZOOM
+ * ・DRAG
+ * ・RESIZE
+ *
+ * 時だけ再描画する。
+ */
 
  // ------------------------------------------------
  // RENDER
@@ -14497,7 +14551,6 @@ function startGameLoop() {
 
  animate();
 }
-
 
 // ==================================================
 // BOOT
