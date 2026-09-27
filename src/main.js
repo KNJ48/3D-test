@@ -36,6 +36,10 @@ import {
  getFixedWorldChunkSizeMeters
 } from "./fixedWorld.js";
 
+import {
+ generateDeterministicForestChunk
+} from "./deterministicForest.js";
+
 // ==================================================
 // WORLD SCALE
 // ==================================================
@@ -2202,180 +2206,515 @@ function createTrainingArea() {
 // ==================================================
 // CITY WALL
 // ==================================================
-const wallRings = [];
 
-function createWallRing(
-  radius,
-  name
+/*
+ * 巨大Cylinderは使用しない。
+ *
+ * paradis-world.jsonの半径を正として、
+ * プレイヤー周辺だけ壁パネルを生成。
+ */
+
+// --------------------------------------------------
+// SETTINGS
+// --------------------------------------------------
+const WALL_SEGMENT_LENGTH_METERS =
+ 120;
+
+const WALL_STREAM_DISTANCE_METERS =
+ 4000;
+
+/*
+ * 壁は50m高。
+ */
+const DEFAULT_WALL_HEIGHT_METERS =
+ 50;
+
+const DEFAULT_WALL_THICKNESS_METERS =
+ 12;
+
+// --------------------------------------------------
+// WALL RINGS
+// --------------------------------------------------
+const wallRings =
+ [];
+
+/*
+ * 現在描画されている壁Mesh。
+ */
+const streamedWallSegments =
+ new Map();
+
+// --------------------------------------------------
+// MATERIAL
+// --------------------------------------------------
+const streamedWallMaterial =
+ outerWallMaterial.clone();
+
+streamedWallMaterial.side =
+ THREE.DoubleSide;
+
+// --------------------------------------------------
+// REGISTER WALL
+// --------------------------------------------------
+function registerWallRing(
+ wall
 ) {
-  const halfThickness =
-    CITY_WALL_THICKNESS / 2;
+ if (
+ !wall
+ ) {
+ return;
+ }
 
-  const outerRadius =
-    radius + halfThickness;
+ const radiusMeters =
+ Number(
+ wall.radiusMeters
+ );
 
-  const innerRadius =
-    radius - halfThickness;
+ if (
+ !Number.isFinite(
+ radiusMeters
+ )
+ ) {
+ return;
+ }
 
-  const radialSegments = 512;
+ const heightMeters =
+ Number(
+ wall.heightMeters
+ ) ||
+ DEFAULT_WALL_HEIGHT_METERS;
 
-  // -------------------------
-  // OUTER WALL
-  // -------------------------
-  const outerGeometry =
-    new THREE.CylinderGeometry(
-      outerRadius,
-      outerRadius,
-      CITY_WALL_HEIGHT,
-      radialSegments,
-      1,
-      true
-    );
+ const thicknessMeters =
+ Number(
+ wall.thicknessMeters
+ ) ||
+ DEFAULT_WALL_THICKNESS_METERS;
 
-  const outerMaterial =
-    outerWallMaterial.clone();
+ const radius =
+ metersToUnits(
+ radiusMeters
+ );
 
-  outerMaterial.side =
-    THREE.FrontSide;
+ const height =
+ metersToUnits(
+ heightMeters
+ );
 
-  const outerWall =
-    new THREE.Mesh(
-      outerGeometry,
-      outerMaterial
-    );
+ const thickness =
+ metersToUnits(
+ thicknessMeters
+ );
 
-  outerWall.position.set(
-    0,
-    CITY_WALL_HEIGHT / 2,
-    0
-  );
+ wallRings.push({
+ id:
+ wall.id,
 
-  outerWall.castShadow = true;
-  outerWall.receiveShadow = true;
-  outerWall.frustumCulled = false;
+ name:
+ wall.name,
 
-  scene.add(
-    outerWall
-  );
+ radiusMeters,
 
-  anchorTargets.push(
-    outerWall
-  );
+ radius,
 
-  // -------------------------
-  // INNER WALL
-  // -------------------------
-  const innerGeometry =
-    new THREE.CylinderGeometry(
-      innerRadius,
-      innerRadius,
-      CITY_WALL_HEIGHT,
-      radialSegments,
-      1,
-      true
-    );
+ heightMeters,
 
-  const innerMaterial =
-    outerWallMaterial.clone();
+ height,
 
-  innerMaterial.side =
-    THREE.BackSide;
+ thicknessMeters,
 
-  const innerWall =
-    new THREE.Mesh(
-      innerGeometry,
-      innerMaterial
-    );
+ thickness,
 
-  innerWall.position.set(
-    0,
-    CITY_WALL_HEIGHT / 2,
-    0
-  );
+ innerRadius:
+ radius -
+ thickness /
+ 2,
 
-  innerWall.castShadow = true;
-  innerWall.receiveShadow = true;
-  innerWall.frustumCulled = false;
-
-  scene.add(
-    innerWall
-  );
-
-  anchorTargets.push(
-    innerWall
-  );
-
-  // -------------------------
-  // WALL TOP
-  // -------------------------
-  const topGeometry =
-    new THREE.RingGeometry(
-      innerRadius,
-      outerRadius,
-      radialSegments
-    );
-
-  const topMaterial =
-    outerWallMaterial.clone();
-
-  topMaterial.side =
-    THREE.DoubleSide;
-
-  const wallTop =
-    new THREE.Mesh(
-      topGeometry,
-      topMaterial
-    );
-
-  wallTop.rotation.x =
-    -Math.PI / 2;
-
-  wallTop.position.set(
-    0,
-    CITY_WALL_HEIGHT,
-    0
-  );
-
-  wallTop.receiveShadow = true;
-  wallTop.frustumCulled = false;
-
-  scene.add(
-    wallTop
-  );
-
-  anchorTargets.push(
-    wallTop
-  );
-
-  // -------------------------
-  // REGISTER COLLISION DATA
-  // -------------------------
-  wallRings.push({
-    radius: radius,
-    innerRadius: innerRadius,
-    outerRadius: outerRadius,
-    outerWall: outerWall,
-    innerWall: innerWall,
-    wallTop: wallTop,
-    name: name
-  });
+ outerRadius:
+ radius +
+ thickness /
+ 2
+ });
 }
 
+// --------------------------------------------------
+// CREATE CITY WALL
+// --------------------------------------------------
 function createCityWall() {
-  createWallRing(
-    MARIA_RADIUS,
-    "MARIA"
-  );
+ wallRings.length =
+ 0;
 
-  createWallRing(
-    ROSE_RADIUS,
-    "ROSE"
-  );
+ const world =
+ getFixedWorld();
 
-  createWallRing(
-    SINA_RADIUS,
-    "SINA"
-  );
+ const walls =
+ world?.walls ??
+ WORLD_MAP.walls;
+
+ if (
+ walls?.maria
+ ) {
+ registerWallRing(
+ walls.maria
+ );
+ }
+
+ if (
+ walls?.rose
+ ) {
+ registerWallRing(
+ walls.rose
+ );
+ }
+
+ if (
+ walls?.sina
+ ) {
+ registerWallRing(
+ walls.sina
+ );
+ }
+}
+
+// --------------------------------------------------
+// WALL SEGMENT KEY
+// --------------------------------------------------
+function getWallSegmentKey(
+ ringId,
+ segmentIndex
+) {
+ return (
+ `${ringId}:${segmentIndex}`
+ );
+}
+
+// --------------------------------------------------
+// CREATE WALL SEGMENT
+// --------------------------------------------------
+function createWallSegment(
+ ring,
+ segmentIndex,
+ segmentCount
+) {
+ const key =
+ getWallSegmentKey(
+ ring.id,
+ segmentIndex
+ );
+
+ if (
+ streamedWallSegments.has(
+ key
+ )
+ ) {
+ return;
+ }
+
+ const angleStep =
+ Math.PI *
+ 2 /
+ segmentCount;
+
+ const angle =
+ segmentIndex *
+ angleStep;
+
+ /*
+ * 円弧の中心。
+ */
+ const xMeters =
+ Math.sin(
+ angle
+ ) *
+ ring.radiusMeters;
+
+ const zMeters =
+ -Math.cos(
+ angle
+ ) *
+ ring.radiusMeters;
+
+ const x =
+ metersToUnits(
+ xMeters
+ );
+
+ const z =
+ metersToUnits(
+ zMeters
+ );
+
+ /*
+ * 地形高度へ合わせる。
+ */
+ const terrainY =
+ metersToUnits(
+ getTerrainHeightMeters(
+ xMeters,
+ zMeters
+ )
+ );
+
+ /*
+ * 円弧の実長。
+ */
+ const segmentLengthMeters =
+ ring.radiusMeters *
+ angleStep *
+ 1.015;
+
+ const segmentLength =
+ metersToUnits(
+ segmentLengthMeters
+ );
+
+ const geometry =
+ new THREE.BoxGeometry(
+ segmentLength,
+ ring.height,
+ ring.thickness
+ );
+
+ const mesh =
+ new THREE.Mesh(
+ geometry,
+ streamedWallMaterial
+ );
+
+ mesh.position.set(
+ x,
+ terrainY +
+ ring.height /
+ 2,
+ z
+ );
+
+ /*
+ * 円周の接線方向へ向ける。
+ */
+ mesh.rotation.y =
+ -angle;
+
+ mesh.castShadow =
+ true;
+
+ mesh.receiveShadow =
+ true;
+
+ mesh.userData.wallId =
+ ring.id;
+
+ mesh.userData.wallSegment =
+ segmentIndex;
+
+ scene.add(
+ mesh
+ );
+
+ anchorTargets.push(
+ mesh
+ );
+
+ streamedWallSegments.set(
+ key,
+ {
+ mesh,
+ ring,
+ segmentIndex
+ }
+ );
+}
+
+// --------------------------------------------------
+// DESTROY WALL SEGMENT
+// --------------------------------------------------
+function destroyWallSegment(
+ key,
+ data
+) {
+ if (
+ !data
+ ) {
+ return;
+ }
+
+ scene.remove(
+ data.mesh
+ );
+
+ removeArrayItem(
+ anchorTargets,
+ data.mesh
+ );
+
+ if (
+ data.mesh.geometry
+ ) {
+ data.mesh.geometry.dispose();
+ }
+
+ streamedWallSegments.delete(
+ key
+ );
+}
+
+// --------------------------------------------------
+// UPDATE WALL STREAMING
+// --------------------------------------------------
+function updateWallStreaming() {
+ const playerXMeters =
+ camera.position.x *
+ METERS_PER_UNIT;
+
+ const playerZMeters =
+ camera.position.z *
+ METERS_PER_UNIT;
+
+ const playerRadiusMeters =
+ Math.hypot(
+ playerXMeters,
+ playerZMeters
+ );
+
+ const needed =
+ new Set();
+
+ for (
+ const ring
+ of wallRings
+ ) {
+ /*
+ * 壁から4km以上離れているなら、
+ * 3D壁を作る必要なし。
+ */
+ const radialDifference =
+ Math.abs(
+ playerRadiusMeters -
+ ring.radiusMeters
+ );
+
+ if (
+ radialDifference >
+ WALL_STREAM_DISTANCE_METERS
+ ) {
+ continue;
+ }
+
+ const playerAngle =
+ Math.atan2(
+ playerXMeters,
+ -playerZMeters
+ );
+
+ /*
+ * 円周を約120mごとの
+ * セグメントへ分割。
+ */
+ const circumference =
+ Math.PI *
+ 2 *
+ ring.radiusMeters;
+
+ const segmentCount =
+ Math.max(
+ 64,
+ Math.ceil(
+ circumference /
+ WALL_SEGMENT_LENGTH_METERS
+ )
+ );
+
+ const angleStep =
+ Math.PI *
+ 2 /
+ segmentCount;
+
+ let centerIndex =
+ Math.round(
+ playerAngle /
+ angleStep
+ );
+
+ centerIndex =
+ (
+ (
+ centerIndex %
+ segmentCount
+ ) +
+ segmentCount
+ ) %
+ segmentCount;
+
+ const segmentRadius =
+ Math.ceil(
+ WALL_STREAM_DISTANCE_METERS /
+ WALL_SEGMENT_LENGTH_METERS
+ ) +
+ 2;
+
+ for (
+ let offset =
+ -segmentRadius;
+ offset <=
+ segmentRadius;
+ offset++
+ ) {
+ let index =
+ centerIndex +
+ offset;
+
+ index =
+ (
+ (
+ index %
+ segmentCount
+ ) +
+ segmentCount
+ ) %
+ segmentCount;
+
+ const key =
+ getWallSegmentKey(
+ ring.id,
+ index
+ );
+
+ needed.add(
+ key
+ );
+
+ createWallSegment(
+ ring,
+ index,
+ segmentCount
+ );
+ }
+ }
+
+ // ------------------------------------------------
+ // UNLOAD
+ // ------------------------------------------------
+ for (
+ const [
+ key,
+ data
+ ]
+ of Array.from(
+ streamedWallSegments
+ )
+ ) {
+ if (
+ needed.has(
+ key
+ )
+ ) {
+ continue;
+ }
+
+ destroyWallSegment(
+ key,
+ data
+ );
+ }
 }
 
 // ==================================================
@@ -2589,6 +2928,30 @@ function createHouse(
 
  anchorTargets.push(
   roof
+ );
+}
+
+// ==================================================
+// FIXED FOREST CHUNK SYSTEM
+// ==================================================
+function getFixedForestChunkObjects(
+ chunkX,
+ chunkZ
+) {
+ const world =
+ getFixedWorld();
+
+ if (
+ !world
+ ) {
+ return [];
+ }
+
+ return generateDeterministicForestChunk(
+ world.forests,
+ chunkX,
+ chunkZ,
+ CHUNK_SIZE_METERS
  );
 }
 
@@ -11761,82 +12124,178 @@ function drawDatabaseWall(
 function drawDatabaseDistricts(
  database
 ) {
+ const districts =
+ Array.isArray(
+ database.districts
+ )
+ ? database.districts
+ : [];
+
+ /*
+ * 城壁外へ張り出す
+ * 円形城塞区域。
+ *
+ * 半径5km。
+ */
+ const DISPLAY_DISTRICT_RADIUS_METERS =
+ 5000;
+
  for (
-  const district
-  of database.districts
+ const district
+ of districts
  ) {
-  if (
-   !mapCircleVisible(
-    district.xMeters,
-    district.zMeters,
-    district.cityRadiusMeters
-   )
-  ) {
-   continue;
-  }
+ if (
+ !Number.isFinite(
+ district.xMeters
+ ) ||
+ !Number.isFinite(
+ district.zMeters
+ )
+ ) {
+ continue;
+ }
 
-  const position =
-   worldToMap(
-    district.xMeters,
-    district.zMeters
-   );
+ const radiusMeters =
+ DISPLAY_DISTRICT_RADIUS_METERS;
 
-  const radius =
-   district.cityRadiusMeters *
-   position.scale;
+ if (
+ !mapCircleVisible(
+ district.xMeters,
+ district.zMeters,
+ radiusMeters
+ )
+ ) {
+ continue;
+ }
 
-  // ------------------------------------------------
-  // AREA
-  // ------------------------------------------------
-  worldMapContext.beginPath();
+ const position =
+ worldToMap(
+ district.xMeters,
+ district.zMeters
+ );
 
-  worldMapContext.arc(
-   position.x,
-   position.y,
-   radius,
-   0,
-   Math.PI *
-   2
-  );
+ const radius =
+ radiusMeters *
+ position.scale;
 
-  worldMapContext.fillStyle =
-   WORLD_MAP_COLORS
-   .district;
+ // ------------------------------------------------
+ // DISTRICT AREA
+ // ------------------------------------------------
+ worldMapContext.beginPath();
 
-  worldMapContext.fill();
+ worldMapContext.arc(
+ position.x,
+ position.y,
+ radius,
+ 0,
+ Math.PI *
+ 2
+ );
 
-  worldMapContext.strokeStyle =
-   WORLD_MAP_COLORS
-   .districtOutline;
+ worldMapContext.fillStyle =
+ WORLD_MAP_COLORS
+ .district;
 
-  worldMapContext.lineWidth =
-   1.5;
+ worldMapContext.fill();
 
-  worldMapContext.stroke();
+ worldMapContext.strokeStyle =
+ WORLD_MAP_COLORS
+ .districtOutline;
 
-  // ------------------------------------------------
-  // NAME
-  // ------------------------------------------------
-  if (
-   worldMapZoom >=
-   0.65
-  ) {
-   drawWorldMapLabel(
-    district.name,
-    position.x,
-    position.y,
+ worldMapContext.lineWidth =
+ Math.max(
+ 1.5,
+ Math.min(
+ 4,
+ worldMapZoom *
+ 0.15
+ )
+ );
 
-    {
-     size:
-      worldMapZoom >= 3
-      ? 16
-      : 13,
+ worldMapContext.stroke();
 
-     color:
-      "#fff0cd"
-    }
-   );
-  }
+ // ------------------------------------------------
+ // CONNECTION TO WALL
+ // ------------------------------------------------
+ /*
+ * 城塞区域の中心から
+ * 世界中心方向へ短い接続線。
+ *
+ * 「壁から張り出している」
+ * ことを地図上で分かりやすくする。
+ */
+ const distance =
+ Math.hypot(
+ district.xMeters,
+ district.zMeters
+ );
+
+ if (
+ distance >
+ 0.001
+ ) {
+ const nx =
+ district.xMeters /
+ distance;
+
+ const nz =
+ district.zMeters /
+ distance;
+
+ const inner =
+ worldToMap(
+ district.xMeters -
+ nx *
+ radiusMeters,
+ district.zMeters -
+ nz *
+ radiusMeters
+ );
+
+ worldMapContext.beginPath();
+
+ worldMapContext.moveTo(
+ position.x,
+ position.y
+ );
+
+ worldMapContext.lineTo(
+ inner.x,
+ inner.y
+ );
+
+ worldMapContext.strokeStyle =
+ WORLD_MAP_COLORS.wall;
+
+ worldMapContext.lineWidth =
+ 2;
+
+ worldMapContext.stroke();
+ }
+
+ // ------------------------------------------------
+ // LABEL
+ // ------------------------------------------------
+ if (
+ worldMapZoom >=
+ 0.65
+ ) {
+ drawWorldMapLabel(
+ district.name,
+ position.x,
+ position.y,
+ {
+ size:
+ worldMapZoom >=
+ 3
+ ? 16
+ : 13,
+
+ color:
+ "#fff0cd"
+ }
+ );
+ }
  }
 }
 
@@ -13130,43 +13589,16 @@ function toggleWorldMap() {
 // ==================================================
 // MAP ZOOM
 // ==================================================
-
-// --------------------------------------------------
-// ZOOM SETTINGS
-// --------------------------------------------------
-/*
- * 最小倍率。
- *
- * 島全体を見るため
- * 0.3倍まで引ける。
- */
 const WORLD_MAP_MIN_ZOOM =
  0.3;
 
-/*
- * 最大倍率。
- *
- * 約480km級の世界から
- * 家・木一本まで寄れるよう
- * 1000倍。
- */
 const WORLD_MAP_MAX_ZOOM =
- 1000;
+ 10000;
 
 // --------------------------------------------------
-// ZOOM SPEED
+// ZOOM STEP
 // --------------------------------------------------
-/*
- * 倍率によって
- * ホイール1段の拡大率を変える。
- *
- * 全体地図では細かく、
- * 超拡大時は高速。
- */
 function getWorldMapZoomStep() {
- // ------------------------------------------------
- // WORLD
- // ------------------------------------------------
  if (
  worldMapZoom <
  10
@@ -13174,9 +13606,6 @@ function getWorldMapZoomStep() {
  return 1.20;
  }
 
- // ------------------------------------------------
- // CITY
- // ------------------------------------------------
  if (
  worldMapZoom <
  100
@@ -13184,10 +13613,14 @@ function getWorldMapZoomStep() {
  return 1.28;
  }
 
- // ------------------------------------------------
- // STREET / BUILDING
- // ------------------------------------------------
+ if (
+ worldMapZoom <
+ 1000
+ ) {
  return 1.35;
+ }
+
+ return 1.45;
 }
 
 // --------------------------------------------------
@@ -13204,57 +13637,32 @@ worldMapHUD.addEventListener(
 
  event.preventDefault();
 
- // ------------------------------------------------
- // MOUSE POSITION
- // ------------------------------------------------
  const mouseX =
  event.clientX;
 
  const mouseY =
  event.clientY;
 
- // ------------------------------------------------
- // WORLD POSITION BEFORE ZOOM
- // ------------------------------------------------
- /*
- * ズーム前に、
- * マウスカーソルの真下にある
- * ワールド座標を保存。
- */
  const before =
  mapToWorld(
  mouseX,
  mouseY
  );
 
- // ------------------------------------------------
- // ZOOM STEP
- // ------------------------------------------------
- const zoomStep =
+ const step =
  getWorldMapZoomStep();
 
- // ------------------------------------------------
- // ZOOM IN
- // ------------------------------------------------
  if (
  event.deltaY <
  0
  ) {
  worldMapZoom *=
- zoomStep;
- }
-
- // ------------------------------------------------
- // ZOOM OUT
- // ------------------------------------------------
- else {
+ step;
+ } else {
  worldMapZoom /=
- zoomStep;
+ step;
  }
 
- // ------------------------------------------------
- // LIMIT
- // ------------------------------------------------
  worldMapZoom =
  THREE.MathUtils.clamp(
  worldMapZoom,
@@ -13262,35 +13670,10 @@ worldMapHUD.addEventListener(
  WORLD_MAP_MAX_ZOOM
  );
 
- // ------------------------------------------------
- // NEW SCALE
- // ------------------------------------------------
  const scale =
  getWorldMapBaseScale() *
  worldMapZoom;
 
- // ------------------------------------------------
- // KEEP MOUSE WORLD POSITION
- // ------------------------------------------------
- /*
- * ズーム後にも、
- * beforeのワールド地点が
- * 同じマウス位置へ来るよう
- * Panを補正。
- *
- * これにより、
- *
- * 島
- * ↓
- * 都市
- * ↓
- * 街区
- * ↓
- * 家
- *
- * とカーソル位置へ
- * 潜り込むように拡大できる。
- */
  worldMapPanX =
  mouseX -
  window.innerWidth /
@@ -13305,14 +13688,6 @@ worldMapHUD.addEventListener(
  before.zMeters *
  scale;
 
- // ------------------------------------------------
- // DRAW
- // ------------------------------------------------
- /*
- * 毎フレームではなく、
- * ズームが実際に変化した時だけ
- * 地図を再描画。
- */
  drawWorldMap();
  },
  {
@@ -14585,6 +14960,8 @@ function animate() {
  delta
  );
 
+ updateWallStreaming();
+
  updateAreaSystem();
 
  // ------------------------------------------------
@@ -14615,27 +14992,12 @@ function animate() {
  updateHUD();
 
  // ------------------------------------------------
- // WORLD MAP
+ // MAP
  // ------------------------------------------------
  /*
- * 以前:
+ * Mマップは毎フレーム描画しない。
  *
- * if (worldMapOpen) {
- *   drawWorldMap();
- * }
- *
- * を毎フレーム実行していた。
- *
- * 廃止。
- *
- * MAPは、
- *
- * ・OPEN
- * ・ZOOM
- * ・DRAG
- * ・RESIZE
- *
- * 時だけ再描画する。
+ * OPEN / ZOOM / DRAG時だけ。
  */
 
  // ------------------------------------------------
