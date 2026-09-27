@@ -4018,136 +4018,105 @@ scene.add(camera);
 // --------------------------------------------------
 // MATERIALS
 // --------------------------------------------------
-/*
- * 刀身の中央面。
- *
- * 鏡ではなく、
- * 明るい銀灰色の鋼。
- */
 const bladeMaterial =
  new THREE.MeshStandardMaterial({
- color: 0xd8dde2,
- metalness: 0.42,
+ color: 0xd9dde2,
+ metalness: 0.30,
  roughness: 0.22,
- emissive: 0x17191b,
- emissiveIntensity: 0.10
+ emissive: 0x222426,
+ emissiveIntensity: 0.08,
+ side: THREE.DoubleSide
  });
 
-/*
- * 刃。
- *
- * 刀身中央よりかなり明るい。
- */
 const bladeEdgeMaterial =
  new THREE.MeshStandardMaterial({
- color: 0xf8fafc,
- metalness: 0.48,
+ color: 0xf9fafb,
+ metalness: 0.34,
  roughness: 0.10,
- emissive: 0x3a3d40,
- emissiveIntensity: 0.20
+ emissive: 0x4a4d50,
+ emissiveIntensity: 0.15,
+ side: THREE.DoubleSide
  });
 
-/*
- * 刀身の背。
- */
-const bladeSpineMaterial =
+const bladeSegmentMaterial =
+ new THREE.MeshBasicMaterial({
+ color: 0x555a5e,
+ side: THREE.DoubleSide
+ });
+
+const bladeMechanismMaterial =
  new THREE.MeshStandardMaterial({
- color: 0xaeb5bb,
- metalness: 0.50,
+ color: 0x8e9499,
+ metalness: 0.55,
+ roughness: 0.26
+ });
+
+const bladeLightMetalMaterial =
+ new THREE.MeshStandardMaterial({
+ color: 0xc7ccd0,
+ metalness: 0.48,
  roughness: 0.22
  });
 
-/*
- * 刀身の分割線。
- */
-const bladeSegmentMaterial =
- new THREE.MeshStandardMaterial({
- color: 0x555b60,
- metalness: 0.48,
- roughness: 0.28
- });
-
-/*
- * 明るい機械金属。
- */
-const bladeMechanismMaterial =
- new THREE.MeshStandardMaterial({
- color: 0xa6adb3,
- metalness: 0.62,
- roughness: 0.25
- });
-
-/*
- * 暗い機械金属。
- */
 const bladeDarkMetalMaterial =
  new THREE.MeshStandardMaterial({
- color: 0x41464a,
- metalness: 0.58,
- roughness: 0.28
+ color: 0x3c4043,
+ metalness: 0.50,
+ roughness: 0.30
  });
 
-/*
- * グリップ本体。
- */
 const bladeHandleMaterial =
  new THREE.MeshStandardMaterial({
- color: 0x241a18,
- metalness: 0.08,
- roughness: 0.82
+ color: 0x241817,
+ metalness: 0.06,
+ roughness: 0.86
  });
 
-/*
- * 茶色いグリップ表面。
- */
 const bladeGripMaterial =
  new THREE.MeshStandardMaterial({
- color: 0x633a32,
- metalness: 0.04,
- roughness: 0.94
+ color: 0x6b3b32,
+ metalness: 0.03,
+ roughness: 0.92
  });
 
 // --------------------------------------------------
 // MODEL SETTINGS
 // --------------------------------------------------
 /*
- * 参考画像に合わせて
- * グリップに対してかなり長い刀身。
+ * 刀身長。
  *
- * 長さ調整はここ。
+ * ここを変えれば
+ * 全体の長さを調整できる。
  */
 const BLADE_MODEL_LENGTH =
  2.90;
 
 /*
- * 板状の刀身の幅。
+ * 刀身幅。
  */
 const BLADE_MODEL_WIDTH =
- 0.18;
+ 0.22;
 
 /*
- * 刀身そのものは薄くする。
- */
-const BLADE_MODEL_THICKNESS =
- 0.030;
-
-/*
- * 刀身の根元位置。
- */
-const BLADE_START_Z =
- -0.19;
-
-/*
- * 斜めに切り落とす
- * 切っ先部分の長さ。
+ * 切っ先の斜め部分。
  */
 const BLADE_TIP_CUT =
- 0.28;
+ 0.30;
 
 /*
- * 攻撃モーション用Pivot。
- *
- * 刀身中央へ自動追従。
+ * 白い刃面の幅。
+ */
+const BLADE_EDGE_WIDTH =
+ 0.045;
+
+/*
+ * 刀身根元。
+ */
+const BLADE_START_Z =
+ -0.20;
+
+/*
+ * 回転中心。
  */
 const BLADE_CENTER_PIVOT_Z =
  BLADE_START_Z -
@@ -4155,248 +4124,262 @@ const BLADE_CENTER_PIVOT_Z =
  0.5;
 
 // --------------------------------------------------
-// CREATE BLADE BODY GEOMETRY
+// FLAT POLYGON
 // --------------------------------------------------
-function createBladeGeometry(
+function createFlatPolygon(
+ points,
+ material,
+ y = 0
+) {
+ const shape =
+ new THREE.Shape();
+
+ shape.moveTo(
+ points[0][0],
+ points[0][1]
+ );
+
+ for (
+ let i = 1;
+ i < points.length;
+ i++
+ ) {
+ shape.lineTo(
+ points[i][0],
+ points[i][1]
+ );
+ }
+
+ shape.closePath();
+
+ const geometry =
+ new THREE.ShapeGeometry(
+ shape
+ );
+
+ /*
+ * ShapeGeometry は XY 平面なので、
+ * ViewModelの XZ 平面へ倒す。
+ */
+ geometry.rotateX(
+ -Math.PI /
+ 2
+ );
+
+ const mesh =
+ new THREE.Mesh(
+ geometry,
+ material
+ );
+
+ mesh.position.y =
+ y;
+
+ return mesh;
+}
+
+// --------------------------------------------------
+// BLADE BODY
+// --------------------------------------------------
+function createFlatBladeBody(
  side
 ) {
  const halfWidth =
  BLADE_MODEL_WIDTH /
  2;
 
- const halfThickness =
- BLADE_MODEL_THICKNESS /
- 2;
+ const rootZ =
+ BLADE_START_Z;
 
- const longTip =
- -BLADE_MODEL_LENGTH;
+ const longTipZ =
+ BLADE_START_Z -
+ BLADE_MODEL_LENGTH;
 
- const shortTip =
- -BLADE_MODEL_LENGTH +
+ const shortTipZ =
+ longTipZ +
  BLADE_TIP_CUT;
 
  /*
- * 左右の武器で
- * 切っ先を鏡像にする。
+ * 左右で鏡像。
  */
- const leftTip =
+ let points;
+
+ if (
  side < 0
- ? shortTip
- : longTip;
-
- const rightTip =
- side < 0
- ? longTip
- : shortTip;
-
- const vertices =
- new Float32Array([
- // ROOT FRONT
+ ) {
+ points = [
+ [
  -halfWidth,
- -halfThickness,
- 0,
-
+ rootZ
+ ],
+ [
  halfWidth,
- -halfThickness,
- 0,
-
+ rootZ
+ ],
+ [
  halfWidth,
- halfThickness,
- 0,
-
+ longTipZ
+ ],
+ [
  -halfWidth,
- halfThickness,
- 0,
-
- // TIP
- -halfWidth,
- -halfThickness,
- leftTip,
-
- halfWidth,
- -halfThickness,
- rightTip,
-
- halfWidth,
- halfThickness,
- rightTip,
-
- -halfWidth,
- halfThickness,
- leftTip
- ]);
-
- const indices = [
- // LOWER FACE
- 0, 5, 1,
- 0, 4, 5,
-
- // UPPER FACE
- 3, 2, 6,
- 3, 6, 7,
-
- // LEFT
- 0, 3, 7,
- 0, 7, 4,
-
- // RIGHT
- 1, 5, 6,
- 1, 6, 2,
-
- // ROOT
- 0, 1, 2,
- 0, 2, 3,
-
- // TIP
- 4, 7, 6,
- 4, 6, 5
+ shortTipZ
+ ]
  ];
+ } else {
+ points = [
+ [
+ -halfWidth,
+ rootZ
+ ],
+ [
+ halfWidth,
+ rootZ
+ ],
+ [
+ halfWidth,
+ shortTipZ
+ ],
+ [
+ -halfWidth,
+ longTipZ
+ ]
+ ];
+ }
 
- const geometry =
- new THREE.BufferGeometry();
-
- geometry.setAttribute(
- "position",
- new THREE.BufferAttribute(
- vertices,
- 3
- )
+ return createFlatPolygon(
+ points,
+ bladeMaterial,
+ 0
  );
-
- geometry.setIndex(
- indices
- );
-
- geometry.computeVertexNormals();
- geometry.computeBoundingBox();
- geometry.computeBoundingSphere();
-
- return geometry;
 }
 
 // --------------------------------------------------
-// CREATE BRIGHT EDGE GEOMETRY
+// BRIGHT CUTTING EDGE
 // --------------------------------------------------
-function createBladeEdgeGeometry(
+function createFlatBladeEdge(
  side
 ) {
- /*
- * 刃は細い線ではなく、
- * 参考画像のような
- * 幅を持った白銀の帯にする。
- */
- const edgeWidth =
- 0.043;
-
- const thickness =
- BLADE_MODEL_THICKNESS +
- 0.008;
-
- const halfThickness =
- thickness /
+ const halfWidth =
+ BLADE_MODEL_WIDTH /
  2;
 
- const outerX =
- side < 0
- ? BLADE_MODEL_WIDTH / 2 + 0.002
- : -BLADE_MODEL_WIDTH / 2 - 0.002;
-
- const innerX =
- side < 0
- ? outerX - edgeWidth
- : outerX + edgeWidth;
-
  const rootZ =
- 0;
+ BLADE_START_Z;
 
- const longTip =
- -BLADE_MODEL_LENGTH;
+ const longTipZ =
+ BLADE_START_Z -
+ BLADE_MODEL_LENGTH;
 
- const shortTip =
- -BLADE_MODEL_LENGTH +
+ const shortTipZ =
+ longTipZ +
  BLADE_TIP_CUT;
 
- const tipZ =
+ let points;
+
+ /*
+ * 白銀の刃は
+ * 幅を持った面として作る。
+ */
+ if (
  side < 0
- ? longTip
- : longTip;
-
- const innerTipZ =
- shortTip;
-
- const vertices =
- new Float32Array([
- outerX,
- -halfThickness,
- rootZ,
-
- innerX,
- -halfThickness,
- rootZ,
-
- innerX,
- halfThickness,
- rootZ,
-
- outerX,
- halfThickness,
- rootZ,
-
- outerX,
- -halfThickness,
- tipZ,
-
- innerX,
- -halfThickness,
- innerTipZ,
-
- innerX,
- halfThickness,
- innerTipZ,
-
- outerX,
- halfThickness,
- tipZ
- ]);
-
- const indices = [
- 0, 1, 5,
- 0, 5, 4,
-
- 3, 7, 6,
- 3, 6, 2,
-
- 0, 4, 7,
- 0, 7, 3,
-
- 1, 2, 6,
- 1, 6, 5,
-
- 0, 3, 2,
- 0, 2, 1,
-
- 4, 5, 6,
- 4, 6, 7
+ ) {
+ points = [
+ [
+ halfWidth,
+ rootZ
+ ],
+ [
+ halfWidth -
+ BLADE_EDGE_WIDTH,
+ rootZ
+ ],
+ [
+ halfWidth -
+ BLADE_EDGE_WIDTH,
+ longTipZ +
+ BLADE_TIP_CUT *
+ 0.80
+ ],
+ [
+ halfWidth,
+ longTipZ
+ ]
  ];
+ } else {
+ points = [
+ [
+ -halfWidth,
+ rootZ
+ ],
+ [
+ -halfWidth +
+ BLADE_EDGE_WIDTH,
+ rootZ
+ ],
+ [
+ -halfWidth +
+ BLADE_EDGE_WIDTH,
+ longTipZ +
+ BLADE_TIP_CUT *
+ 0.80
+ ],
+ [
+ -halfWidth,
+ longTipZ
+ ]
+ ];
+ }
 
- const geometry =
- new THREE.BufferGeometry();
+ return createFlatPolygon(
+ points,
+ bladeEdgeMaterial,
+ 0.003
+ );
+}
 
- geometry.setAttribute(
- "position",
- new THREE.BufferAttribute(
- vertices,
- 3
- )
+// --------------------------------------------------
+// SEGMENT LINE
+// --------------------------------------------------
+function createBladeSegmentLine(
+ side,
+ z
+) {
+ /*
+ * 分割線も非常に薄い板。
+ *
+ * 刀身を横切る細長い矩形を
+ * 少し斜めにする。
+ */
+ const line =
+ new THREE.Mesh(
+ new THREE.PlaneGeometry(
+ BLADE_MODEL_WIDTH *
+ 0.98,
+ 0.012
+ ),
+ bladeSegmentMaterial
  );
 
- geometry.setIndex(
- indices
+ line.rotation.x =
+ -Math.PI /
+ 2;
+
+ /*
+ * XZ上で斜めにする。
+ */
+ line.rotation.z =
+ side *
+ THREE.MathUtils.degToRad(
+ 17
  );
 
- geometry.computeVertexNormals();
+ line.position.set(
+ 0,
+ 0.006,
+ z
+ );
 
- return geometry;
+ return line;
 }
 
 // --------------------------------------------------
@@ -4406,7 +4389,7 @@ function createBlade(
  side
 ) {
  // ------------------------------------------------
- // GROUP STRUCTURE
+ // GROUPS
  // ------------------------------------------------
  const handGroup =
  new THREE.Group();
@@ -4426,7 +4409,7 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // SWING PIVOT
+ // PIVOT
  // ------------------------------------------------
  swingPivot.position.set(
  0,
@@ -4441,20 +4424,11 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // MAIN BLADE
+ // BLADE BODY
  // ------------------------------------------------
  const blade =
- new THREE.Mesh(
- createBladeGeometry(
+ createFlatBladeBody(
  side
- ),
- bladeMaterial
- );
-
- blade.position.set(
- 0,
- 0.065,
- BLADE_START_Z
  );
 
  blade.castShadow =
@@ -4465,165 +4439,127 @@ function createBlade(
  );
 
  // ------------------------------------------------
- // BRIGHT CUTTING EDGE
+ // CUTTING EDGE
  // ------------------------------------------------
- const cuttingEdge =
- new THREE.Mesh(
- createBladeEdgeGeometry(
+ const edge =
+ createFlatBladeEdge(
  side
- ),
- bladeEdgeMaterial
- );
-
- cuttingEdge.position.set(
- 0,
- 0.065,
- BLADE_START_Z
- );
-
- cuttingEdge.castShadow =
- true;
-
- weapon.add(
- cuttingEdge
- );
-
- // ------------------------------------------------
- // SPINE
- // ------------------------------------------------
- /*
- * 刃と反対側に
- * 細い銀灰色の背を置く。
- */
- const spineX =
- side < 0
- ? -BLADE_MODEL_WIDTH / 2
- : BLADE_MODEL_WIDTH / 2;
-
- const spine =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.014,
- BLADE_MODEL_THICKNESS +
- 0.006,
- BLADE_MODEL_LENGTH -
- 0.20
- ),
- bladeSpineMaterial
- );
-
- spine.position.set(
- spineX,
- 0.065,
- BLADE_START_Z -
- (
- BLADE_MODEL_LENGTH -
- 0.20
- ) /
- 2
  );
 
  weapon.add(
- spine
+ edge
  );
 
  // ------------------------------------------------
- // SEGMENT JOINTS
+ // SEGMENT LINES
  // ------------------------------------------------
  /*
- * 参考画像の
- * 交換刃らしい斜めの分割線。
+ * 参考画像のように
+ * 6本程度の斜め継ぎ目を入れる。
  */
  const segmentCount =
- 7;
+ 6;
 
- const usableLength =
- BLADE_MODEL_LENGTH -
+ const segmentStart =
+ BLADE_START_Z -
  0.48;
 
- const segmentSpacing =
- usableLength /
- segmentCount;
+ const segmentEnd =
+ BLADE_START_Z -
+ BLADE_MODEL_LENGTH +
+ 0.42;
 
  for (
- let i = 1;
- i <= segmentCount;
+ let i = 0;
+ i < segmentCount;
  i++
  ) {
- const joint =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- BLADE_MODEL_WIDTH *
- 0.96,
- BLADE_MODEL_THICKNESS +
- 0.009,
- 0.010
- ),
- bladeSegmentMaterial
+ const t =
+ (
+ i +
+ 1
+ ) /
+ (
+ segmentCount +
+ 1
  );
 
- joint.position.set(
- 0,
- 0.065,
- BLADE_START_Z -
- 0.22 -
- i *
- segmentSpacing
+ const z =
+ THREE.MathUtils.lerp(
+ segmentStart,
+ segmentEnd,
+ t
  );
 
- /*
- * 斜めの継ぎ目。
- */
- joint.rotation.y =
- side *
- THREE.MathUtils.degToRad(
- 17
+ const line =
+ createBladeSegmentLine(
+ side,
+ z
  );
 
  weapon.add(
- joint
+ line
  );
  }
 
  // ------------------------------------------------
- // BLADE ROOT TEETH
+ // ROOT CONNECTOR
  // ------------------------------------------------
  /*
- * 根元のギザギザした
- * 接続部分を小さく再現。
+ * 刀身根元の交換刃ホルダー。
  */
+ const rootConnector =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.24,
+ 0.085,
+ 0.19
+ ),
+ bladeMechanismMaterial
+ );
+
+ rootConnector.position.set(
+ 0,
+ -0.015,
+ -0.105
+ );
+
+ rootConnector.castShadow =
+ true;
+
+ weapon.add(
+ rootConnector
+ );
+
+ // ------------------------------------------------
+ // ROOT TEETH
+ // ------------------------------------------------
  for (
- let i = 0;
- i < 3;
+ let i = -2;
+ i <= 2;
  i++
  ) {
  const tooth =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- 0.042,
- 0.052,
- 0.055
+ 0.035,
+ 0.055,
+ 0.045
  ),
- bladeDarkMetalMaterial
+ bladeLightMetalMaterial
  );
 
  tooth.position.set(
+ i *
+ 0.044,
+ 0.035 +
  (
- i -
- 1
- ) *
- 0.045,
- 0.052 +
- (
- i %
+ Math.abs(i) %
  2
  ) *
- 0.016,
- -0.135
+ 0.012,
+ -0.175
  );
-
- tooth.rotation.x =
- 0.15;
 
  weapon.add(
  tooth
@@ -4631,242 +4567,247 @@ function createBlade(
  }
 
  // ------------------------------------------------
- // BLADE SOCKET
+ // MAIN MECHANISM
  // ------------------------------------------------
- const socket =
+ /*
+ * 参考画像の大きな金属機構。
+ *
+ * 刀身と同じ方向を向く。
+ */
+ const mechanism =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- 0.20,
- 0.13,
- 0.24
- ),
- bladeMechanismMaterial
- );
-
- socket.position.set(
- 0,
- 0.01,
- -0.045
- );
-
- socket.castShadow =
- true;
-
- weapon.add(
- socket
- );
-
- // ------------------------------------------------
- // UPPER MECHANISM
- // ------------------------------------------------
- const upperMechanism =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.25,
- 0.15,
- 0.22
+ 0.33,
+ 0.10,
+ 0.30
  ),
  bladeDarkMetalMaterial
  );
 
- upperMechanism.position.set(
+ mechanism.position.set(
  0,
- -0.045,
+ -0.075,
  0.105
  );
 
- upperMechanism.rotation.x =
- -0.06;
+ mechanism.castShadow =
+ true;
 
  weapon.add(
- upperMechanism
+ mechanism
  );
 
  // ------------------------------------------------
- // SIDE MECHANISM
+ // FRONT PLATE
  // ------------------------------------------------
- const sideMechanism =
+ const frontPlate =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- 0.31,
- 0.12,
- 0.17
+ 0.27,
+ 0.112,
+ 0.16
  ),
  bladeMechanismMaterial
  );
 
- sideMechanism.position.set(
+ frontPlate.position.set(
  0,
- -0.09,
- 0.15
+ -0.055,
+ -0.005
  );
 
  weapon.add(
- sideMechanism
+ frontPlate
  );
 
  // ------------------------------------------------
- // DRUM
+ // SIDE SILVER PLATE
  // ------------------------------------------------
- const drum =
+ const silverPlate =
  new THREE.Mesh(
- new THREE.CylinderGeometry(
- 0.082,
- 0.082,
- 0.30,
- 16
+ new THREE.BoxGeometry(
+ 0.34,
+ 0.025,
+ 0.12
+ ),
+ bladeLightMetalMaterial
+ );
+
+ silverPlate.position.set(
+ 0,
+ -0.015,
+ 0.105
+ );
+
+ weapon.add(
+ silverPlate
+ );
+
+ // ------------------------------------------------
+ // SMALL MECHANISM DETAILS
+ // ------------------------------------------------
+ for (
+ let i = -1;
+ i <= 1;
+ i++
+ ) {
+ const detail =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.045,
+ 0.118,
+ 0.025
  ),
  bladeDarkMetalMaterial
  );
 
- drum.rotation.z =
- Math.PI /
- 2;
-
- drum.position.set(
- 0,
- -0.10,
- 0.13
+ detail.position.set(
+ i *
+ 0.065,
+ -0.045,
+ 0.04
  );
+
+ detail.rotation.y =
+ -0.25;
 
  weapon.add(
- drum
- );
-
- // ------------------------------------------------
- // DRUM CAPS
- // ------------------------------------------------
- for (
- const capSide
- of [-1, 1]
- ) {
- const cap =
- new THREE.Mesh(
- new THREE.CylinderGeometry(
- 0.057,
- 0.057,
- 0.012,
- 16
- ),
- bladeMechanismMaterial
- );
-
- cap.rotation.z =
- Math.PI /
- 2;
-
- cap.position.set(
- capSide *
- 0.155,
- -0.10,
- 0.13
- );
-
- weapon.add(
- cap
+ detail
  );
  }
 
  // ------------------------------------------------
- // HANDLE ROOT
+ // HANDLE GROUP
  // ------------------------------------------------
  /*
- * グリップを直接真下へ出さず、
- * まず後方へ傾ける。
+ * 重要:
+ *
+ * ここではX方向へ90°倒さない。
+ *
+ * 刀身と持ち手は基本的に
+ * 同じXZ平面上。
  */
- const handleRoot =
+ const handleGroup =
  new THREE.Group();
 
- handleRoot.position.set(
+ handleGroup.position.set(
  0,
- -0.15,
- 0.18
+ -0.095,
+ 0.22
  );
-
- handleRoot.rotation.x =
- -0.34;
 
  weapon.add(
- handleRoot
+ handleGroup
  );
 
  // ------------------------------------------------
- // HANDLE CORE
- // ------------------------------------------------
- const handleCore =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.13,
- 0.46,
- 0.16
- ),
- bladeHandleMaterial
- );
-
- handleCore.position.set(
- 0,
- -0.22,
- 0.035
- );
-
- handleRoot.add(
- handleCore
- );
-
- // ------------------------------------------------
- // GRIP BODY
+ // HANDLE SEGMENTS
  // ------------------------------------------------
  /*
- * グリップを複数ブロックにして
- * 少し湾曲して見える形にする。
+ * 小さなブロックを連ねて
+ * 後方へ湾曲した
+ * ピストルグリップを作る。
  */
- const gripSegments =
- 6;
+ const handleSegments =
+ 7;
 
  for (
  let i = 0;
- i < gripSegments;
+ i < handleSegments;
  i++
  ) {
  const t =
  i /
  (
- gripSegments -
+ handleSegments -
  1
  );
 
- const grip =
+ /*
+ * 下へ伸びつつ、
+ * Zプラス方向へ後退。
+ */
+ const y =
+ -0.07 -
+ t *
+ 0.47;
+
+ const z =
+ 0.02 +
+ Math.pow(
+ t,
+ 1.45
+ ) *
+ 0.22;
+
+ const segment =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- 0.137,
- 0.075,
- 0.17
+ 0.135,
+ 0.095,
+ 0.165
  ),
- bladeGripMaterial
+ i === 0
+ ? bladeHandleMaterial
+ : bladeGripMaterial
+ );
+
+ segment.position.set(
+ 0,
+ y,
+ z
  );
 
  /*
- * 下へ行くほど
- * 少し後方へ曲げる。
+ * 徐々にグリップを寝かせる。
+ *
+ * 90°ではなく
+ * 最大約18°程度。
  */
- grip.position.set(
- 0,
- -0.075 -
- i *
- 0.072,
- t *
- t *
- 0.095
- );
+ segment.rotation.x =
+ -THREE.MathUtils.degToRad(
+ 18
+ ) *
+ t;
 
- grip.rotation.x =
- -t *
- 0.16;
+ segment.castShadow =
+ true;
 
- handleRoot.add(
- grip
+ handleGroup.add(
+ segment
  );
  }
+
+ // ------------------------------------------------
+ // HANDLE BACK STRIP
+ // ------------------------------------------------
+ /*
+ * グリップ後方の黒い骨格。
+ */
+ const backStrip =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.15,
+ 0.40,
+ 0.045
+ ),
+ bladeHandleMaterial
+ );
+
+ backStrip.position.set(
+ 0,
+ -0.31,
+ 0.19
+ );
+
+ backStrip.rotation.x =
+ -THREE.MathUtils.degToRad(
+ 14
+ );
+
+ handleGroup.add(
+ backStrip
+ );
 
  // ------------------------------------------------
  // POMMEL
@@ -4874,83 +4815,106 @@ function createBlade(
  const pommel =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- 0.16,
- 0.08,
- 0.18
+ 0.17,
+ 0.075,
+ 0.19
  ),
- bladeMechanismMaterial
+ bladeLightMetalMaterial
  );
 
  pommel.position.set(
  0,
- -0.49,
- 0.11
+ -0.57,
+ 0.25
  );
 
  pommel.rotation.x =
- -0.10;
+ -THREE.MathUtils.degToRad(
+ 18
+ );
 
- handleRoot.add(
+ handleGroup.add(
  pommel
  );
 
  // ------------------------------------------------
- // END CAP
+ // END SCREW
  // ------------------------------------------------
- const endCap =
+ const endScrew =
  new THREE.Mesh(
  new THREE.CylinderGeometry(
- 0.034,
  0.026,
- 0.07,
+ 0.026,
+ 0.065,
  10
  ),
  bladeDarkMetalMaterial
  );
 
- endCap.position.set(
+ /*
+ * Cylinderの長軸はYなので
+ * ここでは回さない。
+ */
+ endScrew.position.set(
  0,
- -0.55,
- 0.13
+ -0.635,
+ 0.28
  );
 
- handleRoot.add(
- endCap
+ handleGroup.add(
+ endScrew
  );
 
  // ------------------------------------------------
  // TRIGGER GUARD
  // ------------------------------------------------
- const triggerGuard =
+ /*
+ * Torusは姿勢が分かりにくくなるので
+ * 今回は薄い矩形で輪郭を作る。
+ */
+ const triggerGuardFront =
  new THREE.Mesh(
- new THREE.TorusGeometry(
- 0.095,
- 0.014,
- 8,
- 24,
- Math.PI *
- 1.25
+ new THREE.BoxGeometry(
+ 0.025,
+ 0.20,
+ 0.025
  ),
- bladeDarkMetalMaterial
+ bladeLightMetalMaterial
  );
 
- triggerGuard.position.set(
+ triggerGuardFront.position.set(
  side *
- -0.015,
- -0.19,
- 0.09
+ -0.10,
+ -0.22,
+ 0.145
  );
 
- triggerGuard.rotation.x =
- Math.PI /
- 2;
-
- triggerGuard.rotation.z =
- side *
- 0.20;
+ triggerGuardFront.rotation.x =
+ -0.30;
 
  weapon.add(
- triggerGuard
+ triggerGuardFront
+ );
+
+ const triggerGuardBottom =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.17,
+ 0.025,
+ 0.025
+ ),
+ bladeLightMetalMaterial
+ );
+
+ triggerGuardBottom.position.set(
+ side *
+ -0.04,
+ -0.315,
+ 0.185
+ );
+
+ weapon.add(
+ triggerGuardBottom
  );
 
  // ------------------------------------------------
@@ -4961,58 +4925,92 @@ function createBlade(
  new THREE.BoxGeometry(
  0.025,
  0.105,
- 0.030
+ 0.025
  ),
- bladeMechanismMaterial
+ bladeDarkMetalMaterial
  );
 
  trigger.position.set(
  side *
- -0.04,
- -0.18,
- 0.04
+ -0.035,
+ -0.19,
+ 0.09
  );
 
  trigger.rotation.x =
- 0.48;
+ 0.32;
 
  weapon.add(
  trigger
  );
 
  // ------------------------------------------------
- // LARGE CONTROL LEVER
+ // CONTROL LEVER
  // ------------------------------------------------
  /*
- * 参考画像にある
- * グリップ前方の大きなレバー。
+ * 参考画像の前側へ伸びる
+ * 大きなレバー。
+ *
+ * これも基本的に同じ平面内。
  */
- const lever =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- 0.035,
- 0.32,
- 0.035
- ),
- bladeMechanismMaterial
- );
+ const leverGroup =
+ new THREE.Group();
 
- lever.position.set(
+ leverGroup.position.set(
  side *
- 0.12,
- -0.26,
+ 0.125,
+ -0.135,
  0.13
  );
 
- lever.rotation.x =
- -0.42;
-
- lever.rotation.z =
- side *
- 0.14;
-
  weapon.add(
- lever
+ leverGroup
+ );
+
+ const leverUpper =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.032,
+ 0.18,
+ 0.035
+ ),
+ bladeLightMetalMaterial
+ );
+
+ leverUpper.position.set(
+ 0,
+ -0.07,
+ 0.025
+ );
+
+ leverUpper.rotation.x =
+ -0.25;
+
+ leverGroup.add(
+ leverUpper
+ );
+
+ const leverLower =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ 0.030,
+ 0.18,
+ 0.035
+ ),
+ bladeLightMetalMaterial
+ );
+
+ leverLower.position.set(
+ 0,
+ -0.225,
+ 0.09
+ );
+
+ leverLower.rotation.x =
+ -0.55;
+
+ leverGroup.add(
+ leverLower
  );
 
  // ------------------------------------------------
@@ -5061,7 +5059,7 @@ function createBlade(
  0;
 
  // ------------------------------------------------
- // ATTACH
+ // CAMERA ATTACH
  // ------------------------------------------------
  camera.add(
  handGroup
