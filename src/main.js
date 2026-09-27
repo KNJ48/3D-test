@@ -13130,80 +13130,193 @@ function toggleWorldMap() {
 // ==================================================
 // MAP ZOOM
 // ==================================================
+
+// --------------------------------------------------
+// ZOOM SETTINGS
+// --------------------------------------------------
+/*
+ * 最小倍率。
+ *
+ * 島全体を見るため
+ * 0.3倍まで引ける。
+ */
+const WORLD_MAP_MIN_ZOOM =
+ 0.3;
+
+/*
+ * 最大倍率。
+ *
+ * 約480km級の世界から
+ * 家・木一本まで寄れるよう
+ * 1000倍。
+ */
+const WORLD_MAP_MAX_ZOOM =
+ 1000;
+
+// --------------------------------------------------
+// ZOOM SPEED
+// --------------------------------------------------
+/*
+ * 倍率によって
+ * ホイール1段の拡大率を変える。
+ *
+ * 全体地図では細かく、
+ * 超拡大時は高速。
+ */
+function getWorldMapZoomStep() {
+ // ------------------------------------------------
+ // WORLD
+ // ------------------------------------------------
+ if (
+ worldMapZoom <
+ 10
+ ) {
+ return 1.20;
+ }
+
+ // ------------------------------------------------
+ // CITY
+ // ------------------------------------------------
+ if (
+ worldMapZoom <
+ 100
+ ) {
+ return 1.28;
+ }
+
+ // ------------------------------------------------
+ // STREET / BUILDING
+ // ------------------------------------------------
+ return 1.35;
+}
+
+// --------------------------------------------------
+// WHEEL
+// --------------------------------------------------
 worldMapHUD.addEventListener(
  "wheel",
  event => {
-  if (
-   !worldMapOpen
-  ) {
-   return;
-  }
+ if (
+ !worldMapOpen
+ ) {
+ return;
+ }
 
-  event.preventDefault();
+ event.preventDefault();
 
-  const oldZoom =
-   worldMapZoom;
+ // ------------------------------------------------
+ // MOUSE POSITION
+ // ------------------------------------------------
+ const mouseX =
+ event.clientX;
 
-  const mouseX =
-   event.clientX;
+ const mouseY =
+ event.clientY;
 
-  const mouseY =
-   event.clientY;
+ // ------------------------------------------------
+ // WORLD POSITION BEFORE ZOOM
+ // ------------------------------------------------
+ /*
+ * ズーム前に、
+ * マウスカーソルの真下にある
+ * ワールド座標を保存。
+ */
+ const before =
+ mapToWorld(
+ mouseX,
+ mouseY
+ );
 
-  /*
-   * ズーム前にマウス下の
-   * ワールド座標を保存。
-   */
-  const before =
-   mapToWorld(
-    mouseX,
-    mouseY
-   );
+ // ------------------------------------------------
+ // ZOOM STEP
+ // ------------------------------------------------
+ const zoomStep =
+ getWorldMapZoomStep();
 
-  if (
-   event.deltaY <
-   0
-  ) {
-   worldMapZoom *=
-    1.2;
-  } else {
-   worldMapZoom /=
-    1.2;
-  }
+ // ------------------------------------------------
+ // ZOOM IN
+ // ------------------------------------------------
+ if (
+ event.deltaY <
+ 0
+ ) {
+ worldMapZoom *=
+ zoomStep;
+ }
 
-  worldMapZoom =
-   THREE.MathUtils.clamp(
-    worldMapZoom,
-    0.3,
-    40
-   );
+ // ------------------------------------------------
+ // ZOOM OUT
+ // ------------------------------------------------
+ else {
+ worldMapZoom /=
+ zoomStep;
+ }
 
-  /*
-   * ズーム後にも同じワールド地点が
-   * マウスの下へ残るようPanを補正。
-   */
-  const scale =
-   getWorldMapBaseScale() *
-   worldMapZoom;
+ // ------------------------------------------------
+ // LIMIT
+ // ------------------------------------------------
+ worldMapZoom =
+ THREE.MathUtils.clamp(
+ worldMapZoom,
+ WORLD_MAP_MIN_ZOOM,
+ WORLD_MAP_MAX_ZOOM
+ );
 
-  worldMapPanX =
-   mouseX -
-   window.innerWidth /
-   2 -
-   before.xMeters *
-   scale;
+ // ------------------------------------------------
+ // NEW SCALE
+ // ------------------------------------------------
+ const scale =
+ getWorldMapBaseScale() *
+ worldMapZoom;
 
-  worldMapPanY =
-   mouseY -
-   window.innerHeight /
-   2 -
-   before.zMeters *
-   scale;
+ // ------------------------------------------------
+ // KEEP MOUSE WORLD POSITION
+ // ------------------------------------------------
+ /*
+ * ズーム後にも、
+ * beforeのワールド地点が
+ * 同じマウス位置へ来るよう
+ * Panを補正。
+ *
+ * これにより、
+ *
+ * 島
+ * ↓
+ * 都市
+ * ↓
+ * 街区
+ * ↓
+ * 家
+ *
+ * とカーソル位置へ
+ * 潜り込むように拡大できる。
+ */
+ worldMapPanX =
+ mouseX -
+ window.innerWidth /
+ 2 -
+ before.xMeters *
+ scale;
 
-  drawWorldMap();
+ worldMapPanY =
+ mouseY -
+ window.innerHeight /
+ 2 -
+ before.zMeters *
+ scale;
+
+ // ------------------------------------------------
+ // DRAW
+ // ------------------------------------------------
+ /*
+ * 毎フレームではなく、
+ * ズームが実際に変化した時だけ
+ * 地図を再描画。
+ */
+ drawWorldMap();
  },
  {
-  passive: false
+ passive: false
  }
 );
 
