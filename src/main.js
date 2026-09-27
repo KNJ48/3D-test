@@ -12226,113 +12226,235 @@ function drawDatabaseBuildings(
  database
 ) {
  /*
-  * 家一軒表示は
-  * 十分拡大してから。
-  */
+ * 4倍未満では家一軒一軒を
+ * 描かない。
+ *
+ * 世界全体表示で
+ * 数万軒を描画する必要はない。
+ */
  if (
-  worldMapZoom <
-  4
+ worldMapZoom <
+ 4
  ) {
-  return;
+ return;
  }
 
+ // --------------------------------------------------
+ // OBJECTS
+ // --------------------------------------------------
+ const objects =
+ Array.isArray(
+ database.objects
+ )
+ ? database.objects
+ : [];
+
  const scale =
-  getWorldMapBaseScale() *
-  worldMapZoom;
+ getWorldMapBaseScale() *
+ worldMapZoom;
+
+ // --------------------------------------------------
+ // BUILDINGS
+ // --------------------------------------------------
+ for (
+ const building
+ of objects
+ ) {
+ if (
+ building.type !==
+ "house"
+ ) {
+ continue;
+ }
+
+ const position =
+ worldToMap(
+ building.xMeters,
+ building.zMeters
+ );
+
+ if (
+ !mapPointVisible(
+ position.x,
+ position.y,
+ 40
+ )
+ ) {
+ continue;
+ }
+
+ const width =
+ Math.max(
+ 2,
+ (
+ building.widthMeters ??
+ 15
+ ) *
+ scale
+ );
+
+ const depth =
+ Math.max(
+ 2,
+ (
+ building.depthMeters ??
+ 18
+ ) *
+ scale
+ );
+
+ // ------------------------------------------------
+ // DRAW
+ // ------------------------------------------------
+ worldMapContext.save();
+
+ worldMapContext.translate(
+ position.x,
+ position.y
+ );
+
+ worldMapContext.rotate(
+ building.rotation ??
+ 0
+ );
+
+ worldMapContext.fillStyle =
+ WORLD_MAP_COLORS
+ .building;
+
+ worldMapContext.fillRect(
+ -width /
+ 2,
+ -depth /
+ 2,
+ width,
+ depth
+ );
+
+ // ------------------------------------------------
+ // OUTLINE
+ // ------------------------------------------------
+ if (
+ worldMapZoom >=
+ 8
+ ) {
+ worldMapContext.strokeStyle =
+ WORLD_MAP_COLORS
+ .buildingOutline;
+
+ worldMapContext.lineWidth =
+ 1;
+
+ worldMapContext.strokeRect(
+ -width /
+ 2,
+ -depth /
+ 2,
+ width,
+ depth
+ );
+ }
+
+ worldMapContext.restore();
+ }
+}
+
+// ==================================================
+// DRAW TREES
+// ==================================================
+function drawDatabaseTrees(
+ database
+) {
+ /*
+ * 木一本単位は
+ * 6倍以上から表示。
+ */
+ if (
+ worldMapZoom <
+ 6
+ ) {
+ return;
+ }
+
+ const objects =
+ Array.isArray(
+ database.objects
+ )
+ ? database.objects
+ : [];
+
+ const scale =
+ getWorldMapBaseScale() *
+ worldMapZoom;
 
  for (
-  const building
-  of database.buildings
+ const tree
+ of objects
  ) {
-  const position =
-   worldToMap(
-    building.xMeters,
-    building.zMeters
-   );
+ if (
+ tree.type !==
+ "tree"
+ ) {
+ continue;
+ }
 
-  if (
-   !mapPointVisible(
-    position.x,
-    position.y,
-    30
-   )
-  ) {
-   continue;
-  }
+ const position =
+ worldToMap(
+ tree.xMeters,
+ tree.zMeters
+ );
 
-  /*
-   * 建物の実寸を
-   * そのまま地図サイズへ。
-   *
-   * 極端に小さくなる場合は
-   * 最低表示サイズを確保。
-   */
-  const width =
-   Math.max(
-    2,
-    building.widthMeters *
-    scale
-   );
+ if (
+ !mapPointVisible(
+ position.x,
+ position.y,
+ 30
+ )
+ ) {
+ continue;
+ }
 
-  const depth =
-   Math.max(
-    2,
-    building.depthMeters *
-    scale
-   );
+ const radius =
+ Math.max(
+ tree.giant
+ ? 3
+ : 1.5,
+ (
+ tree.crownRadiusMeters ??
+ 5
+ ) *
+ scale
+ );
 
-  worldMapContext.save();
+ worldMapContext.beginPath();
 
-  worldMapContext.translate(
-   position.x,
-   position.y
-  );
+ worldMapContext.arc(
+ position.x,
+ position.y,
+ radius,
+ 0,
+ Math.PI *
+ 2
+ );
 
-  worldMapContext.rotate(
-   building.rotation
-  );
+ worldMapContext.fillStyle =
+ tree.giant
+ ? "#194f28"
+ : "#315f31";
 
-  worldMapContext.fillStyle =
-   WORLD_MAP_COLORS
-   .building;
+ worldMapContext.fill();
 
-  worldMapContext.fillRect(
-   -width /
-   2,
+ if (
+ worldMapZoom >=
+ 12
+ ) {
+ worldMapContext.strokeStyle =
+ "#173a1d";
 
-   -depth /
-   2,
+ worldMapContext.lineWidth =
+ 1;
 
-   width,
-
-   depth
-  );
-
-  if (
-   worldMapZoom >=
-   10
-  ) {
-   worldMapContext.strokeStyle =
-    WORLD_MAP_COLORS
-    .buildingOutline;
-
-   worldMapContext.lineWidth =
-    1;
-
-   worldMapContext.strokeRect(
-    -width /
-    2,
-
-    -depth /
-    2,
-
-    width,
-
-    depth
-   );
-  }
-
-  worldMapContext.restore();
+ worldMapContext.stroke();
  }
 }
 
@@ -12709,102 +12831,129 @@ function drawMapPlayer() {
 // ==================================================
 function drawWorldMap() {
  if (
-  !worldMapOpen
+ !worldMapOpen
  ) {
-  return;
+ return;
  }
 
  const database =
-  getActiveWorldDatabase();
+ getActiveWorldDatabase();
 
- if (!database) {
-  return;
+ if (
+ !database
+ ) {
+ return;
  }
 
  // --------------------------------------------------
  // BACKGROUND
  // --------------------------------------------------
  worldMapContext.clearRect(
-  0,
-  0,
-  worldMapCanvas.width,
-  worldMapCanvas.height
+ 0,
+ 0,
+ worldMapCanvas.width,
+ worldMapCanvas.height
  );
 
  worldMapContext.fillStyle =
-  WORLD_MAP_COLORS
-  .background;
+ WORLD_MAP_COLORS
+ .background;
 
  worldMapContext.fillRect(
-  0,
-  0,
-  worldMapCanvas.width,
-  worldMapCanvas.height
+ 0,
+ 0,
+ worldMapCanvas.width,
+ worldMapCanvas.height
  );
 
  // --------------------------------------------------
- // FORESTS
+ // FOREST AREAS
  // --------------------------------------------------
  drawDatabaseForests(
-  database
+ database
  );
 
  // --------------------------------------------------
- // DISTRICT AREAS
+ // DISTRICTS
  // --------------------------------------------------
  drawDatabaseDistricts(
-  database
+ database
  );
 
  // --------------------------------------------------
  // VILLAGES
  // --------------------------------------------------
  drawDatabaseVillages(
-  database
+ database
  );
 
  // --------------------------------------------------
  // ROADS
  // --------------------------------------------------
  drawDatabaseRoads(
-  database
+ database
  );
 
  // --------------------------------------------------
  // BUILDINGS
  // --------------------------------------------------
+ /*
+ * 4x以上で自動表示。
+ */
  drawDatabaseBuildings(
-  database
+ database
+ );
+
+ // --------------------------------------------------
+ // TREES
+ // --------------------------------------------------
+ /*
+ * 6x以上で自動表示。
+ */
+ drawDatabaseTrees(
+ database
  );
 
  // --------------------------------------------------
  // WALLS
  // --------------------------------------------------
- /*
-  * 地区や森より上に描くことで
-  * 三重壁を明確にする。
-  */
+ if (
+ database.walls
+ ) {
+ if (
+ database.walls.maria
+ ) {
  drawDatabaseWall(
-  database.walls.maria
+ database.walls.maria
  );
+ }
 
+ if (
+ database.walls.rose
+ ) {
  drawDatabaseWall(
-  database.walls.rose
+ database.walls.rose
  );
+ }
 
+ if (
+ database.walls.sina
+ ) {
  drawDatabaseWall(
-  database.walls.sina
+ database.walls.sina
  );
+ }
+ }
 
  // --------------------------------------------------
  // LANDMARKS
  // --------------------------------------------------
  drawDatabaseLandmarks(
-  database
+ database
  );
 
  // --------------------------------------------------
- // TP
+ // TELEPORT POINTS
  // --------------------------------------------------
  drawDatabaseTeleportPoints();
 
@@ -12822,9 +12971,9 @@ function drawWorldMap() {
  // ZOOM
  // --------------------------------------------------
  worldMapZoomHUD.textContent =
-  `ZOOM ${worldMapZoom.toFixed(
-   2
-  )}x`;
+ `ZOOM ${worldMapZoom.toFixed(
+ 2
+ )}x`;
 }
 
 // ==================================================
@@ -13266,6 +13415,20 @@ terrainSeedInput.addEventListener(
 // ==================================================
 // WORLD DATABASE SYSTEM
 // ==================================================
+/*
+ * 名前は既存コードとの互換性のため
+ * WORLD DATABASE SYSTEM のまま。
+ *
+ * 実際の正本は、
+ *
+ * /world/paradis-world.json
+ *
+ * だけ。
+ */
+
+// --------------------------------------------------
+// STATE
+// --------------------------------------------------
 let worldDatabaseReady =
  false;
 
@@ -13280,144 +13443,157 @@ function setWorldLoadingStatus(
  progress
 ) {
  worldLoadingStatus.textContent =
-  text;
+ text;
 
  worldLoadingBar.style.width =
-  `${
-   THREE.MathUtils.clamp(
-    progress,
-    0,
-    1
-   ) *
-   100
-  }%`;
+ `${
+ THREE.MathUtils.clamp(
+ progress,
+ 0,
+ 1
+ ) *
+ 100
+ }%`;
 }
 
 // --------------------------------------------------
-// INITIALIZE DATABASE
+// INITIALIZE FIXED WORLD
 // --------------------------------------------------
-async function initializeGameWorldDatabase(
- forceRegenerate = false
-) {
+async function initializeGameWorldDatabase() {
  worldDatabaseReady =
-  false;
+ false;
 
  worldLoadingHUD.style.display =
-  "flex";
+ "flex";
 
- // ------------------------------------------------
- // SEED
- // ------------------------------------------------
- const seed =
-  getTerrainSeed();
+ setWorldLoadingStatus(
+ "LOADING PARADIS WORLD...",
+ 0.10
+ );
 
  worldLoadingDetails.textContent =
-  `WORLD SEED: ${seed}`;
+ "Loading /world/paradis-world.json";
 
  // ------------------------------------------------
- // START
+ // LOAD
  // ------------------------------------------------
- setWorldLoadingStatus(
-  "LOADING WORLD DATABASE...",
-  0.10
+ const database =
+ await loadFixedWorld();
+
+ if (
+ !database
+ ) {
+ throw new Error(
+ "paradis-world.json is empty."
  );
+ }
 
  /*
-  * UIが一度描画される時間を渡す。
-  */
- await new Promise(
-  resolve => {
-   requestAnimationFrame(
-    resolve
-   );
-  }
- );
-
- // ------------------------------------------------
- // GENERATE / LOAD
- // ------------------------------------------------
- setWorldLoadingStatus(
-  "GENERATING MAP...",
-  0.35
- );
-
- const result =
-  await initializeWorldDatabase(
-   seed,
-   {
-    forceRegenerate
-   }
-  );
-
+ * 旧変数名も残す。
+ *
+ * Mマップ等の古い処理が
+ * worldDatabaseを参照しても
+ * 同じ固定Worldが返る。
+ */
  worldDatabase =
-  result.database;
+ database;
 
  // ------------------------------------------------
- // INDEX
+ // COUNTS
  // ------------------------------------------------
- setWorldLoadingStatus(
-  "BUILDING CHUNK INDEX...",
-  0.78
- );
+ const objects =
+ Array.isArray(
+ database.objects
+ )
+ ? database.objects
+ : [];
 
- await new Promise(
-  resolve => {
-   requestAnimationFrame(
-    resolve
-   );
-  }
- );
+ const roads =
+ Array.isArray(
+ database.roads
+ )
+ ? database.roads
+ : [];
+
+ const districts =
+ Array.isArray(
+ database.districts
+ )
+ ? database.districts
+ : [];
+
+ const villages =
+ Array.isArray(
+ database.villages
+ )
+ ? database.villages
+ : [];
+
+ const forests =
+ Array.isArray(
+ database.forests
+ )
+ ? database.forests
+ : [];
+
+ const houseCount =
+ objects.filter(
+ object =>
+ object.type ===
+ "house"
+ ).length;
+
+ const treeCount =
+ objects.filter(
+ object =>
+ object.type ===
+ "tree"
+ ).length;
 
  // ------------------------------------------------
- // STATISTICS
+ // DETAILS
  // ------------------------------------------------
- const stats =
-  worldDatabase.statistics;
-
  worldLoadingDetails.textContent =
-  `WORLD SEED: ${seed}\n` +
-  `SOURCE: ${result.source}\n` +
-  `BUILDINGS: ${stats.buildingCount}\n` +
-  `ROADS: ${stats.roadCount}\n` +
-  `FORESTS: ${stats.forestCount}\n` +
-  `INDEXED CHUNKS: ${stats.chunkCount}`;
+ `WORLD: ${
+ database.name ??
+ "Paradis Island"
+ }\n` +
+ `HOUSES: ${houseCount}\n` +
+ `TREES: ${treeCount}\n` +
+ `ROADS: ${roads.length}\n` +
+ `DISTRICTS: ${districts.length}\n` +
+ `VILLAGES: ${villages.length}\n` +
+ `FORESTS: ${forests.length}`;
 
  // ------------------------------------------------
- // COMPLETE
+ // READY
  // ------------------------------------------------
  setWorldLoadingStatus(
-  "WORLD READY",
-  1
- );
-
- await new Promise(
-  resolve => {
-   setTimeout(
-    resolve,
-    300
-   );
-  }
+ "WORLD READY",
+ 1
  );
 
  worldDatabaseReady =
-  true;
+ true;
 
- worldLoadingHUD.style.display =
-  "none";
-
- console.log(
-  "WORLD DATABASE READY",
-  worldDatabase
- );
+ return {
+ database,
+ source:
+ "fixed-world"
+ };
 }
 
 // --------------------------------------------------
-// GET DATABASE
+// GET ACTIVE WORLD
 // --------------------------------------------------
+/*
+ * 3DとMマップで
+ * 必ず同じオブジェクトを返す。
+ */
 function getActiveWorldDatabase() {
  return (
-  worldDatabase ||
-  getWorldDatabase()
+ getFixedWorld() ||
+ worldDatabase
  );
 }
 
