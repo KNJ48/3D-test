@@ -4098,25 +4098,29 @@ const BLADE_CENTER_PIVOT_Z =
  -1.45;
 
 // --------------------------------------------------
-// GRIP SETTINGS
+// BLADE FACE DEPTH
 // --------------------------------------------------
 /*
- * 持ち手の太さ。
+ * 刀身本体はほぼ紙。
+ *
+ * 装飾だけ表裏へ
+ * わずかに浮かせる。
  */
+const BLADE_FACE_OFFSET =
+ 0.004;
+
+const BLADE_JOINT_OFFSET =
+ 0.007;
+
+// --------------------------------------------------
+// GRIP SETTINGS
+// --------------------------------------------------
 const BLADE_GRIP_RADIUS =
  0.078;
 
-/*
- * 曲線の滑らかさ。
- *
- * 大きいほど滑らか。
- */
 const BLADE_GRIP_SEGMENTS =
  32;
 
-/*
- * 断面の滑らかさ。
- */
 const BLADE_GRIP_RADIAL_SEGMENTS =
  12;
 
@@ -4209,21 +4213,8 @@ function createSmoothBladeGrip(
  new THREE.Group();
 
  // ------------------------------------------------
- // CURVE
+ // MAIN CURVE
  // ------------------------------------------------
- /*
- * 参考画像のように、
- *
- * 機構部
- *   │
- *    ╲
- *     ╲
- *      ）
- *
- * と後ろへ湾曲する中心線。
- *
- * 全てXY平面内。
- */
  const curve =
  new THREE.CatmullRomCurve3(
  [
@@ -4267,28 +4258,23 @@ function createSmoothBladeGrip(
  );
 
  // ------------------------------------------------
- // GRIP CORE
+ // GRIP BODY
  // ------------------------------------------------
- const gripGeometry =
+ const grip =
+ new THREE.Mesh(
  new THREE.TubeGeometry(
  curve,
  BLADE_GRIP_SEGMENTS,
  BLADE_GRIP_RADIUS,
  BLADE_GRIP_RADIAL_SEGMENTS,
  false
- );
-
- const grip =
- new THREE.Mesh(
- gripGeometry,
+ ),
  bladeGripMaterial
  );
 
  /*
- * 完全な丸棒ではなく
- * 平たいピストルグリップへ。
- *
- * Z方向だけ薄くする。
+ * 丸棒ではなく
+ * 平たいグリップ。
  */
  grip.scale.z =
  0.62;
@@ -4306,10 +4292,6 @@ function createSmoothBladeGrip(
  // ------------------------------------------------
  // DARK BACK STRIP
  // ------------------------------------------------
- /*
- * 参考画像のグリップ後ろ側にある
- * 黒い縁取りを細いTubeで追加。
- */
  const backCurve =
  new THREE.CatmullRomCurve3(
  [
@@ -4353,18 +4335,15 @@ function createSmoothBladeGrip(
  0.45
  );
 
- const backGeometry =
+ const backStrip =
+ new THREE.Mesh(
  new THREE.TubeGeometry(
  backCurve,
  BLADE_GRIP_SEGMENTS,
  0.020,
  8,
  false
- );
-
- const backStrip =
- new THREE.Mesh(
- backGeometry,
+ ),
  bladeGripDarkMaterial
  );
 
@@ -4378,10 +4357,6 @@ function createSmoothBladeGrip(
  // ------------------------------------------------
  // GRIP RINGS
  // ------------------------------------------------
- /*
- * グリップ表面へ細い暗色リングを入れて、
- * のっぺりしたゴム棒っぽさを減らす。
- */
  for (
  let i = 1;
  i <= 6;
@@ -4417,11 +4392,8 @@ function createSmoothBladeGrip(
  center
  );
 
- /*
- * Torusの法線軸を
- * 曲線の接線方向へ合わせる。
- */
- ring.quaternion.setFromUnitVectors(
+ ring.quaternion
+ .setFromUnitVectors(
  new THREE.Vector3(
  0,
  0,
@@ -4538,7 +4510,7 @@ function createBladeVisual(
  2;
 
  // ------------------------------------------------
- // MAIN BLADE
+ // BLADE SHAPE
  // ------------------------------------------------
  let bladePoints;
 
@@ -4586,6 +4558,12 @@ function createBladeVisual(
  ];
  }
 
+ // ------------------------------------------------
+ // MAIN BLADE
+ // ------------------------------------------------
+ /*
+ * 本体自体はDoubleSide。
+ */
  const blade =
  createBladeFlatMesh(
  bladePoints,
@@ -4601,7 +4579,7 @@ function createBladeVisual(
  );
 
  // ------------------------------------------------
- // CUTTING EDGE
+ // EDGE SHAPE
  // ------------------------------------------------
  let edgePoints;
 
@@ -4655,19 +4633,54 @@ function createBladeVisual(
  ];
  }
 
- const edge =
+ // ------------------------------------------------
+ // FRONT EDGE
+ // ------------------------------------------------
+ const frontEdge =
  createBladeFlatMesh(
  edgePoints,
  bladeEdgeMaterial,
- 0.004
+ BLADE_FACE_OFFSET
  );
 
  visual.add(
- edge
+ frontEdge
  );
 
  // ------------------------------------------------
- // JOINTS
+ // BACK EDGE
+ // ------------------------------------------------
+ /*
+ * 裏面にも同じ白銀の刃。
+ *
+ * 物理的な刃側は同じ。
+ */
+ const backEdge =
+ createBladeFlatMesh(
+ edgePoints,
+ bladeEdgeMaterial,
+ -BLADE_FACE_OFFSET
+ );
+
+ /*
+ * 裏側へ向ける。
+ */
+ backEdge.rotation.y =
+ Math.PI;
+
+ /*
+ * rotationでXが反転するため
+ * 位置も補正。
+ */
+ backEdge.scale.x =
+ -1;
+
+ visual.add(
+ backEdge
+ );
+
+ // ------------------------------------------------
+ // BLADE JOINTS
  // ------------------------------------------------
  const jointCount =
  6;
@@ -4688,7 +4701,10 @@ function createBladeVisual(
  1
  );
 
- const joint =
+ // ----------------------------------------------
+ // FRONT JOINT
+ // ----------------------------------------------
+ const frontJoint =
  new THREE.Mesh(
  new THREE.PlaneGeometry(
  BLADE_MODEL_WIDTH *
@@ -4698,20 +4714,60 @@ function createBladeVisual(
  bladeJointMaterial
  );
 
- joint.position.set(
+ frontJoint.position.set(
  0,
  y,
- 0.007
+ BLADE_JOINT_OFFSET
  );
 
- joint.rotation.z =
+ frontJoint.rotation.z =
  side *
  THREE.MathUtils.degToRad(
  17
  );
 
  visual.add(
- joint
+ frontJoint
+ );
+
+ // ----------------------------------------------
+ // BACK JOINT
+ // ----------------------------------------------
+ /*
+ * 裏面にも同じ分割線。
+ */
+ const backJoint =
+ new THREE.Mesh(
+ new THREE.PlaneGeometry(
+ BLADE_MODEL_WIDTH *
+ 0.98,
+ 0.012
+ ),
+ bladeJointMaterial
+ );
+
+ backJoint.position.set(
+ 0,
+ y,
+ -BLADE_JOINT_OFFSET
+ );
+
+ /*
+ * 裏から見た時に
+ * 表と対応する線になるよう
+ * Z方向へ反転。
+ */
+ backJoint.rotation.y =
+ Math.PI;
+
+ backJoint.rotation.z =
+ -side *
+ THREE.MathUtils.degToRad(
+ 17
+ );
+
+ visual.add(
+ backJoint
  );
  }
 
@@ -4800,37 +4856,49 @@ function createBladeVisual(
  );
 
  // ------------------------------------------------
- // MECHANISM PLATE
+ // MECHANISM PLATE FRONT
  // ------------------------------------------------
- const plate =
+ const frontPlate =
  new THREE.Mesh(
  new THREE.BoxGeometry(
  0.26,
  0.16,
- 0.102
+ 0.018
  ),
  bladeMechanismMaterial
  );
 
- plate.position.set(
+ frontPlate.position.set(
  0,
  -0.18,
- 0.003
+ 0.057
  );
 
  visual.add(
- plate
+ frontPlate
+ );
+
+ // ------------------------------------------------
+ // MECHANISM PLATE BACK
+ // ------------------------------------------------
+ /*
+ * 持ち手機構も180°返した時に
+ * 裏が完全な無地にならないよう
+ * 同じ銀プレートを配置。
+ */
+ const backPlate =
+ frontPlate.clone();
+
+ backPlate.position.z =
+ -0.057;
+
+ visual.add(
+ backPlate
  );
 
  // ------------------------------------------------
  // SMOOTH GRIP
  // ------------------------------------------------
- /*
- * ここが今回の変更点。
- *
- * Box7個方式ではなく、
- * 1本の連続した曲線グリップ。
- */
  const grip =
  createSmoothBladeGrip(
  side
@@ -5005,21 +5073,12 @@ function createBlade(
  const handGroup =
  new THREE.Group();
 
- // ------------------------------------------------
- // SWING PIVOT
- // ------------------------------------------------
  const swingPivot =
  new THREE.Group();
 
- // ------------------------------------------------
- // TWIST PIVOT
- // ------------------------------------------------
  const twistPivot =
  new THREE.Group();
 
- // ------------------------------------------------
- // WEAPON
- // ------------------------------------------------
  const weapon =
  new THREE.Group();
 
