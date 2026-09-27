@@ -28,6 +28,13 @@ import {
  exportWorldDatabase
 } from "./worldDatabase.js";
 
+import {
+ loadFixedWorld,
+ getFixedWorld,
+ loadFixedWorldChunk,
+ clearFixedWorldCache
+} from "./fixedWorld.js";
+
 // ==================================================
 // WORLD SCALE
 // ==================================================
@@ -2587,17 +2594,16 @@ function createHouse(
 // ==================================================
 // CHUNK WORLD OBJECTS
 // ==================================================
-
 const treeTrunkMaterial =
  new THREE.MeshStandardMaterial({
-  color: 0x5b3a22,
-  roughness: 1
+ color: 0x5b3a22,
+ roughness: 1
  });
 
 const treeLeafMaterial =
  new THREE.MeshStandardMaterial({
-  color: 0x356b2f,
-  roughness: 1
+ color: 0x356b2f,
+ roughness: 1
  });
 
 // --------------------------------------------------
@@ -2608,17 +2614,17 @@ function removeArrayItem(
  item
 ) {
  const index =
-  array.indexOf(
-   item
-  );
+ array.indexOf(
+ item
+ );
 
  if (
-  index >= 0
+ index >= 0
  ) {
-  array.splice(
-   index,
-   1
-  );
+ array.splice(
+ index,
+ 1
+ );
  }
 }
 
@@ -2630,161 +2636,190 @@ function createGeneratedHouse(
  chunkData
 ) {
  const x =
-  metersToUnits(
-   descriptor.xMeters
-  );
+ metersToUnits(
+ descriptor.xMeters
+ );
 
  const z =
-  metersToUnits(
-   descriptor.zMeters
-  );
+ metersToUnits(
+ descriptor.zMeters
+ );
 
  const width =
-  metersToUnits(
-   descriptor.widthMeters
-  );
+ metersToUnits(
+ descriptor.widthMeters ??
+ 15
+ );
 
  const depth =
-  metersToUnits(
-   descriptor.depthMeters
-  );
+ metersToUnits(
+ descriptor.depthMeters ??
+ 18
+ );
 
  const height =
-  metersToUnits(
-   descriptor.heightMeters
-  );
+ metersToUnits(
+ descriptor.heightMeters ??
+ 30
+ );
 
  const roofHeight =
-  metersToUnits(
-   descriptor.roofHeightMeters
-  );
+ metersToUnits(
+ descriptor.roofHeightMeters ??
+ 5
+ );
 
  const terrainY =
-  metersToUnits(
-   getTerrainHeightMeters(
-    descriptor.xMeters,
-    descriptor.zMeters
-   )
-  );
+ metersToUnits(
+ getTerrainHeightMeters(
+ descriptor.xMeters,
+ descriptor.zMeters
+ )
+ );
+
+ const variant =
+ descriptor.variant ??
+ Math.abs(
+ String(
+ descriptor.id ??
+ ""
+ )
+ .split("")
+ .reduce(
+ (
+ value,
+ character
+ ) =>
+ value +
+ character.charCodeAt(
+ 0
+ ),
+ 0
+ )
+ );
 
  // ------------------------------------------------
  // HOUSE
  // ------------------------------------------------
  const house =
-  new THREE.Mesh(
-   new THREE.BoxGeometry(
-    width,
-    height,
-    depth
-   ),
-
-   cityMaterials[
-    descriptor.variant %
-    cityMaterials.length
-   ]
-  );
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ width,
+ height,
+ depth
+ ),
+ cityMaterials[
+ variant %
+ cityMaterials.length
+ ]
+ );
 
  house.position.set(
-  x,
-  terrainY +
-  height /
-  2,
-  z
+ x,
+ terrainY +
+ height /
+ 2,
+ z
  );
 
  house.rotation.y =
-  descriptor.rotation;
+ descriptor.rotation ??
+ 0;
 
  house.castShadow =
-  true;
+ true;
 
  house.receiveShadow =
-  true;
+ true;
+
+ house.userData.worldObjectId =
+ descriptor.id;
 
  chunkData.group.add(
-  house
+ house
  );
 
  // ------------------------------------------------
  // COLLISION
  // ------------------------------------------------
  const box =
-  new THREE.Box3()
-  .setFromObject(
-   house
-  );
+ new THREE.Box3()
+ .setFromObject(
+ house
+ );
 
  colliders.push(
-  box
+ box
  );
 
  chunkData.colliders.push(
-  box
+ box
  );
 
  // ------------------------------------------------
  // ANCHOR
  // ------------------------------------------------
  anchorTargets.push(
-  house
+ house
  );
 
  chunkData.anchorTargets.push(
-  house
+ house
  );
 
  // ------------------------------------------------
  // ROOF
  // ------------------------------------------------
  const roof =
-  new THREE.Mesh(
-   new THREE.ConeGeometry(
-    Math.max(
-     width,
-     depth
-    ) *
-    0.72,
-
-    roofHeight,
-
-    4
-   ),
-
-   roofMaterial
-  );
+ new THREE.Mesh(
+ new THREE.ConeGeometry(
+ Math.max(
+ width,
+ depth
+ ) *
+ 0.72,
+ roofHeight,
+ 4
+ ),
+ roofMaterial
+ );
 
  roof.position.set(
-  x,
-
-  terrainY +
-  height +
-  roofHeight /
-  2,
-
-  z
+ x,
+ terrainY +
+ height +
+ roofHeight /
+ 2,
+ z
  );
 
  roof.rotation.y =
-  Math.PI /
-  4 +
-  descriptor.rotation;
+ Math.PI /
+ 4 +
+ (
+ descriptor.rotation ??
+ 0
+ );
 
  roof.castShadow =
-  true;
+ true;
 
  roof.receiveShadow =
-  true;
+ true;
+
+ roof.userData.worldObjectId =
+ descriptor.id;
 
  chunkData.group.add(
-  roof
+ roof
  );
 
  anchorTargets.push(
-  roof
+ roof
  );
 
  chunkData.anchorTargets.push(
-  roof
+ roof
  );
 }
 
@@ -2796,212 +2831,240 @@ function createGeneratedTree(
  chunkData
 ) {
  const x =
-  metersToUnits(
-   descriptor.xMeters
-  );
+ metersToUnits(
+ descriptor.xMeters
+ );
 
  const z =
-  metersToUnits(
-   descriptor.zMeters
-  );
+ metersToUnits(
+ descriptor.zMeters
+ );
 
  const height =
-  metersToUnits(
-   descriptor.heightMeters
-  );
+ metersToUnits(
+ descriptor.heightMeters ??
+ 20
+ );
 
  const trunkRadius =
-  metersToUnits(
-   descriptor.trunkRadiusMeters
-  );
+ metersToUnits(
+ descriptor.trunkRadiusMeters ??
+ 0.7
+ );
 
  const crownRadius =
-  metersToUnits(
-   descriptor.crownRadiusMeters
-  );
+ metersToUnits(
+ descriptor.crownRadiusMeters ??
+ 5
+ );
+
+ const giant =
+ descriptor.giant ??
+ false;
 
  const terrainY =
-  metersToUnits(
-   getTerrainHeightMeters(
-    descriptor.xMeters,
-    descriptor.zMeters
-   )
-  );
+ metersToUnits(
+ getTerrainHeightMeters(
+ descriptor.xMeters,
+ descriptor.zMeters
+ )
+ );
 
  // ------------------------------------------------
  // TRUNK
  // ------------------------------------------------
  const trunk =
-  new THREE.Mesh(
-   new THREE.CylinderGeometry(
-    trunkRadius,
-    trunkRadius *
-    1.12,
-
-    height,
-
-    descriptor.giant
-    ? 12
-    : 8
-   ),
-
-   treeTrunkMaterial
-  );
+ new THREE.Mesh(
+ new THREE.CylinderGeometry(
+ trunkRadius,
+ trunkRadius *
+ 1.12,
+ height,
+ giant
+ ? 12
+ : 8
+ ),
+ treeTrunkMaterial
+ );
 
  trunk.position.set(
-  x,
-
-  terrainY +
-  height /
-  2,
-
-  z
+ x,
+ terrainY +
+ height /
+ 2,
+ z
  );
 
  trunk.castShadow =
-  true;
+ true;
 
  trunk.receiveShadow =
-  true;
+ true;
+
+ trunk.userData.worldObjectId =
+ descriptor.id;
 
  chunkData.group.add(
-  trunk
+ trunk
  );
 
  // ------------------------------------------------
  // COLLISION
  // ------------------------------------------------
  const box =
-  new THREE.Box3()
-  .setFromObject(
-   trunk
-  );
+ new THREE.Box3()
+ .setFromObject(
+ trunk
+ );
 
  colliders.push(
-  box
+ box
  );
 
  chunkData.colliders.push(
-  box
+ box
  );
 
  // ------------------------------------------------
  // ANCHOR
  // ------------------------------------------------
  anchorTargets.push(
-  trunk
+ trunk
  );
 
  chunkData.anchorTargets.push(
-  trunk
+ trunk
  );
 
  // ------------------------------------------------
  // CROWN
  // ------------------------------------------------
  const crown =
-  new THREE.Mesh(
-   new THREE.SphereGeometry(
-    crownRadius,
-
-    descriptor.giant
-    ? 12
-    : 8,
-
-    descriptor.giant
-    ? 8
-    : 6
-   ),
-
-   treeLeafMaterial
-  );
+ new THREE.Mesh(
+ new THREE.SphereGeometry(
+ crownRadius,
+ giant
+ ? 12
+ : 8,
+ giant
+ ? 8
+ : 6
+ ),
+ treeLeafMaterial
+ );
 
  crown.position.set(
-  x,
-
-  terrainY +
-  height,
-
-  z
+ x,
+ terrainY +
+ height,
+ z
  );
 
  crown.scale.y =
-  0.7;
+ 0.7;
 
  crown.castShadow =
-  true;
+ true;
+
+ crown.userData.worldObjectId =
+ descriptor.id;
 
  chunkData.group.add(
-  crown
+ crown
  );
 
  anchorTargets.push(
-  crown
+ crown
  );
 
  chunkData.anchorTargets.push(
-  crown
+ crown
  );
 }
 
 // --------------------------------------------------
-// CREATE CHUNK WORLD CONTENT
+// CREATE FIXED WORLD OBJECT
 // --------------------------------------------------
-function createChunkWorldContent(
- chunkX,
- chunkZ
+function createFixedWorldObject(
+ descriptor,
+ chunkData
 ) {
- const descriptors =
-  generateWorldChunkContent(
-   chunkX,
-   chunkZ,
-
-   CHUNK_SIZE_METERS,
-
-   getTerrainSeed()
-  );
-
- const group =
-  new THREE.Group();
-
- const chunkData = {
-  group,
-
-  colliders: [],
-
-  anchorTargets: []
- };
-
- for (
-  const descriptor
-  of descriptors
+ if (
+ !descriptor
  ) {
-  if (
-   descriptor.type ===
-   "house"
-  ) {
-   createGeneratedHouse(
-    descriptor,
-    chunkData
-   );
-  }
-
-  if (
-   descriptor.type ===
-   "tree"
-  ) {
-   createGeneratedTree(
-    descriptor,
-    chunkData
-   );
-  }
+ return;
  }
 
+ if (
+ descriptor.type ===
+ "house"
+ ) {
+ createGeneratedHouse(
+ descriptor,
+ chunkData
+ );
+
+ return;
+ }
+
+ if (
+ descriptor.type ===
+ "tree"
+ ) {
+ createGeneratedTree(
+ descriptor,
+ chunkData
+ );
+ }
+}
+
+// --------------------------------------------------
+// CREATE EMPTY CHUNK CONTENT
+// --------------------------------------------------
+function createEmptyChunkWorldContent() {
+ const group =
+ new THREE.Group();
+
+ const chunkData = {
+ group,
+
+ colliders: [],
+
+ anchorTargets: []
+ };
+
  scene.add(
-  group
+ group
  );
 
  return chunkData;
+}
+
+// --------------------------------------------------
+// POPULATE FIXED CHUNK
+// --------------------------------------------------
+function populateFixedChunkWorldContent(
+ data,
+ descriptors
+) {
+ if (
+ !data ||
+ !Array.isArray(
+ descriptors
+ )
+ ) {
+ return;
+ }
+
+ for (
+ const descriptor
+ of descriptors
+ ) {
+ createFixedWorldObject(
+ descriptor,
+ data
+ );
+ }
 }
 
 // --------------------------------------------------
@@ -3010,54 +3073,56 @@ function createChunkWorldContent(
 function destroyChunkWorldContent(
  data
 ) {
- if (!data) {
-  return;
+ if (
+ !data
+ ) {
+ return;
  }
 
  // ------------------------------------------------
  // COLLIDERS
  // ------------------------------------------------
  for (
-  const box
-  of data.colliders
+ const box
+ of data.colliders
  ) {
-  removeArrayItem(
-   colliders,
-   box
-  );
+ removeArrayItem(
+ colliders,
+ box
+ );
  }
 
  // ------------------------------------------------
  // ANCHORS
  // ------------------------------------------------
  for (
-  const mesh
-  of data.anchorTargets
+ const mesh
+ of data.anchorTargets
  ) {
-  removeArrayItem(
-   anchorTargets,
-   mesh
-  );
+ removeArrayItem(
+ anchorTargets,
+ mesh
+ );
  }
 
  // ------------------------------------------------
  // REMOVE GROUP
  // ------------------------------------------------
  scene.remove(
-  data.group
+ data.group
  );
 
  // ------------------------------------------------
- // DISPOSE GEOMETRY
+ // DISPOSE
  // ------------------------------------------------
  data.group.traverse(
-  object => {
-   if (
-    object.geometry
-   ) {
-    object.geometry.dispose();
-   }
-  }
+ object => {
+ if (
+ object.geometry
+ ) {
+ object.geometry.dispose();
+ }
+ }
  );
 }
 
