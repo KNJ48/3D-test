@@ -2815,6 +2815,72 @@ const HOUSE_TEMPLATES = [
 ];
 
 // --------------------------------------------------
+// HOUSE WALL MATERIAL
+// --------------------------------------------------
+function createHouseWallMaterial() {
+ const texture =
+ houseWallTexture.clone();
+
+ texture.needsUpdate =
+ true;
+
+ texture.wrapS =
+ THREE.ClampToEdgeWrapping;
+
+ texture.wrapT =
+ THREE.ClampToEdgeWrapping;
+
+ /*
+  * この画像は素材ではなく、
+  * 「完成した木骨壁パネル」として使う。
+  *
+  * そのため繰り返さない。
+  */
+ texture.repeat.set(
+ 1,
+ 1
+ );
+
+ return new THREE.MeshStandardMaterial({
+ map: texture,
+ color: 0xffffff,
+ roughness: 0.9
+ });
+}
+
+// --------------------------------------------------
+// HOUSE ROOF MATERIAL
+// --------------------------------------------------
+function createHouseRoofMaterial() {
+ const texture =
+ houseRoofTexture.clone();
+
+ texture.needsUpdate =
+ true;
+
+ texture.wrapS =
+ THREE.RepeatWrapping;
+
+ texture.wrapT =
+ THREE.RepeatWrapping;
+
+ /*
+  * 瓦は表面素材として扱うので
+  * ある程度繰り返してよい。
+  */
+ texture.repeat.set(
+ 2,
+ 2
+ );
+
+ return new THREE.MeshStandardMaterial({
+ map: texture,
+ color: 0xffffff,
+ roughness: 0.88
+ });
+}
+
+// --------------------------------------------------
 // CREATE TEXTURED HOUSE
 // --------------------------------------------------
 function createTexturedHouse(
@@ -2830,19 +2896,13 @@ function createTexturedHouse(
  // ------------------------------------------------
  // TERRAIN
  // ------------------------------------------------
- const xMeters =
- x *
- METERS_PER_UNIT;
-
- const zMeters =
- z *
- METERS_PER_UNIT;
-
  const terrainY =
  metersToUnits(
  getTerrainHeightMeters(
- xMeters,
- zMeters
+ x *
+ METERS_PER_UNIT,
+ z *
+ METERS_PER_UNIT
  )
  );
 
@@ -2869,47 +2929,6 @@ function createTexturedHouse(
  }
 
  // ------------------------------------------------
- // WALL TEXTURE
- // ------------------------------------------------
- const wallTexture =
- houseWallTexture.clone();
-
- wallTexture.needsUpdate =
- true;
-
- wallTexture.wrapS =
- THREE.RepeatWrapping;
-
- wallTexture.wrapT =
- THREE.RepeatWrapping;
-
- /*
-  * 元画像1枚を
-  * およそ4m四方の壁パネルとして扱う。
-  */
- wallTexture.repeat.set(
- Math.max(
- 1,
- width *
- METERS_PER_UNIT /
- 4
- ),
- Math.max(
- 1,
- height *
- METERS_PER_UNIT /
- 4
- )
- );
-
- const wallMaterial =
- new THREE.MeshStandardMaterial({
- map: wallTexture,
- color: 0xffffff,
- roughness: 0.9
- });
-
- // ------------------------------------------------
  // BODY
  // ------------------------------------------------
  const body =
@@ -2919,12 +2938,15 @@ function createTexturedHouse(
  height,
  depth
  ),
- wallMaterial
+ createHouseWallMaterial()
  );
 
- body.position.y =
+ body.position.set(
+ 0,
  height /
- 2;
+ 2,
+ 0
+ );
 
  body.castShadow =
  true;
@@ -2944,20 +2966,29 @@ function createTexturedHouse(
  );
 
  // ------------------------------------------------
- // GABLE ROOF
+ // GABLE ROOF SIZE
  // ------------------------------------------------
  /*
-  * 切妻屋根。
-  *
   * 屋根の峰はZ方向。
   *
-  * 左右2枚の屋根板を
-  * BoxGeometryで作る。
+  * 正面から見ると、
+  *
+  *        /\
+  *       /  \
+  *      /    \
+  *     --------
+  *
+  * になる。
   */
-
  const halfWidth =
  width /
  2;
+
+ const roofAngle =
+ Math.atan2(
+ roofHeight,
+ halfWidth
+ );
 
  const slopeLength =
  Math.sqrt(
@@ -2967,66 +2998,24 @@ function createTexturedHouse(
  roofHeight
  );
 
- const roofAngle =
- Math.atan2(
- roofHeight,
- halfWidth
- );
-
- /*
-  * 少しだけ軒を出す。
-  */
- const roofOverhang =
+ const overhang =
  metersToUnits(
  0.45
  );
 
- const roofDepth =
- depth +
- roofOverhang *
- 2;
-
- const roofSlope =
- slopeLength +
- roofOverhang;
-
- // ------------------------------------------------
- // ROOF MATERIAL
- // ------------------------------------------------
- function makeRoofMaterial() {
- const texture =
- houseRoofTexture.clone();
-
- texture.needsUpdate =
- true;
-
- texture.wrapS =
- THREE.RepeatWrapping;
-
- texture.wrapT =
- THREE.RepeatWrapping;
-
- texture.repeat.set(
- Math.max(
- 1,
- roofDepth *
- METERS_PER_UNIT /
- 3
- ),
- Math.max(
- 1,
- roofSlope *
- METERS_PER_UNIT /
- 3
- )
+ const roofThickness =
+ metersToUnits(
+ 0.12
  );
 
- return new THREE.MeshStandardMaterial({
- map: texture,
- color: 0xffffff,
- roughness: 0.88
- });
- }
+ const roofDepth =
+ depth +
+ overhang *
+ 2;
+
+ const roofSlopeLength =
+ slopeLength +
+ overhang;
 
  // ------------------------------------------------
  // LEFT ROOF
@@ -3034,15 +3023,17 @@ function createTexturedHouse(
  const leftRoof =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- roofSlope,
- metersToUnits(
- 0.12
- ),
+ roofSlopeLength,
+ roofThickness,
  roofDepth
  ),
- makeRoofMaterial()
+ createHouseRoofMaterial()
  );
 
+ /*
+  * 左端が低く、
+  * 中央の峰が高くなる向き。
+  */
  leftRoof.position.set(
  -halfWidth /
  2,
@@ -3053,7 +3044,7 @@ function createTexturedHouse(
  );
 
  leftRoof.rotation.z =
- -roofAngle;
+ roofAngle;
 
  leftRoof.castShadow =
  true;
@@ -3071,15 +3062,17 @@ function createTexturedHouse(
  const rightRoof =
  new THREE.Mesh(
  new THREE.BoxGeometry(
- roofSlope,
- metersToUnits(
- 0.12
- ),
+ roofSlopeLength,
+ roofThickness,
  roofDepth
  ),
- makeRoofMaterial()
+ createHouseRoofMaterial()
  );
 
+ /*
+  * 中央の峰から
+  * 右端へ向かって下がる。
+  */
  rightRoof.position.set(
  halfWidth /
  2,
@@ -3090,7 +3083,7 @@ function createTexturedHouse(
  );
 
  rightRoof.rotation.z =
- roofAngle;
+ -roofAngle;
 
  rightRoof.castShadow =
  true;
@@ -3100,6 +3093,18 @@ function createTexturedHouse(
 
  houseGroup.add(
  rightRoof
+ );
+
+ // ------------------------------------------------
+ // WORLD MATRIX
+ // ------------------------------------------------
+ /*
+  * ColliderやRaycastで使用する前に
+  * 親Groupを含めた行列を確定する。
+  */
+ houseGroup.updateWorldMatrix(
+ true,
+ true
  );
 
  // ------------------------------------------------
@@ -3162,8 +3167,16 @@ function createHouse(
  rotation
  );
 
+ // ------------------------------------------------
+ // ADD
+ // ------------------------------------------------
  scene.add(
  house.group
+ );
+
+ house.group.updateWorldMatrix(
+ true,
+ true
  );
 
  // ------------------------------------------------
@@ -3233,7 +3246,7 @@ const treeLeafMaterial =
  new THREE.MeshStandardMaterial({
  color: 0x356b2f,
  roughness: 1
- });
+});
 
 // --------------------------------------------------
 // REMOVE ARRAY ITEM
@@ -3361,8 +3374,30 @@ function createGeneratedHouse(
  descriptor.id
  );
 
+ // ------------------------------------------------
+ // ADD TO CHUNK
+ // ------------------------------------------------
  chunkData.group.add(
  house.group
+ );
+
+ /*
+  * 重要:
+  *
+  * 親のchunkData.groupへ追加してから
+  * WorldMatrixを更新する。
+  *
+  * これより前にBox3を作ると
+  * Colliderが原点付近に生成されることがある。
+  */
+ chunkData.group.updateWorldMatrix(
+ true,
+ true
+ );
+
+ house.group.updateWorldMatrix(
+ true,
+ true
  );
 
  // ------------------------------------------------
@@ -3383,7 +3418,7 @@ function createGeneratedHouse(
  );
 
  // ------------------------------------------------
- // ANCHORS
+ // ANCHOR BODY
  // ------------------------------------------------
  anchorTargets.push(
  house.body
@@ -3393,6 +3428,9 @@ function createGeneratedHouse(
  house.body
  );
 
+ // ------------------------------------------------
+ // ANCHOR ROOF
+ // ------------------------------------------------
  for (
  const roof
  of house.roofs
@@ -3621,8 +3659,16 @@ function createChunkWorldContent(
  }
  }
 
+ // ------------------------------------------------
+ // ADD
+ // ------------------------------------------------
  scene.add(
  group
+ );
+
+ group.updateWorldMatrix(
+ true,
+ true
  );
 
  return chunkData;
@@ -3684,12 +3730,6 @@ function destroyChunkWorldContent(
  object.geometry.dispose();
  }
 
- /*
-  * 家ごとにcloneしたTextureとMaterialを
-  * 使用しているのでここで破棄する。
-  *
-  * 木の共有Materialは破棄しない。
-  */
  if (
  object.material &&
  object.material !==
@@ -3712,12 +3752,10 @@ function destroyChunkWorldContent(
  ) {
  if (
  material.map &&
- (
  material.map !==
  houseWallTexture &&
  material.map !==
  houseRoofTexture
- )
  ) {
  material.map.dispose();
  }
