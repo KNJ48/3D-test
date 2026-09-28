@@ -837,57 +837,85 @@ document.body.appendChild(
 // TEXTURES
 // ==================================================
 const textureLoader =
-  new THREE.TextureLoader();
+ new THREE.TextureLoader();
 
+// --------------------------------------------------
+// GROUND
+// --------------------------------------------------
 const groundTexture =
-  textureLoader.load(
-    "/textures/ground.jpg"
-  );
+ textureLoader.load(
+ "/textures/ground.jpg"
+ );
 
 groundTexture.colorSpace =
-  THREE.SRGBColorSpace;
+ THREE.SRGBColorSpace;
 
 groundTexture.wrapS =
-  THREE.RepeatWrapping;
+ THREE.RepeatWrapping;
 
 groundTexture.wrapT =
-  THREE.RepeatWrapping;
+ THREE.RepeatWrapping;
 
-/*
- * 100km級の巨大Planeなので
- * repeat 400では模様1枚が巨大になる。
- *
- * 1タイルを約10mとして扱う。
- *
- * 100km / 10m = 10000 repeats
- */
 groundTexture.repeat.set(
-  10000,
-  10000
+ 10000,
+ 10000
 );
 
+// --------------------------------------------------
+// CITY WALL
+// --------------------------------------------------
 const wallTexture =
-  textureLoader.load(
-    "/textures/wall.jpg"
-  );
+ textureLoader.load(
+ "/textures/wall.jpg"
+ );
 
 wallTexture.colorSpace =
-  THREE.SRGBColorSpace;
+ THREE.SRGBColorSpace;
 
 wallTexture.wrapS =
-  THREE.RepeatWrapping;
+ THREE.RepeatWrapping;
 
 wallTexture.wrapT =
-  THREE.RepeatWrapping;
+ THREE.RepeatWrapping;
 
-/*
- * 壁のテクスチャ。
- * 巨大化させず元の密度を維持。
- */
 wallTexture.repeat.set(
-  2,
-  12
+ 2,
+ 12
 );
+
+// --------------------------------------------------
+// HOUSE WALL
+// --------------------------------------------------
+const houseWallTexture =
+ textureLoader.load(
+ "/textures/house/wall.jpg"
+ );
+
+houseWallTexture.colorSpace =
+ THREE.SRGBColorSpace;
+
+houseWallTexture.wrapS =
+ THREE.RepeatWrapping;
+
+houseWallTexture.wrapT =
+ THREE.RepeatWrapping;
+
+// --------------------------------------------------
+// HOUSE ROOF
+// --------------------------------------------------
+const houseRoofTexture =
+ textureLoader.load(
+ "/textures/house/roof.jpg"
+ );
+
+houseRoofTexture.colorSpace =
+ THREE.SRGBColorSpace;
+
+houseRoofTexture.wrapS =
+ THREE.RepeatWrapping;
+
+houseRoofTexture.wrapT =
+ THREE.RepeatWrapping;
 
 // ==================================================
 // LIGHT
@@ -2755,36 +2783,338 @@ function createRoad(
 // ==================================================
 const HOUSE_TEMPLATES = [
  {
-  width: 7,
-  depth: 9,
-  height: 8,
-  roofHeight: 3
+ width: 7,
+ depth: 9,
+ height: 8,
+ roofHeight: 3
  },
  {
-  width: 9,
-  depth: 11,
-  height: 10,
-  roofHeight: 3.5
+ width: 9,
+ depth: 11,
+ height: 10,
+ roofHeight: 3.5
  },
  {
-  width: 11,
-  depth: 8,
-  height: 12,
-  roofHeight: 4
+ width: 11,
+ depth: 8,
+ height: 12,
+ roofHeight: 4
  },
  {
-  width: 8,
-  depth: 8,
-  height: 14,
-  roofHeight: 3
+ width: 8,
+ depth: 8,
+ height: 14,
+ roofHeight: 3
  },
  {
-  width: 13,
-  depth: 10,
-  height: 9,
-  roofHeight: 4
+ width: 13,
+ depth: 10,
+ height: 9,
+ roofHeight: 4
  }
 ];
+
+// --------------------------------------------------
+// CREATE TEXTURED HOUSE
+// --------------------------------------------------
+function createTexturedHouse(
+ x,
+ z,
+ width,
+ depth,
+ height,
+ roofHeight,
+ rotation = 0,
+ objectId = null
+) {
+ // ------------------------------------------------
+ // TERRAIN
+ // ------------------------------------------------
+ const xMeters =
+ x *
+ METERS_PER_UNIT;
+
+ const zMeters =
+ z *
+ METERS_PER_UNIT;
+
+ const terrainY =
+ metersToUnits(
+ getTerrainHeightMeters(
+ xMeters,
+ zMeters
+ )
+ );
+
+ // ------------------------------------------------
+ // GROUP
+ // ------------------------------------------------
+ const houseGroup =
+ new THREE.Group();
+
+ houseGroup.position.set(
+ x,
+ terrainY,
+ z
+ );
+
+ houseGroup.rotation.y =
+ rotation;
+
+ if (
+ objectId
+ ) {
+ houseGroup.userData.worldObjectId =
+ objectId;
+ }
+
+ // ------------------------------------------------
+ // WALL TEXTURE
+ // ------------------------------------------------
+ const wallTexture =
+ houseWallTexture.clone();
+
+ wallTexture.needsUpdate =
+ true;
+
+ wallTexture.wrapS =
+ THREE.RepeatWrapping;
+
+ wallTexture.wrapT =
+ THREE.RepeatWrapping;
+
+ /*
+  * 元画像1枚を
+  * およそ4m四方の壁パネルとして扱う。
+  */
+ wallTexture.repeat.set(
+ Math.max(
+ 1,
+ width *
+ METERS_PER_UNIT /
+ 4
+ ),
+ Math.max(
+ 1,
+ height *
+ METERS_PER_UNIT /
+ 4
+ )
+ );
+
+ const wallMaterial =
+ new THREE.MeshStandardMaterial({
+ map: wallTexture,
+ color: 0xffffff,
+ roughness: 0.9
+ });
+
+ // ------------------------------------------------
+ // BODY
+ // ------------------------------------------------
+ const body =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ width,
+ height,
+ depth
+ ),
+ wallMaterial
+ );
+
+ body.position.y =
+ height /
+ 2;
+
+ body.castShadow =
+ true;
+
+ body.receiveShadow =
+ true;
+
+ if (
+ objectId
+ ) {
+ body.userData.worldObjectId =
+ objectId;
+ }
+
+ houseGroup.add(
+ body
+ );
+
+ // ------------------------------------------------
+ // GABLE ROOF
+ // ------------------------------------------------
+ /*
+  * 切妻屋根。
+  *
+  * 屋根の峰はZ方向。
+  *
+  * 左右2枚の屋根板を
+  * BoxGeometryで作る。
+  */
+
+ const halfWidth =
+ width /
+ 2;
+
+ const slopeLength =
+ Math.sqrt(
+ halfWidth *
+ halfWidth +
+ roofHeight *
+ roofHeight
+ );
+
+ const roofAngle =
+ Math.atan2(
+ roofHeight,
+ halfWidth
+ );
+
+ /*
+  * 少しだけ軒を出す。
+  */
+ const roofOverhang =
+ metersToUnits(
+ 0.45
+ );
+
+ const roofDepth =
+ depth +
+ roofOverhang *
+ 2;
+
+ const roofSlope =
+ slopeLength +
+ roofOverhang;
+
+ // ------------------------------------------------
+ // ROOF MATERIAL
+ // ------------------------------------------------
+ function makeRoofMaterial() {
+ const texture =
+ houseRoofTexture.clone();
+
+ texture.needsUpdate =
+ true;
+
+ texture.wrapS =
+ THREE.RepeatWrapping;
+
+ texture.wrapT =
+ THREE.RepeatWrapping;
+
+ texture.repeat.set(
+ Math.max(
+ 1,
+ roofDepth *
+ METERS_PER_UNIT /
+ 3
+ ),
+ Math.max(
+ 1,
+ roofSlope *
+ METERS_PER_UNIT /
+ 3
+ )
+ );
+
+ return new THREE.MeshStandardMaterial({
+ map: texture,
+ color: 0xffffff,
+ roughness: 0.88
+ });
+ }
+
+ // ------------------------------------------------
+ // LEFT ROOF
+ // ------------------------------------------------
+ const leftRoof =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ roofSlope,
+ metersToUnits(
+ 0.12
+ ),
+ roofDepth
+ ),
+ makeRoofMaterial()
+ );
+
+ leftRoof.position.set(
+ -halfWidth /
+ 2,
+ height +
+ roofHeight /
+ 2,
+ 0
+ );
+
+ leftRoof.rotation.z =
+ -roofAngle;
+
+ leftRoof.castShadow =
+ true;
+
+ leftRoof.receiveShadow =
+ true;
+
+ houseGroup.add(
+ leftRoof
+ );
+
+ // ------------------------------------------------
+ // RIGHT ROOF
+ // ------------------------------------------------
+ const rightRoof =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ roofSlope,
+ metersToUnits(
+ 0.12
+ ),
+ roofDepth
+ ),
+ makeRoofMaterial()
+ );
+
+ rightRoof.position.set(
+ halfWidth /
+ 2,
+ height +
+ roofHeight /
+ 2,
+ 0
+ );
+
+ rightRoof.rotation.z =
+ roofAngle;
+
+ rightRoof.castShadow =
+ true;
+
+ rightRoof.receiveShadow =
+ true;
+
+ houseGroup.add(
+ rightRoof
+ );
+
+ // ------------------------------------------------
+ // RETURN
+ // ------------------------------------------------
+ return {
+ group:
+ houseGroup,
+ body,
+ roofs: [
+ leftRoof,
+ rightRoof
+ ]
+ };
+}
 
 // --------------------------------------------------
 // CREATE HOUSE
@@ -2796,139 +3126,74 @@ function createHouse(
  rotation = 0
 ) {
  const template =
-  HOUSE_TEMPLATES[
-   variant %
-   HOUSE_TEMPLATES.length
-  ];
+ HOUSE_TEMPLATES[
+ variant %
+ HOUSE_TEMPLATES.length
+ ];
 
  const width =
-  metersToUnits(
-   template.width
-  );
+ metersToUnits(
+ template.width
+ );
 
  const depth =
-  metersToUnits(
-   template.depth
-  );
+ metersToUnits(
+ template.depth
+ );
 
  const height =
-  metersToUnits(
-   template.height
-  );
+ metersToUnits(
+ template.height
+ );
 
  const roofHeight =
-  metersToUnits(
-   template.roofHeight
-  );
+ metersToUnits(
+ template.roofHeight
+ );
 
- // --------------------------------------------------
- // TERRAIN HEIGHT
- // --------------------------------------------------
- /*
-  * createHouseへ渡されるx/zは
-  * Three.js内部unit。
-  *
-  * 地形Generatorはmなので変換する。
-  */
- const terrainHeightMeters =
-  getTerrainHeightMeters(
-   x *
-   METERS_PER_UNIT,
-
-   z *
-   METERS_PER_UNIT
-  );
-
- const terrainY =
-  terrainHeightMeters /
-  METERS_PER_UNIT;
-
- // --------------------------------------------------
- // HOUSE
- // --------------------------------------------------
  const house =
-  new THREE.Mesh(
-   new THREE.BoxGeometry(
-    width,
-    height,
-    depth
-   ),
-
-   cityMaterials[
-    variant %
-    cityMaterials.length
-   ]
-  );
-
- /*
-  * 建物底面を地表へ合わせる。
-  */
- house.position.set(
-  x,
-
-  terrainY +
-  height /
-  2,
-
-  z
+ createTexturedHouse(
+ x,
+ z,
+ width,
+ depth,
+ height,
+ roofHeight,
+ rotation
  );
-
- house.rotation.y =
-  rotation;
-
- addWorldObject(
-  house
- );
-
- // --------------------------------------------------
- // ROOF
- // --------------------------------------------------
- const roof =
-  new THREE.Mesh(
-   new THREE.ConeGeometry(
-    Math.max(
-     width,
-     depth
-    ) *
-    0.72,
-
-    roofHeight,
-
-    4
-   ),
-
-   roofMaterial
-  );
-
- roof.position.set(
-  x,
-
-  terrainY +
-  height +
-  roofHeight /
-  2,
-
-  z
- );
-
- roof.rotation.y =
-  Math.PI /
-  4 +
-  rotation;
-
- roof.castShadow =
-  true;
-
- roof.receiveShadow =
-  true;
 
  scene.add(
-  roof
+ house.group
  );
 
- anchorTargets.push(
-  roof
+ // ------------------------------------------------
+ // COLLISION
+ // ------------------------------------------------
+ const box =
+ new THREE.Box3()
+ .setFromObject(
+ house.body
  );
+
+ colliders.push(
+ box
+ );
+
+ // ------------------------------------------------
+ // ANCHORS
+ // ------------------------------------------------
+ anchorTargets.push(
+ house.body
+ );
+
+ for (
+ const roof
+ of house.roofs
+ ) {
+ anchorTargets.push(
+ roof
+ );
+ }
 }
 
 // ==================================================
@@ -3077,58 +3342,27 @@ function createGeneratedHouse(
  5
  );
 
- const terrainY =
- metersToUnits(
- getTerrainHeightMeters(
- descriptor.xMeters,
- descriptor.zMeters
- )
- );
-
- const variant =
- getWorldObjectVariant(
- descriptor
- );
-
- // ------------------------------------------------
- // BODY
- // ------------------------------------------------
- const house =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- width,
- height,
- depth
- ),
- cityMaterials[
- variant %
- cityMaterials.length
- ]
- );
-
- house.position.set(
- x,
- terrainY +
- height /
- 2,
- z
- );
-
- house.rotation.y =
+ const rotation =
  descriptor.rotation ??
  0;
 
- house.castShadow =
- true;
-
- house.receiveShadow =
- true;
-
- house.userData.worldObjectId =
- descriptor.id;
+ // ------------------------------------------------
+ // TEMPLATE 01
+ // ------------------------------------------------
+ const house =
+ createTexturedHouse(
+ x,
+ z,
+ width,
+ depth,
+ height,
+ roofHeight,
+ rotation,
+ descriptor.id
+ );
 
  chunkData.group.add(
- house
+ house.group
  );
 
  // ------------------------------------------------
@@ -3137,7 +3371,7 @@ function createGeneratedHouse(
  const box =
  new THREE.Box3()
  .setFromObject(
- house
+ house.body
  );
 
  colliders.push(
@@ -3149,63 +3383,20 @@ function createGeneratedHouse(
  );
 
  // ------------------------------------------------
- // ANCHOR
+ // ANCHORS
  // ------------------------------------------------
  anchorTargets.push(
- house
+ house.body
  );
 
  chunkData.anchorTargets.push(
- house
+ house.body
  );
 
- // ------------------------------------------------
- // ROOF
- // ------------------------------------------------
- const roof =
- new THREE.Mesh(
- new THREE.ConeGeometry(
- Math.max(
- width,
- depth
- ) *
- 0.72,
- roofHeight,
- 4
- ),
- roofMaterial
- );
-
- roof.position.set(
- x,
- terrainY +
- height +
- roofHeight /
- 2,
- z
- );
-
- roof.rotation.y =
- Math.PI /
- 4 +
- (
- descriptor.rotation ??
- 0
- );
-
- roof.castShadow =
- true;
-
- roof.receiveShadow =
- true;
-
- roof.userData.worldObjectId =
- descriptor.id;
-
- chunkData.group.add(
- roof
- );
-
+ for (
+ const roof
+ of house.roofs
+ ) {
  anchorTargets.push(
  roof
  );
@@ -3213,6 +3404,7 @@ function createGeneratedHouse(
  chunkData.anchorTargets.push(
  roof
  );
+ }
 }
 
 // --------------------------------------------------
@@ -3377,13 +3569,6 @@ function createGeneratedTree(
 // --------------------------------------------------
 // CREATE CHUNK WORLD CONTENT
 // --------------------------------------------------
-/*
- * ここではもう
- * generateWorldChunkContent()を使わない。
- *
- * paradis-world.jsonから作った
- * メモリ内INDEXだけを使う。
- */
 function createChunkWorldContent(
  chunkX,
  chunkZ
@@ -3402,9 +3587,7 @@ function createChunkWorldContent(
 
  const chunkData = {
  group,
-
  colliders: [],
-
  anchorTargets: []
  };
 
@@ -3491,7 +3674,7 @@ function destroyChunkWorldContent(
  );
 
  // ------------------------------------------------
- // DISPOSE GEOMETRY
+ // DISPOSE
  // ------------------------------------------------
  data.group.traverse(
  object => {
@@ -3499,6 +3682,48 @@ function destroyChunkWorldContent(
  object.geometry
  ) {
  object.geometry.dispose();
+ }
+
+ /*
+  * 家ごとにcloneしたTextureとMaterialを
+  * 使用しているのでここで破棄する。
+  *
+  * 木の共有Materialは破棄しない。
+  */
+ if (
+ object.material &&
+ object.material !==
+ treeTrunkMaterial &&
+ object.material !==
+ treeLeafMaterial
+ ) {
+ const materials =
+ Array.isArray(
+ object.material
+ )
+ ? object.material
+ : [
+ object.material
+ ];
+
+ for (
+ const material
+ of materials
+ ) {
+ if (
+ material.map &&
+ (
+ material.map !==
+ houseWallTexture &&
+ material.map !==
+ houseRoofTexture
+ )
+ ) {
+ material.map.dispose();
+ }
+
+ material.dispose();
+ }
  }
  }
  );
@@ -11132,6 +11357,325 @@ document.body.appendChild(
 );
 
 // ==================================================
+// MAIN MENU
+// ==================================================
+const mainMenuHUD =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ mainMenuHUD.style,
+ {
+ position: "fixed",
+ inset: "0",
+ display: "flex",
+ alignItems: "center",
+ justifyContent: "center",
+ background:
+ "linear-gradient(180deg, #18251d 0%, #090d0a 100%)",
+ color: "white",
+ fontFamily:
+ "Arial, sans-serif",
+ zIndex: "60000"
+ }
+);
+
+document.body.appendChild(
+ mainMenuHUD
+);
+
+// --------------------------------------------------
+// PANEL
+// --------------------------------------------------
+const mainMenuPanel =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ mainMenuPanel.style,
+ {
+ width: "520px",
+ textAlign: "center"
+ }
+);
+
+mainMenuHUD.appendChild(
+ mainMenuPanel
+);
+
+// --------------------------------------------------
+// TITLE
+// --------------------------------------------------
+const mainMenuTitle =
+ document.createElement(
+ "div"
+ );
+
+mainMenuTitle.textContent =
+ "PARADIS";
+
+Object.assign(
+ mainMenuTitle.style,
+ {
+ fontSize: "64px",
+ fontWeight: "bold",
+ letterSpacing: "8px",
+ marginBottom: "8px",
+ textShadow:
+ "0 4px 14px rgba(0,0,0,.8)"
+ }
+);
+
+mainMenuPanel.appendChild(
+ mainMenuTitle
+);
+
+// --------------------------------------------------
+// SUBTITLE
+// --------------------------------------------------
+const mainMenuSubtitle =
+ document.createElement(
+ "div"
+ );
+
+mainMenuSubtitle.textContent =
+ "3D MANEUVER GAME";
+
+Object.assign(
+ mainMenuSubtitle.style,
+ {
+ color: "#aeb9ae",
+ fontFamily: "monospace",
+ fontSize: "16px",
+ letterSpacing: "4px",
+ marginBottom: "55px"
+ }
+);
+
+mainMenuPanel.appendChild(
+ mainMenuSubtitle
+);
+
+// --------------------------------------------------
+// BUTTON CONTAINER
+// --------------------------------------------------
+const mainMenuButtons =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ mainMenuButtons.style,
+ {
+ display: "flex",
+ flexDirection: "column",
+ gap: "14px"
+ }
+);
+
+mainMenuPanel.appendChild(
+ mainMenuButtons
+);
+
+// --------------------------------------------------
+// BUTTON FACTORY
+// --------------------------------------------------
+function createMainMenuButton(
+ text,
+ onClick,
+ options = {}
+) {
+ const button =
+ document.createElement(
+ "button"
+ );
+
+ button.textContent =
+ text;
+
+ Object.assign(
+ button.style,
+ {
+ width: "100%",
+ padding: "17px 20px",
+ color:
+ options.disabled
+ ? "#777"
+ : "white",
+ background:
+ options.disabled
+ ? "rgba(255,255,255,.035)"
+ : "rgba(255,255,255,.08)",
+ border:
+ options.disabled
+ ? "1px solid #444"
+ : "1px solid #777",
+ borderRadius: "4px",
+ fontFamily: "Arial",
+ fontSize: "19px",
+ fontWeight: "bold",
+ letterSpacing: "2px",
+ cursor:
+ options.disabled
+ ? "default"
+ : "pointer",
+ transition:
+ "background .15s, border-color .15s"
+ }
+ );
+
+ if (
+ !options.disabled
+ ) {
+ button.addEventListener(
+ "mouseenter",
+ () => {
+ button.style.background =
+ "rgba(130,170,130,.25)";
+ button.style.borderColor =
+ "#9fbd9f";
+ }
+ );
+
+ button.addEventListener(
+ "mouseleave",
+ () => {
+ button.style.background =
+ "rgba(255,255,255,.08)";
+ button.style.borderColor =
+ "#777";
+ }
+ );
+
+ button.addEventListener(
+ "click",
+ onClick
+ );
+ }
+
+ mainMenuButtons.appendChild(
+ button
+ );
+
+ return button;
+}
+
+// --------------------------------------------------
+// STATE
+// --------------------------------------------------
+let mainMenuOpen =
+ true;
+let openWorldStarting =
+ false;
+
+// --------------------------------------------------
+// OPEN WORLD
+// --------------------------------------------------
+const openWorldButton =
+ createMainMenuButton(
+ "OPEN WORLD",
+ async () => {
+ if (
+ openWorldStarting
+ ) {
+ return;
+ }
+
+ openWorldStarting =
+ true;
+
+ openWorldButton.disabled =
+ true;
+
+ openWorldButton.textContent =
+ "STARTING...";
+
+ await startOpenWorld();
+ }
+);
+
+// --------------------------------------------------
+// MINI GAMES
+// --------------------------------------------------
+createMainMenuButton(
+ "MINI GAMES",
+ () => {
+ showMessage(
+ "MINI GAMES - COMING SOON"
+ );
+ },
+ {
+ disabled: true
+ }
+);
+
+// --------------------------------------------------
+// SETTINGS
+// --------------------------------------------------
+createMainMenuButton(
+ "SETTINGS",
+ () => {
+ openSettings();
+ }
+);
+
+// --------------------------------------------------
+// FOOTER
+// --------------------------------------------------
+const mainMenuFooter =
+ document.createElement(
+ "div"
+ );
+
+mainMenuFooter.textContent =
+ "SELECT GAME MODE";
+
+Object.assign(
+ mainMenuFooter.style,
+ {
+ marginTop: "35px",
+ color: "#697469",
+ fontFamily: "monospace",
+ fontSize: "12px",
+ letterSpacing: "2px"
+ }
+);
+
+mainMenuPanel.appendChild(
+ mainMenuFooter
+);
+
+// --------------------------------------------------
+// SHOW MENU
+// --------------------------------------------------
+function showMainMenu() {
+ mainMenuOpen =
+ true;
+
+ mainMenuHUD.style.display =
+ "flex";
+
+ if (
+ document.pointerLockElement
+ ) {
+ document.exitPointerLock();
+ }
+}
+
+// --------------------------------------------------
+// HIDE MENU
+// --------------------------------------------------
+function hideMainMenu() {
+ mainMenuOpen =
+ false;
+
+ mainMenuHUD.style.display =
+ "none";
+}
+
+// ==================================================
 // WORLD LOADING HUD
 // ==================================================
 const worldLoadingHUD =
@@ -15119,8 +15663,13 @@ function startGameLoop() {
 // ==================================================
 // BOOT
 // ==================================================
-async function bootGame() {
+async function startOpenWorld() {
  try {
+ // ------------------------------------------------
+ // CLOSE MAIN MENU
+ // ------------------------------------------------
+ hideMainMenu();
+
  // ------------------------------------------------
  // LOADING SCREEN
  // ------------------------------------------------
@@ -15152,10 +15701,6 @@ async function bootGame() {
  // ------------------------------------------------
  // ACTIVE WORLD
  // ------------------------------------------------
- /*
- * 旧コードとの互換性のため
- * worldDatabaseにも同じ固定Worldを入れる。
- */
  worldDatabase =
  fixedWorld;
 
@@ -15227,6 +15772,29 @@ async function bootGame() {
  `FORESTS: ${forests.length}`;
 
  // ------------------------------------------------
+ // WORLD SYSTEMS
+ // ------------------------------------------------
+ /*
+  * 壁情報は固定Worldをロードした後に
+  * 作り直す。
+  *
+  * 起動時にWORLD_MAP fallbackから
+  * 作られていた場合でも、
+  * ここで固定Worldを正本にする。
+  */
+ createCityWall();
+
+ /*
+  * プレイヤー周辺の中心チャンクを
+  * ゲーム開始前に生成する。
+  */
+ forceLoadCurrentChunk();
+
+ requestWorldChunks();
+
+ updateWallStreaming();
+
+ // ------------------------------------------------
  // READY
  // ------------------------------------------------
  setWorldLoadingStatus(
@@ -15234,9 +15802,6 @@ async function bootGame() {
  1
  );
 
- /*
- * animate()の起動条件。
- */
  worldDatabaseReady =
  true;
 
@@ -15261,7 +15826,6 @@ async function bootGame() {
  // START
  // ------------------------------------------------
  startGameLoop();
-
  } catch (
  error
  ) {
@@ -15272,6 +15836,15 @@ async function bootGame() {
 
  worldDatabaseReady =
  false;
+
+ openWorldStarting =
+ false;
+
+ openWorldButton.disabled =
+ false;
+
+ openWorldButton.textContent =
+ "OPEN WORLD";
 
  worldLoadingHUD.style.display =
  "flex";
@@ -15286,9 +15859,3 @@ async function bootGame() {
  );
  }
 }
-
-
-// ==================================================
-// START
-// ==================================================
-bootGame();
