@@ -935,6 +935,80 @@ houseWindowTexture.wrapT =
  THREE.ClampToEdgeWrapping;
 
 // ==================================================
+// LIGHT
+// ==================================================
+scene.add(
+ new THREE.HemisphereLight(
+ 0xddeeff,
+ 0x445533,
+ 0.9
+ )
+);
+
+const sun =
+ new THREE.DirectionalLight(
+ 0xfff3d6,
+ 3
+ );
+
+sun.position.set(
+ -150,
+ 1200,
+ 120
+);
+
+sun.castShadow =
+ true;
+
+sun.shadow.mapSize.width =
+ 2048;
+
+sun.shadow.mapSize.height =
+ 2048;
+
+sun.shadow.camera.left =
+ -350;
+
+sun.shadow.camera.right =
+ 350;
+
+sun.shadow.camera.top =
+ 1200;
+
+sun.shadow.camera.bottom =
+ -350;
+
+sun.shadow.camera.near =
+ 1;
+
+sun.shadow.camera.far =
+ 2000;
+
+sun.shadow.normalBias =
+ 0.02;
+
+scene.add(
+ sun
+);
+
+// ==================================================
+// GROUND
+// ==================================================
+/*
+ * 巨大Planeは使用しない。
+ *
+ * 実際の地面は
+ * WORLD STREAMINGによって
+ * プレイヤー周辺だけ生成する。
+ */
+const groundChunkMaterial =
+ new THREE.MeshStandardMaterial({
+ map: groundTexture,
+ roughness: 0.95,
+ color: 0x8fa667
+ });
+
+// ==================================================
 // WORLD STREAMING
 // ==================================================
 
