@@ -862,7 +862,7 @@ groundTexture.repeat.set(
 );
 
 // --------------------------------------------------
-// CITY WALL
+// WALL
 // --------------------------------------------------
 const wallTexture =
  textureLoader.load(
@@ -895,10 +895,10 @@ houseWallTexture.colorSpace =
  THREE.SRGBColorSpace;
 
 houseWallTexture.wrapS =
- THREE.RepeatWrapping;
+ THREE.ClampToEdgeWrapping;
 
 houseWallTexture.wrapT =
- THREE.RepeatWrapping;
+ THREE.ClampToEdgeWrapping;
 
 // --------------------------------------------------
 // HOUSE ROOF
@@ -917,73 +917,22 @@ houseRoofTexture.wrapS =
 houseRoofTexture.wrapT =
  THREE.RepeatWrapping;
 
-// ==================================================
-// LIGHT
-// ==================================================
-scene.add(
-  new THREE.HemisphereLight(
-    0xddeeff,
-    0x445533,
-    0.9
-  )
-);
+// --------------------------------------------------
+// HOUSE WINDOW
+// --------------------------------------------------
+const houseWindowTexture =
+ textureLoader.load(
+ "/textures/house/window.jpg"
+ );
 
-const sun =
-  new THREE.DirectionalLight(
-    0xfff3d6,
-    3
-  );
+houseWindowTexture.colorSpace =
+ THREE.SRGBColorSpace;
 
-sun.position.set(
-  -150,
-  1200,
-  120
-);
+houseWindowTexture.wrapS =
+ THREE.ClampToEdgeWrapping;
 
-sun.castShadow = true;
-
-sun.shadow.mapSize.width =
-  2048;
-
-sun.shadow.mapSize.height =
-  2048;
-
-sun.shadow.camera.left =
-  -350;
-
-sun.shadow.camera.right =
-  350;
-
-sun.shadow.camera.top =
-  1200;
-
-sun.shadow.camera.bottom =
-  -350;
-
-sun.shadow.camera.near = 1;
-sun.shadow.camera.far = 2000;
-
-sun.shadow.normalBias =
-  0.02;
-
-scene.add(sun);
-
-// ==================================================
-// GROUND
-// ==================================================
-
-/*
- * 巨大Planeは廃止。
- *
- * 実際の地面はWORLD STREAMINGが
- * プレイヤー周辺だけ生成する。
- */
-const groundChunkMaterial =
-  new THREE.MeshStandardMaterial({
-    map: groundTexture,
-    roughness: 0.95,
-    color: 0x8fa667
-  });
+houseWindowTexture.wrapT =
+ THREE.ClampToEdgeWrapping;
 
 // ==================================================
 // WORLD STREAMING
@@ -2781,63 +2730,42 @@ function createRoad(
 // ==================================================
 // HOUSE
 // ==================================================
-const HOUSE_TEMPLATES = [
- {
- width: 7,
- depth: 9,
- height: 8,
- roofHeight: 3
- },
- {
- width: 9,
- depth: 11,
- height: 10,
- roofHeight: 3.5
- },
- {
- width: 11,
- depth: 8,
- height: 12,
- roofHeight: 4
- },
- {
- width: 8,
- depth: 8,
- height: 14,
- roofHeight: 3
- },
- {
- width: 13,
- depth: 10,
- height: 9,
- roofHeight: 4
- }
-];
-
-// --------------------------------------------------
-// FIXED WORLD HOUSE SCALE
-// --------------------------------------------------
 /*
- * paradis-world.json側の家が
- * 全体的に大きいため、
- * テンプレート表示時だけ縮小する。
+ * HOUSE TEMPLATE SYSTEM
  *
- * ワールド座標そのものは変えない。
+ * TEMPLATE 01
+ *
+ * 3階建て木骨住宅
+ * +
+ * 切妻屋根
  */
-const FIXED_HOUSE_WIDTH_SCALE =
- 0.75;
-
-const FIXED_HOUSE_DEPTH_SCALE =
- 0.75;
-
-const FIXED_HOUSE_HEIGHT_SCALE =
- 0.70;
-
-const FIXED_HOUSE_ROOF_SCALE =
- 0.75;
 
 // --------------------------------------------------
-// HOUSE WALL MATERIAL
+// TEMPLATE SETTINGS
+// --------------------------------------------------
+const HOUSE_TEMPLATE_01 = {
+ widthMeters: 9,
+ depthMeters: 11,
+
+ floorCount: 3,
+ floorHeightMeters: 3,
+
+ roofHeightMeters: 4,
+
+ roofOverhangMeters: 0.45,
+ roofThicknessMeters: 0.14,
+
+ frontWindowsPerFloor: 3,
+ sideWindowsPerFloor: 2,
+
+ windowWidthMeters: 1.45,
+ windowHeightMeters: 1.85,
+
+ windowOffsetMeters: 0.025
+};
+
+// --------------------------------------------------
+// WALL MATERIAL
 // --------------------------------------------------
 function createHouseWallMaterial() {
  const texture =
@@ -2852,11 +2780,6 @@ function createHouseWallMaterial() {
  texture.wrapT =
  THREE.ClampToEdgeWrapping;
 
- texture.repeat.set(
- 1,
- 1
- );
-
  return new THREE.MeshStandardMaterial({
  map: texture,
  color: 0xffffff,
@@ -2866,7 +2789,7 @@ function createHouseWallMaterial() {
 }
 
 // --------------------------------------------------
-// HOUSE ROOF MATERIAL
+// ROOF MATERIAL
 // --------------------------------------------------
 function createHouseRoofMaterial() {
  const texture =
@@ -2882,7 +2805,7 @@ function createHouseRoofMaterial() {
  THREE.RepeatWrapping;
 
  texture.repeat.set(
- 2,
+ 3,
  2
  );
 
@@ -2894,20 +2817,24 @@ function createHouseRoofMaterial() {
 }
 
 // --------------------------------------------------
+// WINDOW MATERIAL
+// --------------------------------------------------
+function createHouseWindowMaterial() {
+ return new THREE.MeshStandardMaterial({
+ map: houseWindowTexture,
+ color: 0xffffff,
+ roughness: 0.55,
+ side: THREE.DoubleSide
+ });
+}
+
+// --------------------------------------------------
 // GABLE GEOMETRY
 // --------------------------------------------------
 function createHouseGableGeometry(
  width,
  roofHeight
 ) {
- /*
-  * XY平面上に三角形を作る。
-  *
-  *       2
-  *      /\
-  *     /  \
-  *    0----1
-  */
  const geometry =
  new THREE.BufferGeometry();
 
@@ -2960,18 +2887,303 @@ function createHouseGableGeometry(
 }
 
 // --------------------------------------------------
-// CREATE TEXTURED HOUSE
+// CREATE WINDOW
 // --------------------------------------------------
-function createTexturedHouse(
+function createTemplate01Window(
+ group,
  x,
+ y,
  z,
+ rotationY,
+ width,
+ height
+) {
+ const window =
+ new THREE.Mesh(
+ new THREE.PlaneGeometry(
+ width,
+ height
+ ),
+ createHouseWindowMaterial()
+ );
+
+ window.position.set(
+ x,
+ y,
+ z
+ );
+
+ window.rotation.y =
+ rotationY;
+
+ /*
+  * Windowは装飾なので
+  * collisionには入れない。
+  */
+ window.castShadow =
+ false;
+
+ window.receiveShadow =
+ false;
+
+ group.add(
+ window
+ );
+
+ return window;
+}
+
+// --------------------------------------------------
+// CREATE FRONT / BACK WINDOWS
+// --------------------------------------------------
+function createTemplate01FrontWindows(
+ group,
  width,
  depth,
- height,
- roofHeight,
+ wallHeight,
+ side
+) {
+ const template =
+ HOUSE_TEMPLATE_01;
+
+ const count =
+ template.frontWindowsPerFloor;
+
+ const floorHeight =
+ wallHeight /
+ template.floorCount;
+
+ const windowWidth =
+ metersToUnits(
+ template.windowWidthMeters
+ );
+
+ const windowHeight =
+ metersToUnits(
+ template.windowHeightMeters
+ );
+
+ const edgePadding =
+ metersToUnits(
+ 1.25
+ );
+
+ const usableWidth =
+ width -
+ edgePadding *
+ 2;
+
+ const z =
+ side *
+ (
+ depth /
+ 2 +
+ metersToUnits(
+ template.windowOffsetMeters
+ )
+ );
+
+ for (
+ let floor = 0;
+ floor <
+ template.floorCount;
+ floor++
+ ) {
+ const y =
+ floor *
+ floorHeight +
+ floorHeight *
+ 0.55;
+
+ for (
+ let i = 0;
+ i < count;
+ i++
+ ) {
+ /*
+  * 正面1階中央は
+  * 将来ドアを置く場所として空ける。
+  */
+ if (
+ side > 0 &&
+ floor === 0 &&
+ i ===
+ Math.floor(
+ count /
+ 2
+ )
+ ) {
+ continue;
+ }
+
+ const t =
+ count === 1
+ ? 0.5
+ : i /
+ (
+ count -
+ 1
+ );
+
+ const x =
+ -usableWidth /
+ 2 +
+ usableWidth *
+ t;
+
+ createTemplate01Window(
+ group,
+ x,
+ y,
+ z,
+ side > 0
+ ? 0
+ : Math.PI,
+ windowWidth,
+ windowHeight
+ );
+ }
+ }
+}
+
+// --------------------------------------------------
+// CREATE SIDE WINDOWS
+// --------------------------------------------------
+function createTemplate01SideWindows(
+ group,
+ width,
+ depth,
+ wallHeight,
+ side
+) {
+ const template =
+ HOUSE_TEMPLATE_01;
+
+ const count =
+ template.sideWindowsPerFloor;
+
+ const floorHeight =
+ wallHeight /
+ template.floorCount;
+
+ const windowWidth =
+ metersToUnits(
+ template.windowWidthMeters
+ );
+
+ const windowHeight =
+ metersToUnits(
+ template.windowHeightMeters
+ );
+
+ const edgePadding =
+ metersToUnits(
+ 1.4
+ );
+
+ const usableDepth =
+ depth -
+ edgePadding *
+ 2;
+
+ const x =
+ side *
+ (
+ width /
+ 2 +
+ metersToUnits(
+ template.windowOffsetMeters
+ )
+ );
+
+ for (
+ let floor = 0;
+ floor <
+ template.floorCount;
+ floor++
+ ) {
+ const y =
+ floor *
+ floorHeight +
+ floorHeight *
+ 0.55;
+
+ for (
+ let i = 0;
+ i < count;
+ i++
+ ) {
+ const t =
+ count === 1
+ ? 0.5
+ : i /
+ (
+ count -
+ 1
+ );
+
+ const z =
+ -usableDepth /
+ 2 +
+ usableDepth *
+ t;
+
+ createTemplate01Window(
+ group,
+ x,
+ y,
+ z,
+ side > 0
+ ? Math.PI /
+ 2
+ : -Math.PI /
+ 2,
+ windowWidth,
+ windowHeight
+ );
+ }
+ }
+}
+
+// --------------------------------------------------
+// CREATE TEMPLATE 01
+// --------------------------------------------------
+function createHouseTemplate01(
+ x,
+ z,
  rotation = 0,
  objectId = null
 ) {
+ const template =
+ HOUSE_TEMPLATE_01;
+
+ // ------------------------------------------------
+ // SIZE
+ // ------------------------------------------------
+ const width =
+ metersToUnits(
+ template.widthMeters
+ );
+
+ const depth =
+ metersToUnits(
+ template.depthMeters
+ );
+
+ const floorHeight =
+ metersToUnits(
+ template.floorHeightMeters
+ );
+
+ const wallHeight =
+ floorHeight *
+ template.floorCount;
+
+ const roofHeight =
+ metersToUnits(
+ template.roofHeightMeters
+ );
+
  // ------------------------------------------------
  // TERRAIN
  // ------------------------------------------------
@@ -2988,60 +3200,117 @@ function createTexturedHouse(
  // ------------------------------------------------
  // GROUP
  // ------------------------------------------------
- const houseGroup =
+ const group =
  new THREE.Group();
 
- houseGroup.position.set(
+ group.position.set(
  x,
  terrainY,
  z
  );
 
- houseGroup.rotation.y =
+ group.rotation.y =
  rotation;
 
- if (
- objectId
- ) {
- houseGroup.userData.worldObjectId =
+ group.userData.houseTemplate =
+ 1;
+
+ group.userData.worldObjectId =
  objectId;
- }
 
  // ------------------------------------------------
- // BODY
+ // FLOOR WALL MODULES
  // ------------------------------------------------
- const body =
+ /*
+  * 各階を別Meshにすることで
+  * 木骨壁Textureを縦へ引き伸ばさない。
+  */
+ const wallMeshes =
+ [];
+
+ for (
+ let floor = 0;
+ floor <
+ template.floorCount;
+ floor++
+ ) {
+ const wall =
  new THREE.Mesh(
  new THREE.BoxGeometry(
  width,
- height,
+ floorHeight,
  depth
  ),
  createHouseWallMaterial()
  );
 
- body.position.set(
- 0,
- height /
- 2,
- 0
+ wall.position.y =
+ floor *
+ floorHeight +
+ floorHeight /
+ 2;
+
+ wall.castShadow =
+ true;
+
+ wall.receiveShadow =
+ true;
+
+ group.add(
+ wall
  );
 
- body.castShadow =
- true;
+ wallMeshes.push(
+ wall
+ );
+ }
 
- body.receiveShadow =
- true;
-
- body.userData.impactMaterial =
- "building";
-
- houseGroup.add(
- body
+ // ------------------------------------------------
+ // FRONT WINDOWS
+ // ------------------------------------------------
+ createTemplate01FrontWindows(
+ group,
+ width,
+ depth,
+ wallHeight,
+ 1
  );
 
  // ------------------------------------------------
- // ROOF SETTINGS
+ // BACK WINDOWS
+ // ------------------------------------------------
+ createTemplate01FrontWindows(
+ group,
+ width,
+ depth,
+ wallHeight,
+ -1
+ );
+
+ // ------------------------------------------------
+ // LEFT WINDOWS
+ // ------------------------------------------------
+ createTemplate01SideWindows(
+ group,
+ width,
+ depth,
+ wallHeight,
+ -1
+ );
+
+ // ------------------------------------------------
+ // RIGHT WINDOWS
+ // ------------------------------------------------
+ createTemplate01SideWindows(
+ group,
+ width,
+ depth,
+ wallHeight,
+ 1
+ );
+
+ // ------------------------------------------------
+ // ROOF
  // ------------------------------------------------
  const halfWidth =
  width /
@@ -3063,12 +3332,12 @@ function createTexturedHouse(
 
  const overhang =
  metersToUnits(
- 0.35
+ template.roofOverhangMeters
  );
 
  const roofThickness =
  metersToUnits(
- 0.14
+ template.roofThicknessMeters
  );
 
  const roofDepth =
@@ -3096,7 +3365,7 @@ function createTexturedHouse(
  leftRoof.position.set(
  -halfWidth /
  2,
- height +
+ wallHeight +
  roofHeight /
  2,
  0
@@ -3111,10 +3380,7 @@ function createTexturedHouse(
  leftRoof.receiveShadow =
  true;
 
- leftRoof.userData.impactMaterial =
- "building";
-
- houseGroup.add(
+ group.add(
  leftRoof
  );
 
@@ -3134,7 +3400,7 @@ function createTexturedHouse(
  rightRoof.position.set(
  halfWidth /
  2,
- height +
+ wallHeight +
  roofHeight /
  2,
  0
@@ -3149,10 +3415,7 @@ function createTexturedHouse(
  rightRoof.receiveShadow =
  true;
 
- rightRoof.userData.impactMaterial =
- "building";
-
- houseGroup.add(
+ group.add(
  rightRoof
  );
 
@@ -3170,7 +3433,7 @@ function createTexturedHouse(
 
  frontGable.position.set(
  0,
- height,
+ wallHeight,
  depth /
  2 +
  0.01
@@ -3182,7 +3445,7 @@ function createTexturedHouse(
  frontGable.receiveShadow =
  true;
 
- houseGroup.add(
+ group.add(
  frontGable
  );
 
@@ -3200,7 +3463,7 @@ function createTexturedHouse(
 
  backGable.position.set(
  0,
- height,
+ wallHeight,
  -depth /
  2 -
  0.01
@@ -3215,14 +3478,14 @@ function createTexturedHouse(
  backGable.receiveShadow =
  true;
 
- houseGroup.add(
+ group.add(
  backGable
  );
 
  // ------------------------------------------------
- // WORLD MATRIX
+ // MATRIX
  // ------------------------------------------------
- houseGroup.updateWorldMatrix(
+ group.updateWorldMatrix(
  true,
  true
  );
@@ -3231,10 +3494,11 @@ function createTexturedHouse(
  // RETURN
  // ------------------------------------------------
  return {
- group:
- houseGroup,
+ templateId: 1,
 
- body,
+ group,
+
+ wallMeshes,
 
  roofs: [
  leftRoof,
@@ -3244,12 +3508,51 @@ function createTexturedHouse(
  gables: [
  frontGable,
  backGable
- ]
+ ],
+
+ width,
+ depth,
+ wallHeight,
+ roofHeight,
+ rotation
  };
 }
 
 // --------------------------------------------------
-// CREATE HOUSE
+// CREATE HOUSE FROM TEMPLATE
+// --------------------------------------------------
+function createHouseFromTemplate(
+ descriptor
+) {
+ const variant =
+ getWorldObjectVariant(
+ descriptor
+ );
+
+ /*
+  * 現在は記念すべき
+  * TEMPLATE 01しか存在しない。
+  *
+  * Template 02以降を追加したら
+  * ここでvariantによって分岐する。
+  */
+ void variant;
+
+ return createHouseTemplate01(
+ metersToUnits(
+ descriptor.xMeters
+ ),
+ metersToUnits(
+ descriptor.zMeters
+ ),
+ descriptor.rotation ??
+ 0,
+ descriptor.id
+ );
+}
+
+// --------------------------------------------------
+// LEGACY CREATE HOUSE
 // --------------------------------------------------
 function createHouse(
  x,
@@ -3257,46 +3560,30 @@ function createHouse(
  variant,
  rotation = 0
 ) {
- const template =
- HOUSE_TEMPLATES[
- variant %
- HOUSE_TEMPLATES.length
- ];
-
- const width =
- metersToUnits(
- template.width
- );
-
- const depth =
- metersToUnits(
- template.depth
- );
-
- const height =
- metersToUnits(
- template.height
- );
-
- const roofHeight =
- metersToUnits(
- template.roofHeight
- );
+ /*
+  * 旧Generatorとの互換用。
+  *
+  * 現在の固定Worldでは
+  * 基本的に使用しない。
+  */
+ const descriptor = {
+ id:
+ `legacy-house-${x}-${z}`,
+ xMeters:
+ x *
+ METERS_PER_UNIT,
+ zMeters:
+ z *
+ METERS_PER_UNIT,
+ rotation,
+ variant
+ };
 
  const house =
- createTexturedHouse(
- x,
- z,
- width,
- depth,
- height,
- roofHeight,
- rotation
+ createHouseFromTemplate(
+ descriptor
  );
 
- // ------------------------------------------------
- // ADD
- // ------------------------------------------------
  scene.add(
  house.group
  );
@@ -3307,42 +3594,38 @@ function createHouse(
  );
 
  // ------------------------------------------------
- // BODY COLLISION
+ // COLLISION
  // ------------------------------------------------
- const bodyBox =
+ const collider =
  new THREE.Box3()
  .setFromObject(
- house.body
+ house.group
  );
+
+ /*
+  * 屋根まで含めると
+  * 平らな透明Colliderになるので、
+  * 壁部分のみの高さへ制限する。
+  */
+ collider.max.y =
+ house.group.position.y +
+ house.wallHeight;
 
  colliders.push(
- bodyBox
+ collider
  );
-
- // ------------------------------------------------
- // ROOF COLLISION
- // ------------------------------------------------
- for (
- const roof
- of house.roofs
- ) {
- const roofBox =
- new THREE.Box3()
- .setFromObject(
- roof
- );
-
- colliders.push(
- roofBox
- );
- }
 
  // ------------------------------------------------
  // ANCHORS
  // ------------------------------------------------
+ for (
+ const wall
+ of house.wallMeshes
+ ) {
  anchorTargets.push(
- house.body
+ wall
  );
+ }
 
  for (
  const roof
@@ -3467,78 +3750,15 @@ function createGeneratedHouse(
  chunkData
 ) {
  // ------------------------------------------------
- // POSITION
- // ------------------------------------------------
- const x =
- metersToUnits(
- descriptor.xMeters
- );
-
- const z =
- metersToUnits(
- descriptor.zMeters
- );
-
- // ------------------------------------------------
- // SIZE
- // ------------------------------------------------
- const width =
- metersToUnits(
- (
- descriptor.widthMeters ??
- 12
- ) *
- FIXED_HOUSE_WIDTH_SCALE
- );
-
- const depth =
- metersToUnits(
- (
- descriptor.depthMeters ??
- 14
- ) *
- FIXED_HOUSE_DEPTH_SCALE
- );
-
- const height =
- metersToUnits(
- (
- descriptor.heightMeters ??
- 12
- ) *
- FIXED_HOUSE_HEIGHT_SCALE
- );
-
- const roofHeight =
- metersToUnits(
- (
- descriptor.roofHeightMeters ??
- 4
- ) *
- FIXED_HOUSE_ROOF_SCALE
- );
-
- const rotation =
- descriptor.rotation ??
- 0;
-
- // ------------------------------------------------
- // TEMPLATE 01
+ // TEMPLATE
  // ------------------------------------------------
  const house =
- createTexturedHouse(
- x,
- z,
- width,
- depth,
- height,
- roofHeight,
- rotation,
- descriptor.id
+ createHouseFromTemplate(
+ descriptor
  );
 
  // ------------------------------------------------
- // ADD TO CHUNK
+ // ADD
  // ------------------------------------------------
  chunkData.group.add(
  house.group
@@ -3555,54 +3775,53 @@ function createGeneratedHouse(
  );
 
  // ------------------------------------------------
- // BODY COLLIDER
+ // BODY COLLISION
  // ------------------------------------------------
- const bodyBox =
+ /*
+  * 現段階では、
+  *
+  * 地面
+  * ↓
+  * 壁最上部
+  *
+  * までを建物本体Colliderにする。
+  *
+  * 屋根は次に専用の
+  * 斜面Colliderを実装する。
+  */
+ const bodyCollider =
  new THREE.Box3()
  .setFromObject(
- house.body
+ house.group
  );
 
+ bodyCollider.max.y =
+ house.group.position.y +
+ house.wallHeight;
+
  colliders.push(
- bodyBox
+ bodyCollider
  );
 
  chunkData.colliders.push(
- bodyBox
+ bodyCollider
  );
 
  // ------------------------------------------------
- // ROOF COLLIDERS
+ // WALL ANCHORS
  // ------------------------------------------------
  for (
- const roof
- of house.roofs
+ const wall
+ of house.wallMeshes
  ) {
- const roofBox =
- new THREE.Box3()
- .setFromObject(
- roof
- );
-
- colliders.push(
- roofBox
- );
-
- chunkData.colliders.push(
- roofBox
- );
- }
-
- // ------------------------------------------------
- // BODY ANCHOR
- // ------------------------------------------------
  anchorTargets.push(
- house.body
+ wall
  );
 
  chunkData.anchorTargets.push(
- house.body
+ wall
  );
+ }
 
  // ------------------------------------------------
  // ROOF ANCHORS
@@ -3906,6 +4125,9 @@ function destroyChunkWorldContent(
  object.geometry.dispose();
  }
 
+ /*
+  * Tree Materialは共有なので破棄しない。
+  */
  if (
  object.material &&
  object.material !==
@@ -3926,14 +4148,25 @@ function destroyChunkWorldContent(
  const material
  of materials
  ) {
+ /*
+  * WindowTextureは共有。
+  */
  if (
  material.map &&
+ material.map !==
+ houseWindowTexture
+ ) {
+ /*
+  * House側でcloneされたTextureのみ。
+  */
+ if (
  material.map !==
  houseWallTexture &&
  material.map !==
  houseRoofTexture
  ) {
  material.map.dispose();
+ }
  }
 
  material.dispose();
