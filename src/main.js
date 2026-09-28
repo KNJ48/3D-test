@@ -14995,6 +14995,15 @@ window.addEventListener(
 let settingsOpen =
  false;
 
+/*
+ * 設定をどこから開いたか。
+ *
+ * "main-menu"
+ * "game"
+ */
+let settingsSource =
+ "game";
+
 // --------------------------------------------------
 // STORAGE
 // --------------------------------------------------
@@ -15025,9 +15034,6 @@ function loadGameSettings() {
  );
  }
 
- // ------------------------------------------------
- // UI
- // ------------------------------------------------
  if (
  typeof renderDistanceInput !==
  "undefined"
@@ -15080,9 +15086,6 @@ function applyRenderDistance(
  return;
  }
 
- // ------------------------------------------------
- // CLAMP
- // ------------------------------------------------
  renderDistanceKm =
  THREE.MathUtils.clamp(
  parsed,
@@ -15109,22 +15112,13 @@ function applyRenderDistance(
  saveRenderDistance();
 
  // ------------------------------------------------
- // WORLD STREAMING
+ // ACTIVE WORLD
  // ------------------------------------------------
- /*
-  * 描画距離を短くした場合、
-  * 次の通常更新を待たず
-  * 遠方チャンクを破棄する。
-  */
  if (
  worldDatabaseReady
  ) {
  unloadFarChunks();
 
- /*
-  * 描画距離を広げた場合は
-  * 新しい範囲をすぐQueueへ追加。
-  */
  requestWorldChunks();
 
  chunkRequestTimer =
@@ -15133,7 +15127,7 @@ function applyRenderDistance(
 }
 
 // --------------------------------------------------
-// SLIDER INPUT
+// SLIDER
 // --------------------------------------------------
 renderDistanceInput.addEventListener(
  "input",
@@ -15147,13 +15141,36 @@ renderDistanceInput.addEventListener(
 // --------------------------------------------------
 // OPEN SETTINGS
 // --------------------------------------------------
-function openSettings() {
+function openSettings(
+ source = null
+) {
  if (
  settingsOpen
  ) {
  return;
  }
 
+ // ------------------------------------------------
+ // SOURCE
+ // ------------------------------------------------
+ if (
+ source
+ ) {
+ settingsSource =
+ source;
+ } else if (
+ mainMenuOpen
+ ) {
+ settingsSource =
+ "main-menu";
+ } else {
+ settingsSource =
+ "game";
+ }
+
+ // ------------------------------------------------
+ // CLOSE OTHER UI
+ // ------------------------------------------------
  if (
  worldMapOpen
  ) {
@@ -15169,6 +15186,9 @@ function openSettings() {
  settingsOpen =
  true;
 
+ // ------------------------------------------------
+ // POINTER LOCK
+ // ------------------------------------------------
  if (
  document.pointerLockElement
  ) {
@@ -15192,7 +15212,7 @@ function openSettings() {
  false;
 
  // ------------------------------------------------
- // CURRENT VALUE
+ // VALUE
  // ------------------------------------------------
  renderDistanceInput.value =
  String(
@@ -15205,6 +15225,24 @@ function openSettings() {
  )} km`;
 
  // ------------------------------------------------
+ // MAIN MENU
+ // ------------------------------------------------
+ /*
+  * メインメニューから設定を開いた場合は
+  * メニューを一時的に隠す。
+  *
+  * hideMainMenu()は状態まで変えてしまうため
+  * ここではdisplayだけ変更する。
+  */
+ if (
+ settingsSource ===
+ "main-menu"
+ ) {
+ mainMenuHUD.style.display =
+ "none";
+ }
+
+ // ------------------------------------------------
  // SHOW
  // ------------------------------------------------
  settingsHUD.style.display =
@@ -15215,11 +15253,31 @@ function openSettings() {
 // CLOSE SETTINGS
 // --------------------------------------------------
 function closeSettings() {
+ if (
+ !settingsOpen
+ ) {
+ return;
+ }
+
  settingsOpen =
  false;
 
  settingsHUD.style.display =
  "none";
+
+ // ------------------------------------------------
+ // RETURN TO MAIN MENU
+ // ------------------------------------------------
+ if (
+ settingsSource ===
+ "main-menu"
+ ) {
+ mainMenuHUD.style.display =
+ "flex";
+ }
+
+ settingsSource =
+ "game";
 }
 
 // --------------------------------------------------
@@ -15418,185 +15476,222 @@ function getActiveWorldDatabase() {
 window.addEventListener(
  "keydown",
  event => {
-
  // --------------------------------------------------
  // SETTINGS OPEN
  // --------------------------------------------------
+ /*
+  * 設定画面を開いているときのESCは
+  * 設定を閉じる。
+  */
  if (
-  settingsOpen
+ settingsOpen
  ) {
-  if (
-   event.code ===
-   "Escape"
-  ) {
-   event.preventDefault();
+ if (
+ event.code ===
+ "Escape"
+ ) {
+ event.preventDefault();
 
-   closeSettings();
-  }
+ closeSettings();
+ }
 
-  return;
+ return;
+ }
+
+ // --------------------------------------------------
+ // MAIN MENU
+ // --------------------------------------------------
+ /*
+  * メインメニューでは
+  *
+  * ESC = SETTINGS
+  *
+  * とする。
+  */
+ if (
+ mainMenuOpen
+ ) {
+ if (
+ event.code ===
+ "Escape"
+ ) {
+ event.preventDefault();
+
+ openSettings(
+ "main-menu"
+ );
+ }
+
+ return;
  }
 
  // --------------------------------------------------
  // WORLD MAP OPEN
  // --------------------------------------------------
  if (
-  worldMapOpen
+ worldMapOpen
  ) {
-  if (
-   event.code ===
-   "Escape"
-  ) {
-   event.preventDefault();
+ if (
+ event.code ===
+ "Escape"
+ ) {
+ event.preventDefault();
 
-   closeWorldMap();
-  }
+ closeWorldMap();
+ }
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // TELEPORT MENU OPEN
  // --------------------------------------------------
  if (
-  teleportMenuOpen
+ teleportMenuOpen
  ) {
-  if (
-   event.code ===
-   "Escape"
-  ) {
-   event.preventDefault();
+ if (
+ event.code ===
+ "Escape"
+ ) {
+ event.preventDefault();
 
-   closeTeleportMenu();
-  }
+ closeTeleportMenu();
+ }
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // ESC = SETTINGS
  // --------------------------------------------------
+ /*
+  * ゲームプレイ中。
+  */
  if (
-  event.code ===
-  "Escape"
+ event.code ===
+ "Escape"
  ) {
-  event.preventDefault();
+ event.preventDefault();
 
-  openSettings();
+ openSettings(
+ "game"
+ );
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // M = WORLD MAP
  // --------------------------------------------------
  if (
-  event.code ===
-   "KeyM" &&
-  !event.repeat
+ event.code ===
+ "KeyM" &&
+ !event.repeat
  ) {
-  event.preventDefault();
+ event.preventDefault();
 
-  toggleWorldMap();
+ toggleWorldMap();
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // T = TELEPORT
  // --------------------------------------------------
  if (
-  event.code ===
-   "KeyT" &&
-  !event.repeat
+ event.code ===
+ "KeyT" &&
+ !event.repeat
  ) {
-  event.preventDefault();
+ event.preventDefault();
 
-  toggleTeleportMenu();
+ toggleTeleportMenu();
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // SPACE
  // --------------------------------------------------
  if (
-  event.code ===
-  "Space"
+ event.code ===
+ "Space"
  ) {
-  event.preventDefault();
+ event.preventDefault();
 
-  if (
-   !keys["Space"]
-  ) {
-   spacePressed =
-    true;
+ if (
+ !keys["Space"]
+ ) {
+ spacePressed =
+ true;
 
-   const now =
-    performance.now() /
-    1000;
+ const now =
+ performance.now() /
+ 1000;
 
-   const doubleTap =
-    now -
-    lastSpaceTapTime <
-    GAS_DOUBLE_TAP_WINDOW;
+ const doubleTap =
+ now -
+ lastSpaceTapTime <
+ GAS_DOUBLE_TAP_WINDOW;
 
-   if (
-    doubleTap &&
-    !grounded &&
-    !dead &&
-    wallStunTimer <= 0
-   ) {
-    const fired =
-     gasBurst();
+ if (
+ doubleTap &&
+ !grounded &&
+ !dead &&
+ wallStunTimer <= 0
+ ) {
+ const fired =
+ gasBurst();
 
-    if (fired) {
-     lastSpaceTapTime =
-      -Infinity;
-    } else {
-     lastSpaceTapTime =
-      now;
-    }
-   } else {
-    lastSpaceTapTime =
-     now;
-   }
-  }
+ if (
+ fired
+ ) {
+ lastSpaceTapTime =
+ -Infinity;
+ } else {
+ lastSpaceTapTime =
+ now;
+ }
+ } else {
+ lastSpaceTapTime =
+ now;
+ }
+ }
  }
 
  // --------------------------------------------------
  // Q = LEFT MANUAL
  // --------------------------------------------------
  if (
-  event.code ===
-   "KeyQ" &&
-  !keys["KeyQ"] &&
-  wallStunTimer <= 0
+ event.code ===
+ "KeyQ" &&
+ !keys["KeyQ"] &&
+ wallStunTimer <= 0
  ) {
-  toggleManualAnchor(
-   leftAnchor
-  );
+ toggleManualAnchor(
+ leftAnchor
+ );
  }
 
  // --------------------------------------------------
  // R = RIGHT MANUAL
  // --------------------------------------------------
  if (
-  event.code ===
-   "KeyR" &&
-  !keys["KeyR"] &&
-  wallStunTimer <= 0
+ event.code ===
+ "KeyR" &&
+ !keys["KeyR"] &&
+ wallStunTimer <= 0
  ) {
-  toggleManualAnchor(
-   rightAnchor
-  );
+ toggleManualAnchor(
+ rightAnchor
+ );
  }
 
  // --------------------------------------------------
  // KEY STATE
  // --------------------------------------------------
  keys[event.code] =
-  true;
+ true;
  }
 );
 
@@ -15606,8 +15701,8 @@ window.addEventListener(
 window.addEventListener(
  "keyup",
  event => {
-  keys[event.code] =
-   false;
+ keys[event.code] =
+ false;
  }
 );
 
