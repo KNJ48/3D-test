@@ -11666,29 +11666,23 @@ document.body.appendChild(
 // ==================================================
 const settingsHUD =
  document.createElement(
-  "div"
+ "div"
  );
 
 Object.assign(
  settingsHUD.style,
  {
-  position: "fixed",
-  inset: "0",
-
-  display: "none",
-
-  alignItems: "center",
-  justifyContent: "center",
-
-  background:
-   "rgba(0,0,0,.78)",
-
-  color: "white",
-
-  fontFamily:
-   "Arial",
-
-  zIndex: "11000"
+ position: "fixed",
+ inset: "0",
+ display: "none",
+ alignItems: "center",
+ justifyContent: "center",
+ background:
+ "rgba(0,0,0,.78)",
+ color: "white",
+ fontFamily:
+ "Arial",
+ zIndex: "11000"
  }
 );
 
@@ -11697,24 +11691,20 @@ Object.assign(
 // --------------------------------------------------
 const settingsPanel =
  document.createElement(
-  "div"
+ "div"
  );
 
 Object.assign(
  settingsPanel.style,
  {
-  width: "440px",
-
-  padding: "32px",
-
-  background:
-   "rgba(25,30,28,.98)",
-
-  border:
-   "1px solid #777",
-
-  borderRadius:
-   "8px"
+ width: "440px",
+ padding: "32px",
+ background:
+ "rgba(25,30,28,.98)",
+ border:
+ "1px solid #777",
+ borderRadius:
+ "8px"
  }
 );
 
@@ -11727,7 +11717,7 @@ settingsHUD.appendChild(
 // --------------------------------------------------
 const settingsTitle =
  document.createElement(
-  "div"
+ "div"
  );
 
 settingsTitle.textContent =
@@ -11736,9 +11726,9 @@ settingsTitle.textContent =
 Object.assign(
  settingsTitle.style,
  {
-  fontSize: "32px",
-  fontWeight: "bold",
-  marginBottom: "26px"
+ fontSize: "32px",
+ fontWeight: "bold",
+ marginBottom: "32px"
  }
 );
 
@@ -11747,101 +11737,177 @@ settingsPanel.appendChild(
 );
 
 // --------------------------------------------------
-// TERRAIN SEED LABEL
+// RENDER DISTANCE SECTION
 // --------------------------------------------------
-const terrainSeedLabel =
+const renderDistanceSection =
  document.createElement(
-  "div"
+ "div"
  );
 
-terrainSeedLabel.textContent =
- "WORLD / TERRAIN SEED";
-
-terrainSeedLabel.style.marginBottom =
- "8px";
-
 settingsPanel.appendChild(
- terrainSeedLabel
+ renderDistanceSection
 );
 
 // --------------------------------------------------
-// TERRAIN SEED INPUT
+// LABEL ROW
 // --------------------------------------------------
-const terrainSeedInput =
+const renderDistanceLabelRow =
  document.createElement(
-  "input"
+ "div"
  );
 
-terrainSeedInput.type =
- "number";
-
 Object.assign(
- terrainSeedInput.style,
+ renderDistanceLabelRow.style,
  {
-  width: "100%",
-
-  boxSizing:
-   "border-box",
-
-  padding: "10px",
-
-  marginBottom: "12px",
-
-  color: "white",
-
-  background:
-   "#101412",
-
-  border:
-   "1px solid #666",
-
-  fontFamily:
-   "monospace",
-
-  fontSize: "18px"
+ display: "flex",
+ justifyContent: "space-between",
+ alignItems: "center",
+ marginBottom: "12px"
  }
 );
 
-settingsPanel.appendChild(
- terrainSeedInput
+renderDistanceSection.appendChild(
+ renderDistanceLabelRow
 );
 
-// --------------------------------------------------
-// APPLY BUTTON
-// --------------------------------------------------
-const terrainSeedApply =
+const renderDistanceLabel =
  document.createElement(
-  "button"
+ "div"
  );
 
-terrainSeedApply.textContent =
- "APPLY SEED";
+renderDistanceLabel.textContent =
+ "RENDER DISTANCE";
 
 Object.assign(
- terrainSeedApply.style,
+ renderDistanceLabel.style,
  {
-  width: "100%",
-
-  padding: "12px",
-
-  color: "white",
-
-  background:
-   "#416b4a",
-
-  border:
-   "1px solid #8fa",
-
-  cursor: "pointer",
-
-  fontSize: "16px",
-
-  fontWeight: "bold"
+ fontSize: "16px",
+ fontWeight: "bold"
  }
 );
 
-settingsPanel.appendChild(
- terrainSeedApply
+renderDistanceLabelRow.appendChild(
+ renderDistanceLabel
+);
+
+// --------------------------------------------------
+// VALUE
+// --------------------------------------------------
+const renderDistanceValue =
+ document.createElement(
+ "div"
+ );
+
+renderDistanceValue.textContent =
+ `${renderDistanceKm.toFixed(
+ 1
+ )} km`;
+
+Object.assign(
+ renderDistanceValue.style,
+ {
+ color: "#9fd3a5",
+ fontFamily: "monospace",
+ fontSize: "17px",
+ fontWeight: "bold"
+ }
+);
+
+renderDistanceLabelRow.appendChild(
+ renderDistanceValue
+);
+
+// --------------------------------------------------
+// SLIDER
+// --------------------------------------------------
+const renderDistanceInput =
+ document.createElement(
+ "input"
+ );
+
+renderDistanceInput.type =
+ "range";
+
+renderDistanceInput.min =
+ "0.5";
+
+renderDistanceInput.max =
+ "5";
+
+renderDistanceInput.step =
+ "0.5";
+
+renderDistanceInput.value =
+ String(
+ renderDistanceKm
+ );
+
+Object.assign(
+ renderDistanceInput.style,
+ {
+ width: "100%",
+ cursor: "pointer",
+ accentColor: "#6ca56c"
+ }
+);
+
+renderDistanceSection.appendChild(
+ renderDistanceInput
+);
+
+// --------------------------------------------------
+// RANGE INFO
+// --------------------------------------------------
+const renderDistanceInfo =
+ document.createElement(
+ "div"
+ );
+
+renderDistanceInfo.textContent =
+ "0.5 km                       5.0 km";
+
+Object.assign(
+ renderDistanceInfo.style,
+ {
+ marginTop: "6px",
+ color: "#777",
+ fontFamily: "monospace",
+ fontSize: "12px",
+ whiteSpace: "pre"
+ }
+);
+
+renderDistanceSection.appendChild(
+ renderDistanceInfo
+);
+
+// --------------------------------------------------
+// PERFORMANCE INFO
+// --------------------------------------------------
+const renderDistancePerformance =
+ document.createElement(
+ "div"
+ );
+
+renderDistancePerformance.textContent =
+ "都市部では 0.5 - 1.5 km 推奨";
+
+Object.assign(
+ renderDistancePerformance.style,
+ {
+ marginTop: "16px",
+ padding: "10px 12px",
+ color: "#c9c9c9",
+ background:
+ "rgba(255,255,255,.04)",
+ borderLeft:
+ "3px solid #6ca56c",
+ fontSize: "13px"
+ }
+);
+
+renderDistanceSection.appendChild(
+ renderDistancePerformance
 );
 
 // --------------------------------------------------
@@ -11849,7 +11915,7 @@ settingsPanel.appendChild(
 // --------------------------------------------------
 const settingsHelp =
  document.createElement(
-  "div"
+ "div"
  );
 
 settingsHelp.textContent =
@@ -11858,14 +11924,11 @@ settingsHelp.textContent =
 Object.assign(
  settingsHelp.style,
  {
-  marginTop: "25px",
-
-  color: "#aaa",
-
-  fontFamily:
-   "monospace",
-
-  fontSize: "14px"
+ marginTop: "30px",
+ color: "#aaa",
+ fontFamily:
+ "monospace",
+ fontSize: "14px"
  }
 );
 
@@ -14933,57 +14996,219 @@ let settingsOpen =
  false;
 
 // --------------------------------------------------
+// STORAGE
+// --------------------------------------------------
+const SETTINGS_RENDER_DISTANCE_KEY =
+ "paradis-render-distance-km";
+
+// --------------------------------------------------
+// LOAD SETTINGS
+// --------------------------------------------------
+function loadGameSettings() {
+ const savedRenderDistance =
+ Number(
+ localStorage.getItem(
+ SETTINGS_RENDER_DISTANCE_KEY
+ )
+ );
+
+ if (
+ Number.isFinite(
+ savedRenderDistance
+ )
+ ) {
+ renderDistanceKm =
+ THREE.MathUtils.clamp(
+ savedRenderDistance,
+ 0.5,
+ 5
+ );
+ }
+
+ // ------------------------------------------------
+ // UI
+ // ------------------------------------------------
+ if (
+ typeof renderDistanceInput !==
+ "undefined"
+ ) {
+ renderDistanceInput.value =
+ String(
+ renderDistanceKm
+ );
+ }
+
+ if (
+ typeof renderDistanceValue !==
+ "undefined"
+ ) {
+ renderDistanceValue.textContent =
+ `${renderDistanceKm.toFixed(
+ 1
+ )} km`;
+ }
+}
+
+// --------------------------------------------------
+// SAVE RENDER DISTANCE
+// --------------------------------------------------
+function saveRenderDistance() {
+ localStorage.setItem(
+ SETTINGS_RENDER_DISTANCE_KEY,
+ String(
+ renderDistanceKm
+ )
+ );
+}
+
+// --------------------------------------------------
+// APPLY RENDER DISTANCE
+// --------------------------------------------------
+function applyRenderDistance(
+ value
+) {
+ const parsed =
+ Number(
+ value
+ );
+
+ if (
+ !Number.isFinite(
+ parsed
+ )
+ ) {
+ return;
+ }
+
+ // ------------------------------------------------
+ // CLAMP
+ // ------------------------------------------------
+ renderDistanceKm =
+ THREE.MathUtils.clamp(
+ parsed,
+ 0.5,
+ 5
+ );
+
+ // ------------------------------------------------
+ // UI
+ // ------------------------------------------------
+ renderDistanceInput.value =
+ String(
+ renderDistanceKm
+ );
+
+ renderDistanceValue.textContent =
+ `${renderDistanceKm.toFixed(
+ 1
+ )} km`;
+
+ // ------------------------------------------------
+ // SAVE
+ // ------------------------------------------------
+ saveRenderDistance();
+
+ // ------------------------------------------------
+ // WORLD STREAMING
+ // ------------------------------------------------
+ /*
+  * 描画距離を短くした場合、
+  * 次の通常更新を待たず
+  * 遠方チャンクを破棄する。
+  */
+ if (
+ worldDatabaseReady
+ ) {
+ unloadFarChunks();
+
+ /*
+  * 描画距離を広げた場合は
+  * 新しい範囲をすぐQueueへ追加。
+  */
+ requestWorldChunks();
+
+ chunkRequestTimer =
+ 0;
+ }
+}
+
+// --------------------------------------------------
+// SLIDER INPUT
+// --------------------------------------------------
+renderDistanceInput.addEventListener(
+ "input",
+ () => {
+ applyRenderDistance(
+ renderDistanceInput.value
+ );
+ }
+);
+
+// --------------------------------------------------
 // OPEN SETTINGS
 // --------------------------------------------------
 function openSettings() {
  if (
-  settingsOpen
+ settingsOpen
  ) {
-  return;
+ return;
  }
 
  if (
-  worldMapOpen
+ worldMapOpen
  ) {
-  closeWorldMap();
+ closeWorldMap();
  }
 
  if (
-  teleportMenuOpen
+ teleportMenuOpen
  ) {
-  closeTeleportMenu();
+ closeTeleportMenu();
  }
 
  settingsOpen =
-  true;
+ true;
 
  if (
-  document.pointerLockElement
+ document.pointerLockElement
  ) {
-  document.exitPointerLock();
+ document.exitPointerLock();
  }
 
+ // ------------------------------------------------
+ // CLEAR INPUT
+ // ------------------------------------------------
  for (
-  const code
-  of Object.keys(
-   keys
-  )
+ const code
+ of Object.keys(
+ keys
+ )
  ) {
-  keys[code] =
-   false;
+ keys[code] =
+ false;
  }
 
  spacePressed =
-  false;
+ false;
 
- terrainSeedInput.value =
-  getTerrainSeed();
+ // ------------------------------------------------
+ // CURRENT VALUE
+ // ------------------------------------------------
+ renderDistanceInput.value =
+ String(
+ renderDistanceKm
+ );
 
+ renderDistanceValue.textContent =
+ `${renderDistanceKm.toFixed(
+ 1
+ )} km`;
+
+ // ------------------------------------------------
+ // SHOW
+ // ------------------------------------------------
  settingsHUD.style.display =
-  "flex";
-
- terrainSeedInput.focus();
- terrainSeedInput.select();
+ "flex";
 }
 
 // --------------------------------------------------
@@ -14991,137 +15216,16 @@ function openSettings() {
 // --------------------------------------------------
 function closeSettings() {
  settingsOpen =
-  false;
+ false;
 
  settingsHUD.style.display =
-  "none";
+ "none";
 }
 
 // --------------------------------------------------
-// REBUILD TERRAIN
+// INITIAL LOAD
 // --------------------------------------------------
-function rebuildTerrain() {
- // ------------------------------------------------
- // DESTROY LOADED CHUNKS
- // ------------------------------------------------
- for (
-  const [
-   key,
-   chunk
-  ]
-  of Array.from(
-   loadedChunks
-  )
- ) {
-  destroyGroundChunk(
-   key,
-   chunk
-  );
- }
-
- // ------------------------------------------------
- // CLEAR QUEUE
- // ------------------------------------------------
- chunkGenerationQueue.length =
-  0;
-
- queuedChunks.clear();
-
- // ------------------------------------------------
- // REQUEST IMMEDIATELY
- // ------------------------------------------------
- chunkRequestTimer =
-  0;
-
- /*
-  * プレイヤーを新しい地面の
-  * 高さへ移動。
-  */
- const groundMeters =
-  getTerrainHeightMeters(
-   camera.position.x *
-   METERS_PER_UNIT,
-
-   camera.position.z *
-   METERS_PER_UNIT
-  );
-
- camera.position.y =
-  groundMeters /
-  METERS_PER_UNIT +
-  PLAYER_HEIGHT;
-
- velocity.set(
-  0,
-  0,
-  0
- );
-
- grounded =
-  true;
-}
-
-// --------------------------------------------------
-// APPLY SEED
-// --------------------------------------------------
-function applyTerrainSeed() {
- const value =
-  Number(
-   terrainSeedInput.value
-  );
-
- if (
-  !Number.isFinite(
-   value
-  )
- ) {
-  return;
- }
-
- setTerrainSeed(
-  value
- );
-
- rebuildTerrain();
-
- terrainSeedInput.value =
-  getTerrainSeed();
-
- showMessage(
-  `WORLD SEED ${getTerrainSeed()}`
- );
-}
-
-// --------------------------------------------------
-// APPLY BUTTON
-// --------------------------------------------------
-terrainSeedApply.addEventListener(
- "click",
- () => {
-  applyTerrainSeed();
- }
-);
-
-// --------------------------------------------------
-// ENTER IN INPUT
-// --------------------------------------------------
-terrainSeedInput.addEventListener(
- "keydown",
- event => {
-  if (
-   event.code ===
-   "Enter"
-  ) {
-   event.preventDefault();
-
-   applyTerrainSeed();
-  }
-
-  /*
-   * ESCはwindow側へ渡す。
-   */
- }
-);
+loadGameSettings();
 
 // ==================================================
 // WORLD DATABASE SYSTEM
