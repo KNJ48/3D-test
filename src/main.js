@@ -11573,48 +11573,6 @@ function findRoofBelowPlayer(
  };
 }
 
-// --------------------------------------------------
-// COLLIDES
-// --------------------------------------------------
-function collides(
- position
-) {
- const nearby =
- getNearbyColliders(
- position
- );
-
- // ------------------------------------------------
- // OBJECTS
- // ------------------------------------------------
- for (
- const box
- of nearby
- ) {
- if (
- intersects(
- position,
- box
- )
- ) {
- return true;
- }
- }
-
- // ------------------------------------------------
- // WALL
- // ------------------------------------------------
- if (
- collidesRingWall(
- position
- )
- ) {
- return true;
- }
-
- return false;
-}
-
 // ==================================================
 // RING WALL COLLISION
 // ==================================================
