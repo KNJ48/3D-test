@@ -3310,6 +3310,499 @@ function createRoad(
 }
 
 // ==================================================
+// ROAD STREAMING
+// ==================================================
+/*
+ * paradis-world.json の roads を
+ * 3D世界にも表示する。
+ *
+ * 道路全体を常駐させず、
+ * プレイヤー周辺だけ表示する。
+ */
+
+// --------------------------------------------------
+// SETTINGS
+// --------------------------------------------------
+const ROAD_STREAM_EXTRA_METERS =
+ 500;
+
+const ROAD_Y_OFFSET =
+ metersToUnits(
+ 0.025
+ );
+
+// --------------------------------------------------
+// STATE
+// --------------------------------------------------
+const streamedRoads =
+ new Map();
+
+// --------------------------------------------------
+// ROAD SEGMENT SIZE
+// --------------------------------------------------
+const ROAD_SEGMENT_LENGTH_METERS =
+ 100;
+
+// --------------------------------------------------
+// CREATE ROAD SEGMENT
+// --------------------------------------------------
+function createStreamedRoadSegment(
+ key,
+ road,
+ startXMeters,
+ startZMeters,
+ endXMeters,
+ endZMeters
+) {
+ if (
+ streamedRoads.has(
+ key
+ )
+ ) {
+ return;
+ }
+
+ const dx =
+ endXMeters -
+ startXMeters;
+
+ const dz =
+ endZMeters -
+ startZMeters;
+
+ const lengthMeters =
+ Math.hypot(
+ dx,
+ dz
+ );
+
+ if (
+ lengthMeters <=
+ 0.001
+ ) {
+ return;
+ }
+
+ const centerXMeters =
+ (
+ startXMeters +
+ endXMeters
+ ) /
+ 2;
+
+ const centerZMeters =
+ (
+ startZMeters +
+ endZMeters
+ ) /
+ 2;
+
+ const centerX =
+ metersToUnits(
+ centerXMeters
+ );
+
+ const centerZ =
+ metersToUnits(
+ centerZMeters
+ );
+
+ const terrainY =
+ metersToUnits(
+ getTerrainHeightMeters(
+ centerXMeters,
+ centerZMeters
+ )
+ );
+
+ const width =
+ metersToUnits(
+ Number(
+ road.widthMeters
+ ) ||
+ 10
+ );
+
+ const length =
+ metersToUnits(
+ lengthMeters
+ );
+
+ const geometry =
+ new THREE.PlaneGeometry(
+ width,
+ length
+ );
+
+ const mesh =
+ new THREE.Mesh(
+ geometry,
+ roadMaterial
+ );
+
+ mesh.rotation.x =
+ -Math.PI /
+ 2;
+
+ /*
+  * Planeの長手方向を
+  * 道路方向へ向ける。
+  */
+ mesh.rotation.z =
+ -Math.atan2(
+ dx,
+ dz
+ );
+
+ mesh.position.set(
+ centerX,
+ terrainY +
+ ROAD_Y_OFFSET,
+ centerZ
+ );
+
+ mesh.receiveShadow =
+ true;
+
+ mesh.castShadow =
+ false;
+
+ scene.add(
+ mesh
+ );
+
+ streamedRoads.set(
+ key,
+ mesh
+ );
+}
+
+// --------------------------------------------------
+// DESTROY ROAD
+// --------------------------------------------------
+function destroyStreamedRoad(
+ key,
+ mesh
+) {
+ scene.remove(
+ mesh
+ );
+
+ if (
+ mesh.geometry
+ ) {
+ mesh.geometry.dispose();
+ }
+
+ streamedRoads.delete(
+ key
+ );
+}
+
+// --------------------------------------------------
+// DISTANCE TO SEGMENT
+// --------------------------------------------------
+function distanceToRoadSegment(
+ px,
+ pz,
+ ax,
+ az,
+ bx,
+ bz
+) {
+ const abX =
+ bx -
+ ax;
+
+ const abZ =
+ bz -
+ az;
+
+ const lengthSquared =
+ abX *
+ abX +
+ abZ *
+ abZ;
+
+ if (
+ lengthSquared <=
+ 0.0001
+ ) {
+ return Math.hypot(
+ px -
+ ax,
+ pz -
+ az
+ );
+ }
+
+ const t =
+ THREE.MathUtils.clamp(
+ (
+ (
+ px -
+ ax
+ ) *
+ abX +
+ (
+ pz -
+ az
+ ) *
+ abZ
+ ) /
+ lengthSquared,
+ 0,
+ 1
+ );
+
+ const nearestX =
+ ax +
+ abX *
+ t;
+
+ const nearestZ =
+ az +
+ abZ *
+ t;
+
+ return Math.hypot(
+ px -
+ nearestX,
+ pz -
+ nearestZ
+ );
+}
+
+// --------------------------------------------------
+// UPDATE ROAD STREAMING
+// --------------------------------------------------
+function updateRoadStreaming() {
+ const world =
+ getFixedWorld();
+
+ if (
+ !world ||
+ !Array.isArray(
+ world.roads
+ )
+ ) {
+ return;
+ }
+
+ const playerXMeters =
+ camera.position.x *
+ METERS_PER_UNIT;
+
+ const playerZMeters =
+ camera.position.z *
+ METERS_PER_UNIT;
+
+ const rangeMeters =
+ renderDistanceKm *
+ 1000 +
+ ROAD_STREAM_EXTRA_METERS;
+
+ const needed =
+ new Set();
+
+ // ------------------------------------------------
+ // ROADS
+ // ------------------------------------------------
+ for (
+ const road
+ of world.roads
+ ) {
+ const x1 =
+ Number(
+ road.x1
+ );
+
+ const z1 =
+ Number(
+ road.z1
+ );
+
+ const x2 =
+ Number(
+ road.x2
+ );
+
+ const z2 =
+ Number(
+ road.z2
+ );
+
+ if (
+ !Number.isFinite(
+ x1
+ ) ||
+ !Number.isFinite(
+ z1
+ ) ||
+ !Number.isFinite(
+ x2
+ ) ||
+ !Number.isFinite(
+ z2
+ )
+ ) {
+ continue;
+ }
+
+ const distance =
+ distanceToRoadSegment(
+ playerXMeters,
+ playerZMeters,
+ x1,
+ z1,
+ x2,
+ z2
+ );
+
+ if (
+ distance >
+ rangeMeters
+ ) {
+ continue;
+ }
+
+ const totalLength =
+ Math.hypot(
+ x2 -
+ x1,
+ z2 -
+ z1
+ );
+
+ const segmentCount =
+ Math.max(
+ 1,
+ Math.ceil(
+ totalLength /
+ ROAD_SEGMENT_LENGTH_METERS
+ )
+ );
+
+ for (
+ let i = 0;
+ i <
+ segmentCount;
+ i++
+ ) {
+ const t1 =
+ i /
+ segmentCount;
+
+ const t2 =
+ (
+ i +
+ 1
+ ) /
+ segmentCount;
+
+ const sx =
+ THREE.MathUtils.lerp(
+ x1,
+ x2,
+ t1
+ );
+
+ const sz =
+ THREE.MathUtils.lerp(
+ z1,
+ z2,
+ t1
+ );
+
+ const ex =
+ THREE.MathUtils.lerp(
+ x1,
+ x2,
+ t2
+ );
+
+ const ez =
+ THREE.MathUtils.lerp(
+ z1,
+ z2,
+ t2
+ );
+
+ const centerX =
+ (
+ sx +
+ ex
+ ) /
+ 2;
+
+ const centerZ =
+ (
+ sz +
+ ez
+ ) /
+ 2;
+
+ if (
+ Math.hypot(
+ centerX -
+ playerXMeters,
+ centerZ -
+ playerZMeters
+ ) >
+ rangeMeters
+ ) {
+ continue;
+ }
+
+ const key =
+ `${
+ road.id ??
+ "road"
+ }:${i}`;
+
+ needed.add(
+ key
+ );
+
+ createStreamedRoadSegment(
+ key,
+ road,
+ sx,
+ sz,
+ ex,
+ ez
+ );
+ }
+ }
+
+ // ------------------------------------------------
+ // UNLOAD
+ // ------------------------------------------------
+ for (
+ const [
+ key,
+ mesh
+ ]
+ of Array.from(
+ streamedRoads
+ )
+ ) {
+ if (
+ needed.has(
+ key
+ )
+ ) {
+ continue;
+ }
+
+ destroyStreamedRoad(
+ key,
+ mesh
+ );
+ }
+}
+
+// ==================================================
 // HOUSE
 // ==================================================
 /*
@@ -5858,19 +6351,34 @@ createCityWall();
 // PLAYER STATE
 // ==================================================
 const velocity =
-  new THREE.Vector3();
+ new THREE.Vector3();
 
-let grounded = true;
+let grounded =
+ true;
+
+/*
+ * 現在立っている切妻屋根。
+ *
+ * 地面・通常建物:
+ * null
+ *
+ * 屋根:
+ * roof collider object
+ */
+let groundedRoof =
+ null;
 
 let health =
-  MAX_HEALTH;
+ MAX_HEALTH;
 
 let gas =
-  MAX_GAS;
+ MAX_GAS;
 
-let dead = false;
+let dead =
+ false;
 
-let wallStunTimer = 0;
+let wallStunTimer =
+ 0;
 
 // ==================================================
 // GAS BURST STATE
@@ -10879,16 +11387,13 @@ function intersects(
 }
 
 // --------------------------------------------------
-// ROOF HEIGHT
+// WORLD -> ROOF LOCAL
 // --------------------------------------------------
-function getRoofSurfaceHeight(
+function getRoofLocalPosition(
  roof,
  worldX,
  worldZ
 ) {
- // ------------------------------------------------
- // WORLD OFFSET
- // ------------------------------------------------
  const dx =
  worldX -
  roof.x;
@@ -10897,9 +11402,6 @@ function getRoofSurfaceHeight(
  worldZ -
  roof.z;
 
- // ------------------------------------------------
- // WORLD -> HOUSE LOCAL
- // ------------------------------------------------
  const cos =
  Math.cos(
  roof.rotation
@@ -10910,37 +11412,66 @@ function getRoofSurfaceHeight(
  roof.rotation
  );
 
- const localX =
+ return {
+ x:
  dx *
  cos -
  dz *
- sin;
+ sin,
 
- const localZ =
+ z:
  dx *
  sin +
  dz *
- cos;
+ cos
+ };
+}
 
- // ------------------------------------------------
- // BOUNDS
- // ------------------------------------------------
- if (
- Math.abs(
- localX
- ) >
- roof.halfWidth +
+// --------------------------------------------------
+// ROOF HEIGHT
+// --------------------------------------------------
+function getRoofSurfaceHeight(
+ roof,
+ worldX,
+ worldZ,
+ padding =
  PLAYER_RADIUS
+) {
+ if (
+ !roof
  ) {
  return null;
  }
 
+ const local =
+ getRoofLocalPosition(
+ roof,
+ worldX,
+ worldZ
+ );
+
+ // ------------------------------------------------
+ // OUTSIDE X
+ // ------------------------------------------------
  if (
  Math.abs(
- localZ
+ local.x
+ ) >
+ roof.halfWidth +
+ padding
+ ) {
+ return null;
+ }
+
+ // ------------------------------------------------
+ // OUTSIDE Z
+ // ------------------------------------------------
+ if (
+ Math.abs(
+ local.z
  ) >
  roof.halfDepth +
- PLAYER_RADIUS
+ padding
  ) {
  return null;
  }
@@ -10948,16 +11479,13 @@ function getRoofSurfaceHeight(
  // ------------------------------------------------
  // SLOPE
  // ------------------------------------------------
- const normalized =
+ const t =
+ THREE.MathUtils.clamp(
  1 -
  Math.abs(
- localX
+ local.x
  ) /
- roof.halfWidth;
-
- const heightFactor =
- THREE.MathUtils.clamp(
- normalized,
+ roof.halfWidth,
  0,
  1
  );
@@ -10965,8 +11493,126 @@ function getRoofSurfaceHeight(
  return (
  roof.baseY +
  roof.height *
- heightFactor
+ t
  );
+}
+
+// --------------------------------------------------
+// FIND ROOF BELOW PLAYER
+// --------------------------------------------------
+function findRoofBelowPlayer(
+ worldX,
+ worldZ,
+ feetY,
+ tolerance
+) {
+ const roofs =
+ getNearbyRoofColliders(
+ camera.position
+ );
+
+ let bestRoof =
+ null;
+
+ let bestHeight =
+ -Infinity;
+
+ for (
+ const roof
+ of roofs
+ ) {
+ const roofY =
+ getRoofSurfaceHeight(
+ roof,
+ worldX,
+ worldZ
+ );
+
+ if (
+ roofY ===
+ null
+ ) {
+ continue;
+ }
+
+ /*
+  * プレイヤーより大幅に上にある屋根は
+  * 足場候補にしない。
+  */
+ if (
+ roofY >
+ feetY +
+ tolerance
+ ) {
+ continue;
+ }
+
+ if (
+ roofY >
+ bestHeight
+ ) {
+ bestHeight =
+ roofY;
+
+ bestRoof =
+ roof;
+ }
+ }
+
+ if (
+ !bestRoof
+ ) {
+ return null;
+ }
+
+ return {
+ roof:
+ bestRoof,
+ height:
+ bestHeight
+ };
+}
+
+// --------------------------------------------------
+// COLLIDES
+// --------------------------------------------------
+function collides(
+ position
+) {
+ const nearby =
+ getNearbyColliders(
+ position
+ );
+
+ // ------------------------------------------------
+ // OBJECTS
+ // ------------------------------------------------
+ for (
+ const box
+ of nearby
+ ) {
+ if (
+ intersects(
+ position,
+ box
+ )
+ ) {
+ return true;
+ }
+ }
+
+ // ------------------------------------------------
+ // WALL
+ // ------------------------------------------------
+ if (
+ collidesRingWall(
+ position
+ )
+ ) {
+ return true;
+ }
+
+ return false;
 }
 
 // ==================================================
@@ -11137,6 +11783,9 @@ function moveHorizontalStep(
  0
  );
 
+ groundedRoof =
+ null;
+
  return true;
  } else {
  damageFromImpact(
@@ -11153,6 +11802,9 @@ function moveHorizontalStep(
 
  velocity.x =
  0;
+
+ groundedRoof =
+ null;
 
  return true;
  }
@@ -11221,6 +11873,9 @@ function moveHorizontalStep(
  normalZ
  );
 
+ groundedRoof =
+ null;
+
  return true;
  } else {
  damageFromImpact(
@@ -11238,8 +11893,53 @@ function moveHorizontalStep(
  velocity.z =
  0;
 
+ groundedRoof =
+ null;
+
  return true;
  }
+ }
+ }
+
+ // --------------------------------------------------
+ // FOLLOW ROOF
+ // --------------------------------------------------
+ if (
+ grounded &&
+ groundedRoof
+ ) {
+ const roofY =
+ getRoofSurfaceHeight(
+ groundedRoof,
+ camera.position.x,
+ camera.position.z,
+ 0
+ );
+
+ // ------------------------------------------------
+ // STILL ON ROOF
+ // ------------------------------------------------
+ if (
+ roofY !==
+ null
+ ) {
+ camera.position.y =
+ roofY +
+ PLAYER_HEIGHT;
+
+ velocity.y =
+ 0;
+ }
+
+ // ------------------------------------------------
+ // LEFT ROOF
+ // ------------------------------------------------
+ else {
+ groundedRoof =
+ null;
+
+ grounded =
+ false;
  }
  }
 
@@ -11307,8 +12007,148 @@ function moveVertical(
  velocity.y *
  delta;
 
+ const oldFeet =
+ oldY -
+ PLAYER_HEIGHT;
+
+ const newFeet =
+ next.y -
+ PLAYER_HEIGHT;
+
  // --------------------------------------------------
- // TERRAIN HEIGHT
+ // CURRENT ROOF
+ // --------------------------------------------------
+ /*
+  * 屋根に立っていて下降中なら
+  * 重力による微小な沈み込みを許さず、
+  * 屋根面へ固定する。
+  */
+ if (
+ groundedRoof &&
+ velocity.y <=
+ 0
+ ) {
+ const roofY =
+ getRoofSurfaceHeight(
+ groundedRoof,
+ camera.position.x,
+ camera.position.z,
+ 0
+ );
+
+ if (
+ roofY !==
+ null
+ ) {
+ camera.position.y =
+ roofY +
+ PLAYER_HEIGHT;
+
+ velocity.y =
+ 0;
+
+ grounded =
+ true;
+
+ return;
+ }
+
+ groundedRoof =
+ null;
+
+ grounded =
+ false;
+ }
+
+ // --------------------------------------------------
+ // ROOF LANDING
+ // --------------------------------------------------
+ if (
+ velocity.y <=
+ 0
+ ) {
+ const roofs =
+ getNearbyRoofColliders(
+ camera.position
+ );
+
+ let landedRoof =
+ null;
+
+ let landedRoofY =
+ -Infinity;
+
+ for (
+ const roof
+ of roofs
+ ) {
+ const roofY =
+ getRoofSurfaceHeight(
+ roof,
+ camera.position.x,
+ camera.position.z
+ );
+
+ if (
+ roofY ===
+ null
+ ) {
+ continue;
+ }
+
+ /*
+  * このフレームで
+  * 屋根面を上から横切った。
+  */
+ if (
+ oldFeet >=
+ roofY &&
+ newFeet <=
+ roofY &&
+ roofY >
+ landedRoofY
+ ) {
+ landedRoof =
+ roof;
+
+ landedRoofY =
+ roofY;
+ }
+ }
+
+ if (
+ landedRoof
+ ) {
+ damageFromImpact(
+ velocity.y,
+ "building"
+ );
+
+ if (
+ dead
+ ) {
+ return;
+ }
+
+ camera.position.y =
+ landedRoofY +
+ PLAYER_HEIGHT;
+
+ velocity.y =
+ 0;
+
+ grounded =
+ true;
+
+ groundedRoof =
+ landedRoof;
+
+ return;
+ }
+ }
+
+ // --------------------------------------------------
+ // TERRAIN
  // --------------------------------------------------
  const groundHeightMeters =
  getTerrainHeightMeters(
@@ -11326,136 +12166,6 @@ function moveVertical(
  groundHeight +
  PLAYER_HEIGHT;
 
- // --------------------------------------------------
- // ROOF SURFACE
- // --------------------------------------------------
- /*
-  * 屋根上では毎フレーム
-  * 現在XZ位置の正確な屋根高さを求める。
-  */
- const nearbyRoofs =
- getNearbyRoofColliders(
- camera.position
- );
-
- let roofSurfaceY =
- -Infinity;
-
- for (
- const roof
- of nearbyRoofs
- ) {
- const roofY =
- getRoofSurfaceHeight(
- roof,
- camera.position.x,
- camera.position.z
- );
-
- if (
- roofY ===
- null
- ) {
- continue;
- }
-
- const oldFeet =
- oldY -
- PLAYER_HEIGHT;
-
- const newFeet =
- next.y -
- PLAYER_HEIGHT;
-
- /*
-  * 上から屋根を横切った。
-  */
- const crossedRoof =
- oldFeet >=
- roofY &&
- newFeet <=
- roofY;
-
- /*
-  * 既に屋根へ接地している。
-  *
-  * 重力による微小な上下動を
-  * ここで吸収する。
-  */
- const standingOnRoof =
- grounded &&
- Math.abs(
- oldFeet -
- roofY
- ) <=
- 0.35;
-
- if (
- (
- crossedRoof ||
- standingOnRoof
- ) &&
- roofY >
- roofSurfaceY
- ) {
- roofSurfaceY =
- roofY;
- }
- }
-
- // --------------------------------------------------
- // ROOF LANDING / FOLLOW
- // --------------------------------------------------
- if (
- roofSurfaceY >
- -Infinity &&
- velocity.y <=
- 0
- ) {
- /*
-  * 実際に落下してきた場合だけ
-  * 衝突ダメージを出す。
-  *
-  * 既に立っている時には
-  * 毎フレームDamageを出さない。
-  */
- const oldFeet =
- oldY -
- PLAYER_HEIGHT;
-
- if (
- oldFeet >
- roofSurfaceY +
- 0.35
- ) {
- damageFromImpact(
- velocity.y,
- "building"
- );
- }
-
- if (
- dead
- ) {
- return;
- }
-
- camera.position.y =
- roofSurfaceY +
- PLAYER_HEIGHT;
-
- velocity.y =
- 0;
-
- grounded =
- true;
-
- return;
- }
-
- // --------------------------------------------------
- // TERRAIN LANDING
- // --------------------------------------------------
  if (
  next.y <=
  playerGroundY
@@ -11485,11 +12195,14 @@ function moveVertical(
  grounded =
  true;
 
+ groundedRoof =
+ null;
+
  return;
  }
 
  // --------------------------------------------------
- // LAND ON RING WALL
+ // RING WALL
  // --------------------------------------------------
  if (
  velocity.y <=
@@ -11519,19 +12232,14 @@ function moveVertical(
  continue;
  }
 
- const oldFeet =
- oldY -
- PLAYER_HEIGHT;
-
- const newFeet =
- next.y -
- PLAYER_HEIGHT;
+ const wallTop =
+ ring.height;
 
  if (
  oldFeet >=
- CITY_WALL_HEIGHT &&
+ wallTop &&
  newFeet <=
- CITY_WALL_HEIGHT
+ wallTop
  ) {
  damageFromImpact(
  velocity.y,
@@ -11545,7 +12253,7 @@ function moveVertical(
  }
 
  camera.position.y =
- CITY_WALL_HEIGHT +
+ wallTop +
  PLAYER_HEIGHT;
 
  velocity.y =
@@ -11554,22 +12262,22 @@ function moveVertical(
  grounded =
  true;
 
+ groundedRoof =
+ null;
+
  return;
  }
  }
  }
 
  // --------------------------------------------------
- // NEARBY BUILDINGS
+ // BUILDING BODY
  // --------------------------------------------------
  const nearbyColliders =
  getNearbyColliders(
  camera.position
  );
 
- // --------------------------------------------------
- // NORMAL MOVEMENT
- // --------------------------------------------------
  if (
  !collides(
  next
@@ -11581,11 +12289,14 @@ function moveVertical(
  grounded =
  false;
 
+ groundedRoof =
+ null;
+
  return;
  }
 
  // --------------------------------------------------
- // BUILDING TOP
+ // LAND ON BOX
  // --------------------------------------------------
  if (
  velocity.y <=
@@ -11618,14 +12329,6 @@ function moveVertical(
  continue;
  }
 
- const oldFeet =
- oldY -
- PLAYER_HEIGHT;
-
- const newFeet =
- next.y -
- PLAYER_HEIGHT;
-
  if (
  oldFeet >=
  box.max.y &&
@@ -11653,13 +12356,16 @@ function moveVertical(
  grounded =
  true;
 
+ groundedRoof =
+ null;
+
  return;
  }
  }
  }
 
  // --------------------------------------------------
- // CEILING
+ // VERTICAL COLLISION
  // --------------------------------------------------
  damageFromImpact(
  velocity.y,
