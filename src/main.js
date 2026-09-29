@@ -10386,19 +10386,8 @@ function getRoofSurfaceHeight(
  }
 
  // ------------------------------------------------
- // GABLE SLOPE
+ // SLOPE
  // ------------------------------------------------
- /*
-  * localX = 0
-  *
-  * → 棟
-  * → roof.height
-  *
-  * localX = ±halfWidth
-  *
-  * → 軒
-  * → 0
-  */
  const normalized =
  1 -
  Math.abs(
@@ -10418,48 +10407,6 @@ function getRoofSurfaceHeight(
  roof.height *
  heightFactor
  );
-}
-
-// --------------------------------------------------
-// COLLIDES
-// --------------------------------------------------
-function collides(
- position
-) {
- const nearby =
- getNearbyColliders(
- position
- );
-
- // ------------------------------------------------
- // BOX OBJECTS
- // ------------------------------------------------
- for (
- const box
- of nearby
- ) {
- if (
- intersects(
- position,
- box
- )
- ) {
- return true;
- }
- }
-
- // ------------------------------------------------
- // WALL
- // ------------------------------------------------
- if (
- collidesRingWall(
- position
- )
- ) {
- return true;
- }
-
- return false;
 }
 
 // ==================================================
@@ -10483,18 +10430,13 @@ function collidesRingWall(
  }
 
  // --------------------------------------------------
- // RADIAL DISTANCE
+ // DISTANCE FROM WORLD CENTER
  // --------------------------------------------------
  const radialDistance =
  Math.hypot(
  position.x,
  position.z
  );
-
- const collisionThickness =
- CITY_WALL_THICKNESS /
- 2 +
- PLAYER_RADIUS;
 
  // --------------------------------------------------
  // WALL RINGS
@@ -10503,6 +10445,11 @@ function collidesRingWall(
  const ring
  of wallRings
  ) {
+ const collisionThickness =
+ ring.thickness /
+ 2 +
+ PLAYER_RADIUS;
+
  const difference =
  Math.abs(
  radialDistance -
@@ -10529,23 +10476,11 @@ function collides(
  // --------------------------------------------------
  // NEARBY OBJECTS
  // --------------------------------------------------
- /*
-  * ロードされている全Colliderではなく、
-  *
-  * 50m
-  * +
-  * 現在速度による先読み距離
-  *
-  * の範囲だけ取得する。
-  */
  const nearby =
  getNearbyColliders(
  position
  );
 
- // --------------------------------------------------
- // OBJECT COLLISION
- // --------------------------------------------------
  for (
  const box
  of nearby
@@ -10561,7 +10496,7 @@ function collides(
  }
 
  // --------------------------------------------------
- // RING WALL COLLISION
+ // RING WALLS
  // --------------------------------------------------
  if (
  collidesRingWall(
@@ -10571,11 +10506,9 @@ function collides(
  return true;
  }
 
- // --------------------------------------------------
- // NO COLLISION
- // --------------------------------------------------
  return false;
 }
+
 // ==================================================
 // HORIZONTAL MOVEMENT STEP
 // ==================================================
@@ -10593,75 +10526,77 @@ function moveHorizontalStep(
  delta;
 
  if (
-  !collides(
-   nextX
-  )
+ !collides(
+ nextX
+ )
  ) {
-  camera.position.x =
-  nextX.x;
+ camera.position.x =
+ nextX.x;
  } else {
-  if (grounded) {
-   velocity.x = 0;
-  } else {
-   const impact =
-   velocity.x;
+ if (
+ grounded
+ ) {
+ velocity.x =
+ 0;
+ } else {
+ const impact =
+ velocity.x;
 
-   const kmh =
-   speedToKmh(
-    impact
-   );
+ const kmh =
+ speedToKmh(
+ impact
+ );
 
-   const normalX =
-   impact > 0
-   ? -1
-   : 1;
+ const normalX =
+ impact >
+ 0
+ ? -1
+ : 1;
 
-   const angleWallJump =
-   canWallJumpByAngle(
-    velocity.x,
-    velocity.z,
-    normalX,
-    0
-   );
+ const angleWallJump =
+ canWallJumpByAngle(
+ velocity.x,
+ velocity.z,
+ normalX,
+ 0
+ );
 
-   /*
-    * 壁面に対して30°未満なら
-    * 速度に関係なく壁キック可能。
-    *
-    * それ以外は従来どおり
-    * 30km/h未満なら壁キック。
-    */
-   if (
-    wallStunTimer > 0
-   ) {
-    velocity.x = 0;
-   } else if (
-    angleWallJump ||
-    kmh <
-    WALL_JUMP_SAFE_KMH
-   ) {
-    wallJump(
-     normalX,
-     0
-    );
+ if (
+ wallStunTimer >
+ 0
+ ) {
+ velocity.x =
+ 0;
+ } else if (
+ angleWallJump ||
+ kmh <
+ WALL_JUMP_SAFE_KMH
+ ) {
+ wallJump(
+ normalX,
+ 0
+ );
 
-    return true;
-   } else {
-    damageFromImpact(
-     impact
-    );
+ return true;
+ } else {
+ damageFromImpact(
+ impact
+ );
 
-    if (!dead) {
-     applyWallStun(
-      kmh
-     );
-    }
+ if (
+ !dead
+ ) {
+ applyWallStun(
+ kmh
+ );
+ }
 
-    velocity.x = 0;
+ velocity.x =
+ 0;
 
-    return true;
-   }
-  }
+ return true;
+ }
+ }
  }
 
  // --------------------------------------------------
@@ -10675,68 +10610,77 @@ function moveHorizontalStep(
  delta;
 
  if (
-  !collides(
-   nextZ
-  )
+ !collides(
+ nextZ
+ )
  ) {
-  camera.position.z =
-  nextZ.z;
+ camera.position.z =
+ nextZ.z;
  } else {
-  if (grounded) {
-   velocity.z = 0;
-  } else {
-   const impact =
-   velocity.z;
+ if (
+ grounded
+ ) {
+ velocity.z =
+ 0;
+ } else {
+ const impact =
+ velocity.z;
 
-   const kmh =
-   speedToKmh(
-    impact
-   );
+ const kmh =
+ speedToKmh(
+ impact
+ );
 
-   const normalZ =
-   impact > 0
-   ? -1
-   : 1;
+ const normalZ =
+ impact >
+ 0
+ ? -1
+ : 1;
 
-   const angleWallJump =
-   canWallJumpByAngle(
-    velocity.x,
-    velocity.z,
-    0,
-    normalZ
-   );
+ const angleWallJump =
+ canWallJumpByAngle(
+ velocity.x,
+ velocity.z,
+ 0,
+ normalZ
+ );
 
-   if (
-    wallStunTimer > 0
-   ) {
-    velocity.z = 0;
-   } else if (
-    angleWallJump ||
-    kmh <
-    WALL_JUMP_SAFE_KMH
-   ) {
-    wallJump(
-     0,
-     normalZ
-    );
+ if (
+ wallStunTimer >
+ 0
+ ) {
+ velocity.z =
+ 0;
+ } else if (
+ angleWallJump ||
+ kmh <
+ WALL_JUMP_SAFE_KMH
+ ) {
+ wallJump(
+ 0,
+ normalZ
+ );
 
-    return true;
-   } else {
-    damageFromImpact(
-     impact
-    );
+ return true;
+ } else {
+ damageFromImpact(
+ impact
+ );
 
-    if (!dead) {
-     applyWallStun(
-      kmh
-     );
-    }
+ if (
+ !dead
+ ) {
+ applyWallStun(
+ kmh
+ );
+ }
 
-    velocity.z = 0;
+ velocity.z =
+ 0;
 
-    return true;
-   }
-  }
+ return true;
+ }
+ }
  }
 
  return false;
