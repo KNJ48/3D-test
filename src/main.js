@@ -10050,20 +10050,93 @@ function intersects(
  );
 }
 
+// ==================================================
+// RING WALL COLLISION
+// ==================================================
+function collidesRingWall(
+ position
+) {
+ // --------------------------------------------------
+ // ABOVE WALL
+ // --------------------------------------------------
+ const feet =
+ position.y -
+ PLAYER_HEIGHT;
+
+ if (
+ feet >=
+ CITY_WALL_HEIGHT
+ ) {
+ return false;
+ }
+
+ // --------------------------------------------------
+ // RADIAL DISTANCE
+ // --------------------------------------------------
+ const radialDistance =
+ Math.hypot(
+ position.x,
+ position.z
+ );
+
+ const collisionThickness =
+ CITY_WALL_THICKNESS /
+ 2 +
+ PLAYER_RADIUS;
+
+ // --------------------------------------------------
+ // WALL RINGS
+ // --------------------------------------------------
+ for (
+ const ring
+ of wallRings
+ ) {
+ const difference =
+ Math.abs(
+ radialDistance -
+ ring.radius
+ );
+
+ if (
+ difference <=
+ collisionThickness
+ ) {
+ return true;
+ }
+ }
+
+ return false;
+}
+
 // --------------------------------------------------
 // COLLIDES
 // --------------------------------------------------
 function collides(
  position
 ) {
- // ------------------------------------------------
- // NEARBY OBJECTS ONLY
- // ------------------------------------------------
+ /*
+  * 以前:
+  *
+  * for (const box of colliders)
+  *
+  * でロード済みColliderを
+  * 全件走査していた。
+  *
+  * 現在:
+  *
+  * プレイヤー周辺
+  * 50m + 速度先読み
+  *
+  * のColliderだけ取得する。
+  */
  const nearby =
  getNearbyColliders(
  position
  );
 
+ // --------------------------------------------------
+ // WORLD OBJECTS
+ // --------------------------------------------------
  for (
  const box
  of nearby
@@ -10078,9 +10151,9 @@ function collides(
  }
  }
 
- // ------------------------------------------------
- // RING WALL
- // ------------------------------------------------
+ // --------------------------------------------------
+ // THREE WALLS
+ // --------------------------------------------------
  if (
  collidesRingWall(
  position
@@ -10091,89 +10164,6 @@ function collides(
 
  return false;
 }
-
-// ==================================================
-// RING WALL COLLISION
-// ==================================================
-function collidesRingWall(
-  position
-) {
-  // 壁より上なら衝突しない
-  const feet =
-    position.y -
-    PLAYER_HEIGHT;
-
-  if (
-    feet >=
-    CITY_WALL_HEIGHT
-  ) {
-    return false;
-  }
-
-  // 世界中心からの水平距離
-  const radialDistance =
-    Math.hypot(
-      position.x,
-      position.z
-    );
-
-  const collisionThickness =
-    CITY_WALL_THICKNESS /
-      2 +
-    PLAYER_RADIUS;
-
-  // Maria / Rose / Sina
-  for (
-    const ring
-    of wallRings
-  ) {
-    const difference =
-      Math.abs(
-        radialDistance -
-        ring.radius
-      );
-
-    if (
-      difference <=
-      collisionThickness
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function collides(
-  position
-) {
-  // 建物など
-  for (
-    const box
-    of colliders
-  ) {
-    if (
-      intersects(
-        position,
-        box
-      )
-    ) {
-      return true;
-    }
-  }
-
-  // 三重壁
-  if (
-    collidesRingWall(
-      position
-    )
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
 // ==================================================
 // HORIZONTAL MOVEMENT STEP
 // ==================================================
