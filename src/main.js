@@ -2120,9 +2120,366 @@ function updateAreaSystem() {
 // ==================================================
 // WORLD LISTS
 // ==================================================
-const colliders = [];
-const anchorTargets = [];
-const titanAttackTargets = [];
+/*
+ * colliders自体は互換性のため残す。
+ *
+ * ただし通常のプレイヤー衝突判定では
+ * 全件走査しない。
+ */
+const colliders =
+ [];
+
+/*
+ * 旧通常Mesh用。
+ *
+ * 家はInstancedMeshへ移行するが、
+ * 巨人・木・壁などとの互換性のため残す。
+ */
+const anchorTargets =
+ [];
+
+const titanAttackTargets =
+ [];
+
+// ==================================================
+// COLLISION SPATIAL INDEX
+// ==================================================
+/*
+ * 衝突判定は、
+ *
+ * 世界中のCollider
+ *
+ * を毎回走査せず、
+ *
+ * プレイヤー周辺
+ *
+ * だけ検索する。
+ */
+
+// --------------------------------------------------
+// SETTINGS
+// --------------------------------------------------
+const COLLISION_BASE_RANGE_METERS =
+ 50;
+
+/*
+ * 高速移動時の先読み。
+ *
+ * 300km/hなら、
+ *
+ * 50m
+ * +
+ * 約83m/s × 0.5秒
+ *
+ * =
+ * 約92m
+ */
+const COLLISION_LOOK_AHEAD_SECONDS =
+ 0.5;
+
+// --------------------------------------------------
+// INDEX
+// --------------------------------------------------
+/*
+ * key:
+ *
+ * "chunkX,chunkZ"
+ *
+ * value:
+ *
+ * Set<Box3>
+ */
+const colliderChunkIndex =
+ new Map();
+
+// --------------------------------------------------
+// KEY
+// --------------------------------------------------
+function getColliderChunkKey(
+ chunkX,
+ chunkZ
+) {
+ return (
+ `${chunkX},${chunkZ}`
+ );
+}
+
+// --------------------------------------------------
+// REGISTER
+// --------------------------------------------------
+function registerCollider(
+ box
+) {
+ if (
+ !box
+ ) {
+ return;
+ }
+
+ colliders.push(
+ box
+ );
+
+ /*
+  * Colliderの中心地点から
+  * 所属500mチャンクを決める。
+  */
+ const center =
+ new THREE.Vector3();
+
+ box.getCenter(
+ center
+ );
+
+ const chunkX =
+ getChunkCoordinate(
+ center.x
+ );
+
+ const chunkZ =
+ getChunkCoordinate(
+ center.z
+ );
+
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ let set =
+ colliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ set =
+ new Set();
+
+ colliderChunkIndex.set(
+ key,
+ set
+ );
+ }
+
+ set.add(
+ box
+ );
+
+ box.userDataChunkX =
+ chunkX;
+
+ box.userDataChunkZ =
+ chunkZ;
+}
+
+// --------------------------------------------------
+// UNREGISTER
+// --------------------------------------------------
+function unregisterCollider(
+ box
+) {
+ if (
+ !box
+ ) {
+ return;
+ }
+
+ removeArrayItem(
+ colliders,
+ box
+ );
+
+ const chunkX =
+ box.userDataChunkX;
+
+ const chunkZ =
+ box.userDataChunkZ;
+
+ if (
+ !Number.isFinite(
+ chunkX
+ ) ||
+ !Number.isFinite(
+ chunkZ
+ )
+ ) {
+ return;
+ }
+
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ const set =
+ colliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ return;
+ }
+
+ set.delete(
+ box
+ );
+
+ if (
+ set.size ===
+ 0
+ ) {
+ colliderChunkIndex.delete(
+ key
+ );
+ }
+}
+
+// --------------------------------------------------
+// COLLISION RANGE
+// --------------------------------------------------
+function getCollisionRangeUnits() {
+ const speedMetersPerSecond =
+ velocity.length() *
+ METERS_PER_UNIT;
+
+ const rangeMeters =
+ COLLISION_BASE_RANGE_METERS +
+ speedMetersPerSecond *
+ COLLISION_LOOK_AHEAD_SECONDS;
+
+ return (
+ rangeMeters /
+ METERS_PER_UNIT
+ );
+}
+
+// --------------------------------------------------
+// NEARBY COLLIDERS
+// --------------------------------------------------
+function getNearbyColliders(
+ position
+) {
+ const output =
+ [];
+
+ const range =
+ getCollisionRangeUnits();
+
+ const minChunkX =
+ getChunkCoordinate(
+ position.x -
+ range
+ );
+
+ const maxChunkX =
+ getChunkCoordinate(
+ position.x +
+ range
+ );
+
+ const minChunkZ =
+ getChunkCoordinate(
+ position.z -
+ range
+ );
+
+ const maxChunkZ =
+ getChunkCoordinate(
+ position.z +
+ range
+ );
+
+ const rangeSquared =
+ range *
+ range;
+
+ for (
+ let chunkX =
+ minChunkX;
+ chunkX <=
+ maxChunkX;
+ chunkX++
+ ) {
+ for (
+ let chunkZ =
+ minChunkZ;
+ chunkZ <=
+ maxChunkZ;
+ chunkZ++
+ ) {
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ const set =
+ colliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ continue;
+ }
+
+ for (
+ const box
+ of set
+ ) {
+ /*
+  * BoxそのものとのXZ距離を見る。
+  *
+  * 中心点だけで判定すると
+  * 大きな建物の端を落とすため、
+  * Box最近傍点を使う。
+  */
+ const nearestX =
+ THREE.MathUtils.clamp(
+ position.x,
+ box.min.x,
+ box.max.x
+ );
+
+ const nearestZ =
+ THREE.MathUtils.clamp(
+ position.z,
+ box.min.z,
+ box.max.z
+ );
+
+ const dx =
+ position.x -
+ nearestX;
+
+ const dz =
+ position.z -
+ nearestZ;
+
+ if (
+ dx *
+ dx +
+ dz *
+ dz <=
+ rangeSquared
+ ) {
+ output.push(
+ box
+ );
+ }
+ }
+ }
+ }
+
+ return output;
+}
 
 // ==================================================
 // MATERIALS
@@ -2805,910 +3162,494 @@ function createRoad(
 // HOUSE
 // ==================================================
 /*
- * HOUSE TEMPLATE SYSTEM
+ * HOUSE TEMPLATE 01
  *
- * TEMPLATE 01
- *
- * 3階建て木骨住宅
- * +
- * 切妻屋根
+ * GPU INSTANCED VERSION
  */
 
 // --------------------------------------------------
-// TEMPLATE SETTINGS
+// TEMPLATE
 // --------------------------------------------------
 const HOUSE_TEMPLATE_01 = {
  widthMeters: 9,
  depthMeters: 11,
-
- floorCount: 3,
- floorHeightMeters: 3,
-
+ wallHeightMeters: 9,
  roofHeightMeters: 4,
 
- roofOverhangMeters: 0.45,
- roofThicknessMeters: 0.14,
-
- frontWindowsPerFloor: 3,
- sideWindowsPerFloor: 2,
-
  windowWidthMeters: 1.45,
- windowHeightMeters: 1.85,
-
- windowOffsetMeters: 0.025
+ windowHeightMeters: 1.85
 };
 
 // --------------------------------------------------
-// WALL MATERIAL
+// SIZE
 // --------------------------------------------------
-function createHouseWallMaterial() {
- const texture =
- houseWallTexture.clone();
-
- texture.needsUpdate =
- true;
-
- texture.wrapS =
- THREE.ClampToEdgeWrapping;
-
- texture.wrapT =
- THREE.ClampToEdgeWrapping;
-
- return new THREE.MeshStandardMaterial({
- map: texture,
- color: 0xffffff,
- roughness: 0.9,
- side: THREE.DoubleSide
- });
-}
-
-// --------------------------------------------------
-// ROOF MATERIAL
-// --------------------------------------------------
-function createHouseRoofMaterial() {
- const texture =
- houseRoofTexture.clone();
-
- texture.needsUpdate =
- true;
-
- texture.wrapS =
- THREE.RepeatWrapping;
-
- texture.wrapT =
- THREE.RepeatWrapping;
-
- texture.repeat.set(
- 3,
- 2
+const HOUSE_01_WIDTH =
+ metersToUnits(
+ HOUSE_TEMPLATE_01.widthMeters
  );
 
- return new THREE.MeshStandardMaterial({
- map: texture,
+const HOUSE_01_DEPTH =
+ metersToUnits(
+ HOUSE_TEMPLATE_01.depthMeters
+ );
+
+const HOUSE_01_HEIGHT =
+ metersToUnits(
+ HOUSE_TEMPLATE_01.wallHeightMeters
+ );
+
+const HOUSE_01_ROOF_HEIGHT =
+ metersToUnits(
+ HOUSE_TEMPLATE_01.roofHeightMeters
+ );
+
+// --------------------------------------------------
+// SHARED MATERIALS
+// --------------------------------------------------
+const houseInstanceWallMaterial =
+ new THREE.MeshStandardMaterial({
+ map: houseWallTexture,
+ color: 0xffffff,
+ roughness: 0.9
+ });
+
+const houseInstanceRoofMaterial =
+ new THREE.MeshStandardMaterial({
+ map: houseRoofTexture,
  color: 0xffffff,
  roughness: 0.88
  });
-}
 
-// --------------------------------------------------
-// WINDOW MATERIAL
-// --------------------------------------------------
-function createHouseWindowMaterial() {
- return new THREE.MeshStandardMaterial({
+const houseInstanceWindowMaterial =
+ new THREE.MeshStandardMaterial({
  map: houseWindowTexture,
  color: 0xffffff,
  roughness: 0.55,
  side: THREE.DoubleSide
  });
-}
 
 // --------------------------------------------------
-// GABLE GEOMETRY
+// SHARED GEOMETRY
 // --------------------------------------------------
-function createHouseGableGeometry(
- width,
- roofHeight
-) {
- const geometry =
- new THREE.BufferGeometry();
-
- const vertices =
- new Float32Array([
- -width / 2,
- 0,
- 0,
-
- width / 2,
- 0,
- 0,
-
- 0,
- roofHeight,
- 0
- ]);
-
- const uvs =
- new Float32Array([
- 0,
- 0,
-
- 1,
- 0,
-
- 0.5,
- 1
- ]);
-
- geometry.setAttribute(
- "position",
- new THREE.BufferAttribute(
- vertices,
- 3
- )
+const houseInstanceBodyGeometry =
+ new THREE.BoxGeometry(
+ HOUSE_01_WIDTH,
+ HOUSE_01_HEIGHT,
+ HOUSE_01_DEPTH
  );
 
- geometry.setAttribute(
- "uv",
- new THREE.BufferAttribute(
- uvs,
+const HOUSE_01_HALF_WIDTH =
+ HOUSE_01_WIDTH /
+ 2;
+
+const HOUSE_01_ROOF_ANGLE =
+ Math.atan2(
+ HOUSE_01_ROOF_HEIGHT,
+ HOUSE_01_HALF_WIDTH
+ );
+
+const HOUSE_01_ROOF_SLOPE =
+ Math.sqrt(
+ HOUSE_01_HALF_WIDTH *
+ HOUSE_01_HALF_WIDTH +
+ HOUSE_01_ROOF_HEIGHT *
+ HOUSE_01_ROOF_HEIGHT
+ );
+
+const HOUSE_01_ROOF_OVERHANG =
+ metersToUnits(
+ 0.45
+ );
+
+const HOUSE_01_ROOF_THICKNESS =
+ metersToUnits(
+ 0.14
+ );
+
+const houseInstanceRoofGeometry =
+ new THREE.BoxGeometry(
+ HOUSE_01_ROOF_SLOPE +
+ HOUSE_01_ROOF_OVERHANG,
+ HOUSE_01_ROOF_THICKNESS,
+ HOUSE_01_DEPTH +
+ HOUSE_01_ROOF_OVERHANG *
  2
- )
  );
 
- geometry.computeVertexNormals();
-
- return geometry;
-}
-
-// --------------------------------------------------
-// CREATE WINDOW
-// --------------------------------------------------
-function createTemplate01Window(
- group,
- x,
- y,
- z,
- rotationY,
- width,
- height
-) {
- const window =
- new THREE.Mesh(
+const houseInstanceWindowGeometry =
  new THREE.PlaneGeometry(
- width,
- height
+ metersToUnits(
+ HOUSE_TEMPLATE_01.windowWidthMeters
  ),
- createHouseWindowMaterial()
- );
-
- window.position.set(
- x,
- y,
- z
- );
-
- window.rotation.y =
- rotationY;
-
- /*
-  * Windowは装飾なので
-  * collisionには入れない。
-  */
- window.castShadow =
- false;
-
- window.receiveShadow =
- false;
-
- group.add(
- window
- );
-
- return window;
-}
+ metersToUnits(
+ HOUSE_TEMPLATE_01.windowHeightMeters
+ )
+);
 
 // --------------------------------------------------
-// CREATE FRONT / BACK WINDOWS
+// TEMP OBJECT
 // --------------------------------------------------
-function createTemplate01FrontWindows(
- group,
- width,
- depth,
- wallHeight,
- side
+const houseInstanceDummy =
+ new THREE.Object3D();
+
+// --------------------------------------------------
+// CREATE HOUSE COLLIDER
+// --------------------------------------------------
+function createHouseTemplate01Collider(
+ descriptor
 ) {
- const template =
- HOUSE_TEMPLATE_01;
-
- const count =
- template.frontWindowsPerFloor;
-
- const floorHeight =
- wallHeight /
- template.floorCount;
-
- const windowWidth =
- metersToUnits(
- template.windowWidthMeters
- );
-
- const windowHeight =
- metersToUnits(
- template.windowHeightMeters
- );
-
- const edgePadding =
- metersToUnits(
- 1.25
- );
-
- const usableWidth =
- width -
- edgePadding *
- 2;
-
- const z =
- side *
- (
- depth /
- 2 +
- metersToUnits(
- template.windowOffsetMeters
- )
- );
-
- for (
- let floor = 0;
- floor <
- template.floorCount;
- floor++
- ) {
- const y =
- floor *
- floorHeight +
- floorHeight *
- 0.55;
-
- for (
- let i = 0;
- i < count;
- i++
- ) {
- /*
-  * 正面1階中央は
-  * 将来ドアを置く場所として空ける。
-  */
- if (
- side > 0 &&
- floor === 0 &&
- i ===
- Math.floor(
- count /
- 2
- )
- ) {
- continue;
- }
-
- const t =
- count === 1
- ? 0.5
- : i /
- (
- count -
- 1
- );
-
  const x =
- -usableWidth /
- 2 +
- usableWidth *
- t;
-
- createTemplate01Window(
- group,
- x,
- y,
- z,
- side > 0
- ? 0
- : Math.PI,
- windowWidth,
- windowHeight
- );
- }
- }
-}
-
-// --------------------------------------------------
-// CREATE SIDE WINDOWS
-// --------------------------------------------------
-function createTemplate01SideWindows(
- group,
- width,
- depth,
- wallHeight,
- side
-) {
- const template =
- HOUSE_TEMPLATE_01;
-
- const count =
- template.sideWindowsPerFloor;
-
- const floorHeight =
- wallHeight /
- template.floorCount;
-
- const windowWidth =
  metersToUnits(
- template.windowWidthMeters
- );
-
- const windowHeight =
- metersToUnits(
- template.windowHeightMeters
- );
-
- const edgePadding =
- metersToUnits(
- 1.4
- );
-
- const usableDepth =
- depth -
- edgePadding *
- 2;
-
- const x =
- side *
- (
- width /
- 2 +
- metersToUnits(
- template.windowOffsetMeters
- )
- );
-
- for (
- let floor = 0;
- floor <
- template.floorCount;
- floor++
- ) {
- const y =
- floor *
- floorHeight +
- floorHeight *
- 0.55;
-
- for (
- let i = 0;
- i < count;
- i++
- ) {
- const t =
- count === 1
- ? 0.5
- : i /
- (
- count -
- 1
+ descriptor.xMeters
  );
 
  const z =
- -usableDepth /
- 2 +
- usableDepth *
- t;
-
- createTemplate01Window(
- group,
- x,
- y,
- z,
- side > 0
- ? Math.PI /
- 2
- : -Math.PI /
- 2,
- windowWidth,
- windowHeight
- );
- }
- }
-}
-
-// --------------------------------------------------
-// CREATE TEMPLATE 01
-// --------------------------------------------------
-function createHouseTemplate01(
- x,
- z,
- rotation = 0,
- objectId = null
-) {
- const template =
- HOUSE_TEMPLATE_01;
-
- // ------------------------------------------------
- // SIZE
- // ------------------------------------------------
- const width =
  metersToUnits(
- template.widthMeters
+ descriptor.zMeters
  );
 
- const depth =
- metersToUnits(
- template.depthMeters
- );
-
- const floorHeight =
- metersToUnits(
- template.floorHeightMeters
- );
-
- const wallHeight =
- floorHeight *
- template.floorCount;
-
- const roofHeight =
- metersToUnits(
- template.roofHeightMeters
- );
-
- // ------------------------------------------------
- // TERRAIN
- // ------------------------------------------------
  const terrainY =
  metersToUnits(
  getTerrainHeightMeters(
- x *
- METERS_PER_UNIT,
- z *
- METERS_PER_UNIT
+ descriptor.xMeters,
+ descriptor.zMeters
  )
  );
 
- // ------------------------------------------------
- // GROUP
- // ------------------------------------------------
- const group =
- new THREE.Group();
+ /*
+  * Colliderは今のBox3物理と互換にする。
+  *
+  * 家の回転を考慮して
+  * BoxGeometryから一度だけ生成する。
+  *
+  * 描画Meshとは完全に独立。
+  */
+ const object =
+ new THREE.Object3D();
 
- group.position.set(
+ object.position.set(
  x,
- terrainY,
+ terrainY +
+ HOUSE_01_HEIGHT /
+ 2,
  z
  );
 
- group.rotation.y =
- rotation;
+ object.rotation.y =
+ descriptor.rotation ??
+ 0;
 
- group.userData.houseTemplate =
- 1;
+ object.updateMatrixWorld(
+ true
+ );
 
- group.userData.worldObjectId =
- objectId;
+ const box =
+ new THREE.Box3();
 
- // ------------------------------------------------
- // FLOOR WALL MODULES
- // ------------------------------------------------
- /*
-  * 各階を別Meshにすることで
-  * 木骨壁Textureを縦へ引き伸ばさない。
-  */
- const wallMeshes =
- [];
-
- for (
- let floor = 0;
- floor <
- template.floorCount;
- floor++
- ) {
- const wall =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- width,
- floorHeight,
- depth
+ const localBox =
+ new THREE.Box3(
+ new THREE.Vector3(
+ -HOUSE_01_WIDTH /
+ 2,
+ -HOUSE_01_HEIGHT /
+ 2,
+ -HOUSE_01_DEPTH /
+ 2
  ),
- createHouseWallMaterial()
+ new THREE.Vector3(
+ HOUSE_01_WIDTH /
+ 2,
+ HOUSE_01_HEIGHT /
+ 2,
+ HOUSE_01_DEPTH /
+ 2
+ )
  );
 
- wall.position.y =
- floor *
- floorHeight +
- floorHeight /
- 2;
-
- wall.castShadow =
- true;
-
- wall.receiveShadow =
- true;
-
- group.add(
- wall
+ box.copy(
+ localBox
  );
 
- wallMeshes.push(
- wall
+ box.applyMatrix4(
+ object.matrixWorld
  );
+
+ return box;
+}
+
+// --------------------------------------------------
+// BUILD CHUNK INSTANCES
+// --------------------------------------------------
+function createHouseTemplate01Instances(
+ descriptors,
+ chunkData
+) {
+ const houses =
+ descriptors.filter(
+ descriptor =>
+ descriptor.type ===
+ "house"
+ );
+
+ if (
+ houses.length ===
+ 0
+ ) {
+ return;
  }
 
+ const count =
+ houses.length;
+
  // ------------------------------------------------
- // FRONT WINDOWS
+ // BODY
  // ------------------------------------------------
- createTemplate01FrontWindows(
- group,
- width,
- depth,
- wallHeight,
+ const bodies =
+ new THREE.InstancedMesh(
+ houseInstanceBodyGeometry,
+ houseInstanceWallMaterial,
+ count
+ );
+
+ bodies.castShadow =
+ false;
+
+ bodies.receiveShadow =
+ true;
+
+ bodies.frustumCulled =
+ true;
+
+ // ------------------------------------------------
+ // ROOF LEFT
+ // ------------------------------------------------
+ const leftRoofs =
+ new THREE.InstancedMesh(
+ houseInstanceRoofGeometry,
+ houseInstanceRoofMaterial,
+ count
+ );
+
+ leftRoofs.castShadow =
+ false;
+
+ leftRoofs.receiveShadow =
+ true;
+
+ // ------------------------------------------------
+ // ROOF RIGHT
+ // ------------------------------------------------
+ const rightRoofs =
+ new THREE.InstancedMesh(
+ houseInstanceRoofGeometry,
+ houseInstanceRoofMaterial,
+ count
+ );
+
+ rightRoofs.castShadow =
+ false;
+
+ rightRoofs.receiveShadow =
+ true;
+
+ // ------------------------------------------------
+ // INSTANCES
+ // ------------------------------------------------
+ for (
+ let i = 0;
+ i < count;
+ i++
+ ) {
+ const descriptor =
+ houses[
+ i
+ ];
+
+ const x =
+ metersToUnits(
+ descriptor.xMeters
+ );
+
+ const z =
+ metersToUnits(
+ descriptor.zMeters
+ );
+
+ const terrainY =
+ metersToUnits(
+ getTerrainHeightMeters(
+ descriptor.xMeters,
+ descriptor.zMeters
+ )
+ );
+
+ const rotation =
+ descriptor.rotation ??
+ 0;
+
+ // ------------------------------------------------
+ // BODY MATRIX
+ // ------------------------------------------------
+ houseInstanceDummy.position.set(
+ x,
+ terrainY +
+ HOUSE_01_HEIGHT /
+ 2,
+ z
+ );
+
+ houseInstanceDummy.rotation.set(
+ 0,
+ rotation,
+ 0
+ );
+
+ houseInstanceDummy.scale.set(
+ 1,
+ 1,
  1
  );
 
- // ------------------------------------------------
- // BACK WINDOWS
- // ------------------------------------------------
- createTemplate01FrontWindows(
- group,
- width,
- depth,
- wallHeight,
- -1
+ houseInstanceDummy.updateMatrix();
+
+ bodies.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
  );
-
- // ------------------------------------------------
- // LEFT WINDOWS
- // ------------------------------------------------
- createTemplate01SideWindows(
- group,
- width,
- depth,
- wallHeight,
- -1
- );
-
- // ------------------------------------------------
- // RIGHT WINDOWS
- // ------------------------------------------------
- createTemplate01SideWindows(
- group,
- width,
- depth,
- wallHeight,
- 1
- );
-
- // ------------------------------------------------
- // ROOF
- // ------------------------------------------------
- const halfWidth =
- width /
- 2;
-
- const roofAngle =
- Math.atan2(
- roofHeight,
- halfWidth
- );
-
- const slopeLength =
- Math.sqrt(
- halfWidth *
- halfWidth +
- roofHeight *
- roofHeight
- );
-
- const overhang =
- metersToUnits(
- template.roofOverhangMeters
- );
-
- const roofThickness =
- metersToUnits(
- template.roofThicknessMeters
- );
-
- const roofDepth =
- depth +
- overhang *
- 2;
-
- const roofSlopeLength =
- slopeLength +
- overhang;
 
  // ------------------------------------------------
  // LEFT ROOF
  // ------------------------------------------------
- const leftRoof =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- roofSlopeLength,
- roofThickness,
- roofDepth
- ),
- createHouseRoofMaterial()
+ houseInstanceDummy.position.set(
+ x,
+ terrainY +
+ HOUSE_01_HEIGHT +
+ HOUSE_01_ROOF_HEIGHT /
+ 2,
+ z
  );
 
- leftRoof.position.set(
- -halfWidth /
- 2,
- wallHeight +
- roofHeight /
- 2,
- 0
+ houseInstanceDummy.rotation.set(
+ 0,
+ rotation,
+ HOUSE_01_ROOF_ANGLE
  );
 
- leftRoof.rotation.z =
- roofAngle;
+ houseInstanceDummy.translateX(
+ -HOUSE_01_HALF_WIDTH /
+ 2
+ );
 
- leftRoof.castShadow =
- true;
+ houseInstanceDummy.updateMatrix();
 
- leftRoof.receiveShadow =
- true;
-
- group.add(
- leftRoof
+ leftRoofs.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
  );
 
  // ------------------------------------------------
  // RIGHT ROOF
  // ------------------------------------------------
- const rightRoof =
- new THREE.Mesh(
- new THREE.BoxGeometry(
- roofSlopeLength,
- roofThickness,
- roofDepth
- ),
- createHouseRoofMaterial()
- );
-
- rightRoof.position.set(
- halfWidth /
- 2,
- wallHeight +
- roofHeight /
- 2,
- 0
- );
-
- rightRoof.rotation.z =
- -roofAngle;
-
- rightRoof.castShadow =
- true;
-
- rightRoof.receiveShadow =
- true;
-
- group.add(
- rightRoof
- );
-
- // ------------------------------------------------
- // FRONT GABLE
- // ------------------------------------------------
- const frontGable =
- new THREE.Mesh(
- createHouseGableGeometry(
- width,
- roofHeight
- ),
- createHouseWallMaterial()
- );
-
- frontGable.position.set(
- 0,
- wallHeight,
- depth /
- 2 +
- 0.01
- );
-
- frontGable.castShadow =
- true;
-
- frontGable.receiveShadow =
- true;
-
- group.add(
- frontGable
- );
-
- // ------------------------------------------------
- // BACK GABLE
- // ------------------------------------------------
- const backGable =
- new THREE.Mesh(
- createHouseGableGeometry(
- width,
- roofHeight
- ),
- createHouseWallMaterial()
- );
-
- backGable.position.set(
- 0,
- wallHeight,
- -depth /
- 2 -
- 0.01
- );
-
- backGable.rotation.y =
- Math.PI;
-
- backGable.castShadow =
- true;
-
- backGable.receiveShadow =
- true;
-
- group.add(
- backGable
- );
-
- // ------------------------------------------------
- // MATRIX
- // ------------------------------------------------
- group.updateWorldMatrix(
- true,
- true
- );
-
- // ------------------------------------------------
- // RETURN
- // ------------------------------------------------
- return {
- templateId: 1,
-
- group,
-
- wallMeshes,
-
- roofs: [
- leftRoof,
- rightRoof
- ],
-
- gables: [
- frontGable,
- backGable
- ],
-
- width,
- depth,
- wallHeight,
- roofHeight,
- rotation
- };
-}
-
-// --------------------------------------------------
-// CREATE HOUSE FROM TEMPLATE
-// --------------------------------------------------
-function createHouseFromTemplate(
- descriptor
-) {
- const variant =
- getWorldObjectVariant(
- descriptor
- );
-
- /*
-  * 現在は記念すべき
-  * TEMPLATE 01しか存在しない。
-  *
-  * Template 02以降を追加したら
-  * ここでvariantによって分岐する。
-  */
- void variant;
-
- return createHouseTemplate01(
- metersToUnits(
- descriptor.xMeters
- ),
- metersToUnits(
- descriptor.zMeters
- ),
- descriptor.rotation ??
- 0,
- descriptor.id
- );
-}
-
-// --------------------------------------------------
-// LEGACY CREATE HOUSE
-// --------------------------------------------------
-function createHouse(
+ houseInstanceDummy.position.set(
  x,
- z,
- variant,
- rotation = 0
-) {
- /*
-  * 旧Generatorとの互換用。
-  *
-  * 現在の固定Worldでは
-  * 基本的に使用しない。
-  */
- const descriptor = {
- id:
- `legacy-house-${x}-${z}`,
- xMeters:
- x *
- METERS_PER_UNIT,
- zMeters:
- z *
- METERS_PER_UNIT,
+ terrainY +
+ HOUSE_01_HEIGHT +
+ HOUSE_01_ROOF_HEIGHT /
+ 2,
+ z
+ );
+
+ houseInstanceDummy.rotation.set(
+ 0,
  rotation,
- variant
- };
-
- const house =
- createHouseFromTemplate(
- descriptor
+ -HOUSE_01_ROOF_ANGLE
  );
 
- scene.add(
- house.group
+ houseInstanceDummy.translateX(
+ HOUSE_01_HALF_WIDTH /
+ 2
  );
 
- house.group.updateWorldMatrix(
- true,
- true
+ houseInstanceDummy.updateMatrix();
+
+ rightRoofs.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
  );
 
  // ------------------------------------------------
- // COLLISION
+ // PHYSICS
  // ------------------------------------------------
  const collider =
- new THREE.Box3()
- .setFromObject(
- house.group
+ createHouseTemplate01Collider(
+ descriptor
  );
 
- /*
-  * 屋根まで含めると
-  * 平らな透明Colliderになるので、
-  * 壁部分のみの高さへ制限する。
-  */
- collider.max.y =
- house.group.position.y +
- house.wallHeight;
-
- colliders.push(
+ registerCollider(
  collider
  );
 
- // ------------------------------------------------
- // ANCHORS
- // ------------------------------------------------
- for (
- const wall
- of house.wallMeshes
- ) {
- anchorTargets.push(
- wall
+ chunkData.colliders.push(
+ collider
  );
  }
 
- for (
- const roof
- of house.roofs
- ) {
- anchorTargets.push(
- roof
+ bodies.instanceMatrix.needsUpdate =
+ true;
+
+ leftRoofs.instanceMatrix.needsUpdate =
+ true;
+
+ rightRoofs.instanceMatrix.needsUpdate =
+ true;
+
+ // ------------------------------------------------
+ // ADD
+ // ------------------------------------------------
+ chunkData.group.add(
+ bodies
  );
- }
+
+ chunkData.group.add(
+ leftRoofs
+ );
+
+ chunkData.group.add(
+ rightRoofs
+ );
+
+ // ------------------------------------------------
+ // ANCHOR
+ // ------------------------------------------------
+ /*
+  * THREE.RaycasterはInstancedMeshにも対応する。
+  *
+  * hit.instanceIdで
+  * どの家へ当たったか取得できる。
+  */
+ anchorTargets.push(
+ bodies
+ );
+
+ anchorTargets.push(
+ leftRoofs
+ );
+
+ anchorTargets.push(
+ rightRoofs
+ );
+
+ chunkData.anchorTargets.push(
+ bodies
+ );
+
+ chunkData.anchorTargets.push(
+ leftRoofs
+ );
+
+ chunkData.anchorTargets.push(
+ rightRoofs
+ );
 }
 
 // ==================================================
@@ -3817,104 +3758,6 @@ function getWorldObjectVariant(
 }
 
 // --------------------------------------------------
-// CREATE FIXED HOUSE
-// --------------------------------------------------
-function createGeneratedHouse(
- descriptor,
- chunkData
-) {
- // ------------------------------------------------
- // TEMPLATE
- // ------------------------------------------------
- const house =
- createHouseFromTemplate(
- descriptor
- );
-
- // ------------------------------------------------
- // ADD
- // ------------------------------------------------
- chunkData.group.add(
- house.group
- );
-
- chunkData.group.updateWorldMatrix(
- true,
- true
- );
-
- house.group.updateWorldMatrix(
- true,
- true
- );
-
- // ------------------------------------------------
- // BODY COLLISION
- // ------------------------------------------------
- /*
-  * 現段階では、
-  *
-  * 地面
-  * ↓
-  * 壁最上部
-  *
-  * までを建物本体Colliderにする。
-  *
-  * 屋根は次に専用の
-  * 斜面Colliderを実装する。
-  */
- const bodyCollider =
- new THREE.Box3()
- .setFromObject(
- house.group
- );
-
- bodyCollider.max.y =
- house.group.position.y +
- house.wallHeight;
-
- colliders.push(
- bodyCollider
- );
-
- chunkData.colliders.push(
- bodyCollider
- );
-
- // ------------------------------------------------
- // WALL ANCHORS
- // ------------------------------------------------
- for (
- const wall
- of house.wallMeshes
- ) {
- anchorTargets.push(
- wall
- );
-
- chunkData.anchorTargets.push(
- wall
- );
- }
-
- // ------------------------------------------------
- // ROOF ANCHORS
- // ------------------------------------------------
- for (
- const roof
- of house.roofs
- ) {
- anchorTargets.push(
- roof
- );
-
- chunkData.anchorTargets.push(
- roof
- );
- }
-}
-
-// --------------------------------------------------
 // CREATE FIXED TREE
 // --------------------------------------------------
 function createGeneratedTree(
@@ -3987,13 +3830,10 @@ function createGeneratedTree(
  );
 
  trunk.castShadow =
- true;
+ false;
 
  trunk.receiveShadow =
  true;
-
- trunk.userData.worldObjectId =
- descriptor.id;
 
  chunkData.group.add(
  trunk
@@ -4002,13 +3842,18 @@ function createGeneratedTree(
  // ------------------------------------------------
  // COLLISION
  // ------------------------------------------------
+ trunk.updateWorldMatrix(
+ true,
+ true
+ );
+
  const box =
  new THREE.Box3()
  .setFromObject(
  trunk
  );
 
- colliders.push(
+ registerCollider(
  box
  );
 
@@ -4055,10 +3900,7 @@ function createGeneratedTree(
  0.7;
 
  crown.castShadow =
- true;
-
- crown.userData.worldObjectId =
- descriptor.id;
+ false;
 
  chunkData.group.add(
  crown
@@ -4099,7 +3941,21 @@ function createChunkWorldContent(
  };
 
  // ------------------------------------------------
- // OBJECTS
+ // HOUSES
+ // ------------------------------------------------
+ /*
+  * 家を1軒ずつMesh化しない。
+  *
+  * チャンク内のTemplate 01を
+  * InstancedMeshへまとめる。
+  */
+ createHouseTemplate01Instances(
+ descriptors,
+ chunkData
+ );
+
+ // ------------------------------------------------
+ // OTHER OBJECTS
  // ------------------------------------------------
  for (
  const descriptor
@@ -4109,11 +3965,6 @@ function createChunkWorldContent(
  descriptor.type ===
  "house"
  ) {
- createGeneratedHouse(
- descriptor,
- chunkData
- );
-
  continue;
  }
 
@@ -4162,8 +4013,7 @@ function destroyChunkWorldContent(
  const box
  of data.colliders
  ) {
- removeArrayItem(
- colliders,
+ unregisterCollider(
  box
  );
  }
@@ -4191,60 +4041,30 @@ function destroyChunkWorldContent(
  // ------------------------------------------------
  // DISPOSE
  // ------------------------------------------------
+ /*
+  * 家Instanceは共有Geometry /
+  * 共有Materialを使っているため、
+  * Geometry・Materialはここで
+  * disposeしない。
+  *
+  * InstancedMesh自身はSceneから
+  * 外せばよい。
+  *
+  * 木は現段階では個別Geometryなので
+  * 木Geometryだけ破棄する。
+  */
  data.group.traverse(
  object => {
+ if (
+ object.isInstancedMesh
+ ) {
+ return;
+ }
+
  if (
  object.geometry
  ) {
  object.geometry.dispose();
- }
-
- /*
-  * Tree Materialは共有なので破棄しない。
-  */
- if (
- object.material &&
- object.material !==
- treeTrunkMaterial &&
- object.material !==
- treeLeafMaterial
- ) {
- const materials =
- Array.isArray(
- object.material
- )
- ? object.material
- : [
- object.material
- ];
-
- for (
- const material
- of materials
- ) {
- /*
-  * WindowTextureは共有。
-  */
- if (
- material.map &&
- material.map !==
- houseWindowTexture
- ) {
- /*
-  * House側でcloneされたTextureのみ。
-  */
- if (
- material.map !==
- houseWallTexture &&
- material.map !==
- houseRoofTexture
- ) {
- material.map.dispose();
- }
- }
-
- material.dispose();
- }
  }
  }
  );
@@ -10201,33 +10021,75 @@ function applyWallStun(
 // COLLISION
 // ==================================================
 function intersects(
-  position,
-  box
+ position,
+ box
 ) {
-  return (
-    position.x +
-      PLAYER_RADIUS >
-      box.min.x &&
+ return (
+ position.x +
+ PLAYER_RADIUS >
+ box.min.x &&
 
-    position.x -
-      PLAYER_RADIUS <
-      box.max.x &&
+ position.x -
+ PLAYER_RADIUS <
+ box.max.x &&
 
-    position.y >
-      box.min.y &&
+ position.y >
+ box.min.y &&
 
-    position.y -
-      PLAYER_HEIGHT <
-      box.max.y &&
+ position.y -
+ PLAYER_HEIGHT <
+ box.max.y &&
 
-    position.z +
-      PLAYER_RADIUS >
-      box.min.z &&
+ position.z +
+ PLAYER_RADIUS >
+ box.min.z &&
 
-    position.z -
-      PLAYER_RADIUS <
-      box.max.z
-  );
+ position.z -
+ PLAYER_RADIUS <
+ box.max.z
+ );
+}
+
+// --------------------------------------------------
+// COLLIDES
+// --------------------------------------------------
+function collides(
+ position
+) {
+ // ------------------------------------------------
+ // NEARBY OBJECTS ONLY
+ // ------------------------------------------------
+ const nearby =
+ getNearbyColliders(
+ position
+ );
+
+ for (
+ const box
+ of nearby
+ ) {
+ if (
+ intersects(
+ position,
+ box
+ )
+ ) {
+ return true;
+ }
+ }
+
+ // ------------------------------------------------
+ // RING WALL
+ // ------------------------------------------------
+ if (
+ collidesRingWall(
+ position
+ )
+ ) {
+ return true;
+ }
+
+ return false;
 }
 
 // ==================================================
@@ -10530,233 +10392,249 @@ function moveVertical(
  delta
 ) {
  const oldY =
-  camera.position.y;
+ camera.position.y;
 
  const next =
-  camera.position.clone();
+ camera.position.clone();
 
  next.y +=
-  velocity.y *
-  delta;
+ velocity.y *
+ delta;
 
  // --------------------------------------------------
  // TERRAIN HEIGHT
  // --------------------------------------------------
  const groundHeightMeters =
-  getTerrainHeightMeters(
-   camera.position.x *
-   METERS_PER_UNIT,
-
-   camera.position.z *
-   METERS_PER_UNIT
-  );
+ getTerrainHeightMeters(
+ camera.position.x *
+ METERS_PER_UNIT,
+ camera.position.z *
+ METERS_PER_UNIT
+ );
 
  const groundHeight =
-  groundHeightMeters /
-  METERS_PER_UNIT;
+ groundHeightMeters /
+ METERS_PER_UNIT;
 
  const playerGroundY =
-  groundHeight +
-  PLAYER_HEIGHT;
+ groundHeight +
+ PLAYER_HEIGHT;
 
  // --------------------------------------------------
  // TERRAIN LANDING
  // --------------------------------------------------
  if (
-  next.y <=
-  playerGroundY
+ next.y <=
+ playerGroundY
  ) {
-  if (
-   velocity.y < 0
-  ) {
-   damageFromImpact(
-    velocity.y,
-    "ground"
-   );
-  }
+ if (
+ velocity.y <
+ 0
+ ) {
+ damageFromImpact(
+ velocity.y,
+ "ground"
+ );
+ }
 
-  if (dead) {
-   return;
-  }
+ if (
+ dead
+ ) {
+ return;
+ }
 
-  camera.position.y =
-   playerGroundY;
+ camera.position.y =
+ playerGroundY;
 
-  velocity.y =
-   0;
+ velocity.y =
+ 0;
 
-  grounded =
-   true;
+ grounded =
+ true;
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // LAND ON RING WALL
  // --------------------------------------------------
  if (
-  velocity.y <= 0
+ velocity.y <=
+ 0
  ) {
-  const radialDistance =
-   Math.hypot(
-    camera.position.x,
-    camera.position.z
-   );
+ const radialDistance =
+ Math.hypot(
+ camera.position.x,
+ camera.position.z
+ );
 
-  for (
-   const ring
-   of wallRings
-  ) {
-   const onWallHorizontally =
-    radialDistance >=
-    ring.innerRadius -
-    PLAYER_RADIUS &&
-    radialDistance <=
-    ring.outerRadius +
-    PLAYER_RADIUS;
+ for (
+ const ring
+ of wallRings
+ ) {
+ const onWallHorizontally =
+ radialDistance >=
+ ring.innerRadius -
+ PLAYER_RADIUS &&
+ radialDistance <=
+ ring.outerRadius +
+ PLAYER_RADIUS;
 
-   if (
-    !onWallHorizontally
-   ) {
-    continue;
-   }
+ if (
+ !onWallHorizontally
+ ) {
+ continue;
+ }
 
-   const oldFeet =
-    oldY -
-    PLAYER_HEIGHT;
+ const oldFeet =
+ oldY -
+ PLAYER_HEIGHT;
 
-   const newFeet =
-    next.y -
-    PLAYER_HEIGHT;
+ const newFeet =
+ next.y -
+ PLAYER_HEIGHT;
 
-   if (
-    oldFeet >=
-    CITY_WALL_HEIGHT &&
-    newFeet <=
-    CITY_WALL_HEIGHT
-   ) {
-    damageFromImpact(
-     velocity.y,
-     "stone"
-    );
+ if (
+ oldFeet >=
+ CITY_WALL_HEIGHT &&
+ newFeet <=
+ CITY_WALL_HEIGHT
+ ) {
+ damageFromImpact(
+ velocity.y,
+ "stone"
+ );
 
-    if (dead) {
-     return;
-    }
+ if (
+ dead
+ ) {
+ return;
+ }
 
-    camera.position.y =
-     CITY_WALL_HEIGHT +
-     PLAYER_HEIGHT;
+ camera.position.y =
+ CITY_WALL_HEIGHT +
+ PLAYER_HEIGHT;
 
-    velocity.y =
-     0;
+ velocity.y =
+ 0;
 
-    grounded =
-     true;
+ grounded =
+ true;
 
-    return;
-   }
-  }
+ return;
+ }
+ }
  }
 
  // --------------------------------------------------
- // NORMAL BUILDING MOVEMENT
+ // NEARBY COLLIDERS
+ // --------------------------------------------------
+ const nearbyColliders =
+ getNearbyColliders(
+ camera.position
+ );
+
+ // --------------------------------------------------
+ // NORMAL MOVEMENT
  // --------------------------------------------------
  if (
-  !collides(
-   next
-  )
+ !collides(
+ next
+ )
  ) {
-  camera.position.y =
-   next.y;
+ camera.position.y =
+ next.y;
 
-  grounded =
-   false;
+ grounded =
+ false;
 
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // LAND ON BUILDING
  // --------------------------------------------------
  if (
-  velocity.y <= 0
+ velocity.y <=
+ 0
  ) {
-  for (
-   const box
-   of colliders
-  ) {
-   const horizontal =
-    camera.position.x +
-    PLAYER_RADIUS >
-    box.min.x &&
+ for (
+ const box
+ of nearbyColliders
+ ) {
+ const horizontal =
+ camera.position.x +
+ PLAYER_RADIUS >
+ box.min.x &&
 
-    camera.position.x -
-    PLAYER_RADIUS <
-    box.max.x &&
+ camera.position.x -
+ PLAYER_RADIUS <
+ box.max.x &&
 
-    camera.position.z +
-    PLAYER_RADIUS >
-    box.min.z &&
+ camera.position.z +
+ PLAYER_RADIUS >
+ box.min.z &&
 
-    camera.position.z -
-    PLAYER_RADIUS <
-    box.max.z;
+ camera.position.z -
+ PLAYER_RADIUS <
+ box.max.z;
 
-   if (
-    !horizontal
-   ) {
-    continue;
-   }
+ if (
+ !horizontal
+ ) {
+ continue;
+ }
 
-   const oldFeet =
-    oldY -
-    PLAYER_HEIGHT;
+ const oldFeet =
+ oldY -
+ PLAYER_HEIGHT;
 
-   const newFeet =
-    next.y -
-    PLAYER_HEIGHT;
+ const newFeet =
+ next.y -
+ PLAYER_HEIGHT;
 
-   if (
-    oldFeet >=
-    box.max.y &&
-    newFeet <=
-    box.max.y
-   ) {
-    damageFromImpact(
-     velocity.y,
-     "building"
-    );
+ if (
+ oldFeet >=
+ box.max.y &&
+ newFeet <=
+ box.max.y
+ ) {
+ damageFromImpact(
+ velocity.y,
+ "building"
+ );
 
-    if (dead) {
-     return;
-    }
+ if (
+ dead
+ ) {
+ return;
+ }
 
-    camera.position.y =
-     box.max.y +
-     PLAYER_HEIGHT;
+ camera.position.y =
+ box.max.y +
+ PLAYER_HEIGHT;
 
-    velocity.y =
-     0;
+ velocity.y =
+ 0;
 
-    grounded =
-     true;
+ grounded =
+ true;
 
-    return;
-   }
-  }
+ return;
+ }
+ }
  }
 
  // --------------------------------------------------
  // CEILING / VERTICAL COLLISION
  // --------------------------------------------------
  damageFromImpact(
-  velocity.y,
-  "building"
+ velocity.y,
+ "building"
  );
 
  velocity.y =
-  0;
+ 0;
 }
 
 // ==================================================
