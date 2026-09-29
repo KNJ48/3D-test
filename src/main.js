@@ -4103,18 +4103,28 @@ function createGeneratedTree(
  trunk.receiveShadow =
  true;
 
+ trunk.userData.worldObjectId =
+ descriptor.id;
+
  chunkData.group.add(
  trunk
  );
 
  // ------------------------------------------------
- // COLLISION
+ // WORLD MATRIX
  // ------------------------------------------------
+ /*
+  * Colliderを生成する前に
+  * 現在のWorldMatrixを確定する。
+  */
  trunk.updateWorldMatrix(
  true,
  true
  );
 
+ // ------------------------------------------------
+ // COLLISION
+ // ------------------------------------------------
  const box =
  new THREE.Box3()
  .setFromObject(
@@ -4130,7 +4140,7 @@ function createGeneratedTree(
  );
 
  // ------------------------------------------------
- // ANCHOR
+ // TRUNK ANCHOR
  // ------------------------------------------------
  anchorTargets.push(
  trunk
@@ -4170,10 +4180,19 @@ function createGeneratedTree(
  crown.castShadow =
  false;
 
+ crown.receiveShadow =
+ false;
+
+ crown.userData.worldObjectId =
+ descriptor.id;
+
  chunkData.group.add(
  crown
  );
 
+ // ------------------------------------------------
+ // CROWN ANCHOR
+ // ------------------------------------------------
  anchorTargets.push(
  crown
  );
@@ -4202,9 +4221,23 @@ function createChunkWorldContent(
  const group =
  new THREE.Group();
 
+ // ------------------------------------------------
+ // CHUNK DATA
+ // ------------------------------------------------
+ /*
+  * colliders:
+  * 通常Box Collider
+  *
+  * roofColliders:
+  * 切妻屋根専用の斜面Collider
+  *
+  * anchorTargets:
+  * アンカーRaycast対象
+  */
  const chunkData = {
  group,
  colliders: [],
+ roofColliders: [],
  anchorTargets: []
  };
 
@@ -4212,10 +4245,10 @@ function createChunkWorldContent(
  // HOUSES
  // ------------------------------------------------
  /*
-  * 家を1軒ずつMesh化しない。
+  * チャンク内のTemplate 01住宅を
+  * InstancedMeshとしてまとめて生成する。
   *
-  * チャンク内のTemplate 01を
-  * InstancedMeshへまとめる。
+  * 家1軒ごとのMeshは作らない。
   */
  createHouseTemplate01Instances(
  descriptors,
@@ -4229,6 +4262,9 @@ function createChunkWorldContent(
  const descriptor
  of descriptors
  ) {
+ // ------------------------------------------------
+ // HOUSE
+ // ------------------------------------------------
  if (
  descriptor.type ===
  "house"
@@ -4236,6 +4272,9 @@ function createChunkWorldContent(
  continue;
  }
 
+ // ------------------------------------------------
+ // TREE
+ // ------------------------------------------------
  if (
  descriptor.type ===
  "tree"
@@ -4248,7 +4287,7 @@ function createChunkWorldContent(
  }
 
  // ------------------------------------------------
- // ADD
+ // ADD TO SCENE
  // ------------------------------------------------
  scene.add(
  group
@@ -4275,7 +4314,7 @@ function destroyChunkWorldContent(
  }
 
  // ------------------------------------------------
- // COLLIDERS
+ // BOX COLLIDERS
  // ------------------------------------------------
  for (
  const box
@@ -4287,7 +4326,30 @@ function destroyChunkWorldContent(
  }
 
  // ------------------------------------------------
- // ANCHORS
+ // ROOF COLLIDERS
+ // ------------------------------------------------
+ /*
+  * これを行わないと、
+  * チャンクが消えたあとにも
+  * 見えない屋根判定だけ残る。
+  */
+ if (
+ Array.isArray(
+ data.roofColliders
+ )
+ ) {
+ for (
+ const roof
+ of data.roofColliders
+ ) {
+ unregisterRoofCollider(
+ roof
+ );
+ }
+ }
+
+ // ------------------------------------------------
+ // ANCHOR TARGETS
  // ------------------------------------------------
  for (
  const mesh
@@ -4300,7 +4362,7 @@ function destroyChunkWorldContent(
  }
 
  // ------------------------------------------------
- // REMOVE
+ // REMOVE FROM SCENE
  // ------------------------------------------------
  scene.remove(
  data.group
@@ -4310,25 +4372,35 @@ function destroyChunkWorldContent(
  // DISPOSE
  // ------------------------------------------------
  /*
-  * 家Instanceは共有Geometry /
-  * 共有Materialを使っているため、
-  * Geometry・Materialはここで
-  * disposeしない。
+  * HOUSE
   *
-  * InstancedMesh自身はSceneから
-  * 外せばよい。
+  * Geometry / Materialは
+  * 全チャンクで共有している。
   *
-  * 木は現段階では個別Geometryなので
-  * 木Geometryだけ破棄する。
+  * InstancedMeshだからといって
+  * ここで共有Geometryをdisposeすると、
+  * 他チャンクの家まで壊れる。
+  *
+  *
+  * TREE
+  *
+  * 現在は木だけ個別Geometryなので
+  * Geometryを破棄する。
   */
  data.group.traverse(
  object => {
+ // ----------------------------------------------
+ // SHARED HOUSE INSTANCE
+ // ----------------------------------------------
  if (
  object.isInstancedMesh
  ) {
  return;
  }
 
+ // ----------------------------------------------
+ // NORMAL OBJECT
+ // ----------------------------------------------
  if (
  object.geometry
  ) {
