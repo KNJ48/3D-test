@@ -3808,35 +3808,67 @@ function updateRoadStreaming() {
 /*
  * HOUSE TEMPLATE 01
  *
- * 3階建て木骨住宅
+ * SOLID ROOF VERSION
  *
- * ・InstancedMesh
- * ・切妻屋根
- * ・妻壁
- * ・窓
- * ・斜面屋根Collider
+ * 描画:
+ * InstancedMesh
+ *
+ * 屋根:
+ * 完全に閉じた立体Geometry
+ *
+ * 物理:
+ * 同じ寸法を使った
+ * Gable Roof Collider
  */
 
 // --------------------------------------------------
-// TEMPLATE 01
+// TEMPLATE
 // --------------------------------------------------
 const HOUSE_TEMPLATE_01 = {
- widthMeters: 9,
- depthMeters: 11,
+ widthMeters:
+ 9,
 
- floorCount: 3,
- floorHeightMeters: 3,
+ depthMeters:
+ 11,
 
- roofHeightMeters: 4,
- roofOverhangMeters: 0.45,
+ floorCount:
+ 3,
 
- frontWindowsPerFloor: 3,
- sideWindowsPerFloor: 2,
+ floorHeightMeters:
+ 3,
 
- windowWidthMeters: 1.35,
- windowHeightMeters: 1.75,
+ roofHeightMeters:
+ 4,
 
- windowSurfaceOffsetMeters: 0.025
+ /*
+  * 軒。
+  *
+  * 家本体から少しだけ
+  * はみ出す。
+  */
+ roofOverhangMeters:
+ 0.6,
+
+ /*
+  * 屋根そのものの厚み。
+  */
+ roofThicknessMeters:
+ 0.24,
+
+ frontWindowsPerFloor:
+ 3,
+
+ sideWindowsPerFloor:
+ 2,
+
+ windowWidthMeters:
+ 1.35,
+
+ windowHeightMeters:
+ 1.75,
+
+ windowSurfaceOffsetMeters:
+ 0.025
 };
 
 // --------------------------------------------------
@@ -3868,7 +3900,14 @@ const HOUSE_01_ROOF_HEIGHT =
 
 const HOUSE_01_OVERHANG =
  metersToUnits(
- HOUSE_TEMPLATE_01.roofOverhangMeters
+ HOUSE_TEMPLATE_01
+ .roofOverhangMeters
+ );
+
+const HOUSE_01_ROOF_THICKNESS =
+ metersToUnits(
+ HOUSE_TEMPLATE_01
+ .roofThicknessMeters
  );
 
 const HOUSE_01_HALF_WIDTH =
@@ -3879,37 +3918,64 @@ const HOUSE_01_HALF_DEPTH =
  HOUSE_01_DEPTH /
  2;
 
+const HOUSE_01_ROOF_HALF_WIDTH =
+ HOUSE_01_HALF_WIDTH +
+ HOUSE_01_OVERHANG;
+
+const HOUSE_01_ROOF_HALF_DEPTH =
+ HOUSE_01_HALF_DEPTH +
+ HOUSE_01_OVERHANG;
+
 // --------------------------------------------------
 // MATERIALS
 // --------------------------------------------------
-/*
- * 全住宅で共有する。
- *
- * 家ごと・窓ごとにMaterialを
- * 作らないことが重要。
- */
 const houseInstanceWallMaterial =
  new THREE.MeshStandardMaterial({
- map: houseWallTexture,
- color: 0xffffff,
- roughness: 0.9,
- side: THREE.DoubleSide
+ map:
+ houseWallTexture,
+
+ color:
+ 0xffffff,
+
+ roughness:
+ 0.9,
+
+ side:
+ THREE.DoubleSide
  });
 
 const houseInstanceRoofMaterial =
  new THREE.MeshStandardMaterial({
- map: houseRoofTexture,
- color: 0xffffff,
- roughness: 0.88,
- side: THREE.DoubleSide
+ map:
+ houseRoofTexture,
+
+ color:
+ 0xffffff,
+
+ roughness:
+ 0.88,
+
+ /*
+  * Geometryは閉じているので
+  * 本来FrontSideだけでよい。
+  */
+ side:
+ THREE.FrontSide
  });
 
 const houseInstanceWindowMaterial =
  new THREE.MeshStandardMaterial({
- map: houseWindowTexture,
- color: 0xffffff,
- roughness: 0.58,
- side: THREE.DoubleSide
+ map:
+ houseWindowTexture,
+
+ color:
+ 0xffffff,
+
+ roughness:
+ 0.58,
+
+ side:
+ THREE.DoubleSide
  });
 
 // --------------------------------------------------
@@ -3928,28 +3994,467 @@ const houseInstanceFloorGeometry =
 const houseInstanceWindowGeometry =
  new THREE.PlaneGeometry(
  metersToUnits(
- HOUSE_TEMPLATE_01.windowWidthMeters
+ HOUSE_TEMPLATE_01
+ .windowWidthMeters
  ),
+
  metersToUnits(
- HOUSE_TEMPLATE_01.windowHeightMeters
+ HOUSE_TEMPLATE_01
+ .windowHeightMeters
  )
  );
 
+// ==================================================
+// SOLID ROOF GEOMETRY
+// ==================================================
+/*
+ * 左右それぞれを
+ * 「厚みのある四角柱」として作る。
+ *
+ *
+ * 正面:
+ *
+ *                 棟
+ *                 ●
+ *                / \
+ *               /   \
+ *              /     \
+ *             ●       ●
+ *
+ *
+ * 1枚の屋根板:
+ *
+ *       上面
+ *      ┌────────
+ *     /        /
+ *    └────────
+ *      下面
+ *
+ *
+ * 上面 / 下面 / 軒 / 棟 /
+ * 前端 / 後端をすべて生成する。
+ */
+
 // --------------------------------------------------
-// GABLE GEOMETRY
+// CREATE SOLID ROOF SIDE
 // --------------------------------------------------
+function createSolidRoofSideGeometry(
+ side
+) {
+ const geometry =
+ new THREE.BufferGeometry();
+
+ // ------------------------------------------------
+ // ROOF SLOPE
+ // ------------------------------------------------
+ const outerTopX =
+ side <
+ 0
+ ? -HOUSE_01_ROOF_HALF_WIDTH
+ : HOUSE_01_ROOF_HALF_WIDTH;
+
+ const ridgeTopX =
+ 0;
+
+ const outerTopY =
+ 0;
+
+ const ridgeTopY =
+ HOUSE_01_ROOF_HEIGHT;
+
+ /*
+  * 厚みは単純な垂直方向ではなく、
+  * 屋根面のおおよその法線方向へ付ける。
+  */
+ const run =
+ HOUSE_01_ROOF_HALF_WIDTH;
+
+ const rise =
+ HOUSE_01_ROOF_HEIGHT;
+
+ const slopeLength =
+ Math.hypot(
+ run,
+ rise
+ );
+
+ const normalX =
+ side <
+ 0
+ ? (
+ -rise /
+ slopeLength
+ )
+ : (
+ rise /
+ slopeLength
+ );
+
+ const normalY =
+ -run /
+ slopeLength;
+
+ const thicknessX =
+ normalX *
+ HOUSE_01_ROOF_THICKNESS;
+
+ const thicknessY =
+ normalY *
+ HOUSE_01_ROOF_THICKNESS;
+
+ // ------------------------------------------------
+ // TOP
+ // ------------------------------------------------
+ const outerTop = {
+ x:
+ outerTopX,
+
+ y:
+ outerTopY
+ };
+
+ const ridgeTop = {
+ x:
+ ridgeTopX,
+
+ y:
+ ridgeTopY
+ };
+
+ // ------------------------------------------------
+ // BOTTOM
+ // ------------------------------------------------
+ const outerBottom = {
+ x:
+ outerTop.x +
+ thicknessX,
+
+ y:
+ outerTop.y +
+ thicknessY
+ };
+
+ const ridgeBottom = {
+ x:
+ ridgeTop.x +
+ thicknessX,
+
+ y:
+ ridgeTop.y +
+ thicknessY
+ };
+
+ const frontZ =
+ -HOUSE_01_ROOF_HALF_DEPTH;
+
+ const backZ =
+ HOUSE_01_ROOF_HALF_DEPTH;
+
+ // ------------------------------------------------
+ // VERTICES
+ // ------------------------------------------------
+ const positions =
+ [];
+
+ const uvs =
+ [];
+
+ // ------------------------------------------------
+ // ADD TRIANGLE
+ // ------------------------------------------------
+ function addTriangle(
+ a,
+ b,
+ c,
+ uvA,
+ uvB,
+ uvC
+ ) {
+ positions.push(
+ a[0],
+ a[1],
+ a[2],
+
+ b[0],
+ b[1],
+ b[2],
+
+ c[0],
+ c[1],
+ c[2]
+ );
+
+ uvs.push(
+ uvA[0],
+ uvA[1],
+
+ uvB[0],
+ uvB[1],
+
+ uvC[0],
+ uvC[1]
+ );
+ }
+
+ // ------------------------------------------------
+ // ADD QUAD
+ // ------------------------------------------------
+ function addQuad(
+ a,
+ b,
+ c,
+ d
+ ) {
+ addTriangle(
+ a,
+ b,
+ c,
+ [0, 0],
+ [1, 0],
+ [1, 1]
+ );
+
+ addTriangle(
+ a,
+ c,
+ d,
+ [0, 0],
+ [1, 1],
+ [0, 1]
+ );
+ }
+
+ // ------------------------------------------------
+ // POINTS
+ // ------------------------------------------------
+ const otf = [
+ outerTop.x,
+ outerTop.y,
+ frontZ
+ ];
+
+ const otb = [
+ outerTop.x,
+ outerTop.y,
+ backZ
+ ];
+
+ const rtf = [
+ ridgeTop.x,
+ ridgeTop.y,
+ frontZ
+ ];
+
+ const rtb = [
+ ridgeTop.x,
+ ridgeTop.y,
+ backZ
+ ];
+
+ const obf = [
+ outerBottom.x,
+ outerBottom.y,
+ frontZ
+ ];
+
+ const obb = [
+ outerBottom.x,
+ outerBottom.y,
+ backZ
+ ];
+
+ const rbf = [
+ ridgeBottom.x,
+ ridgeBottom.y,
+ frontZ
+ ];
+
+ const rbb = [
+ ridgeBottom.x,
+ ridgeBottom.y,
+ backZ
+ ];
+
+ // ------------------------------------------------
+ // TOP SURFACE
+ // ------------------------------------------------
+ if (
+ side <
+ 0
+ ) {
+ addQuad(
+ otf,
+ otb,
+ rtb,
+ rtf
+ );
+ } else {
+ addQuad(
+ rtf,
+ rtb,
+ otb,
+ otf
+ );
+ }
+
+ // ------------------------------------------------
+ // BOTTOM SURFACE
+ // ------------------------------------------------
+ if (
+ side <
+ 0
+ ) {
+ addQuad(
+ rbf,
+ rbb,
+ obb,
+ obf
+ );
+ } else {
+ addQuad(
+ obf,
+ obb,
+ rbb,
+ rbf
+ );
+ }
+
+ // ------------------------------------------------
+ // OUTER EDGE
+ // ------------------------------------------------
+ if (
+ side <
+ 0
+ ) {
+ addQuad(
+ obf,
+ obb,
+ otb,
+ otf
+ );
+ } else {
+ addQuad(
+ otf,
+ otb,
+ obb,
+ obf
+ );
+ }
+
+ // ------------------------------------------------
+ // RIDGE EDGE
+ // ------------------------------------------------
+ if (
+ side <
+ 0
+ ) {
+ addQuad(
+ rtf,
+ rtb,
+ rbb,
+ rbf
+ );
+ } else {
+ addQuad(
+ rbf,
+ rbb,
+ rtb,
+ rtf
+ );
+ }
+
+ // ------------------------------------------------
+ // FRONT EDGE
+ // ------------------------------------------------
+ if (
+ side <
+ 0
+ ) {
+ addQuad(
+ otf,
+ rtf,
+ rbf,
+ obf
+ );
+ } else {
+ addQuad(
+ rtf,
+ otf,
+ obf,
+ rbf
+ );
+ }
+
+ // ------------------------------------------------
+ // BACK EDGE
+ // ------------------------------------------------
+ if (
+ side <
+ 0
+ ) {
+ addQuad(
+ rtb,
+ otb,
+ obb,
+ rbb
+ );
+ } else {
+ addQuad(
+ otb,
+ rtb,
+ rbb,
+ obb
+ );
+ }
+
+ // ------------------------------------------------
+ // BUFFER
+ // ------------------------------------------------
+ geometry.setAttribute(
+ "position",
+ new THREE.Float32BufferAttribute(
+ positions,
+ 3
+ )
+ );
+
+ geometry.setAttribute(
+ "uv",
+ new THREE.Float32BufferAttribute(
+ uvs,
+ 2
+ )
+ );
+
+ geometry.computeVertexNormals();
+
+ geometry.computeBoundingBox();
+
+ geometry.computeBoundingSphere();
+
+ return geometry;
+}
+
+// --------------------------------------------------
+// SOLID ROOFS
+// --------------------------------------------------
+const houseInstanceLeftRoofGeometry =
+ createSolidRoofSideGeometry(
+ -1
+ );
+
+const houseInstanceRightRoofGeometry =
+ createSolidRoofSideGeometry(
+ 1
+ );
+
+// ==================================================
+// GABLE
+// ==================================================
 function createHouse01GableGeometry() {
  const geometry =
  new THREE.BufferGeometry();
 
- /*
-  * 正面から見た三角形。
-  *
-  *           C
-  *          / \
-  *         /   \
-  *        A-----B
-  */
  const positions =
  new Float32Array([
  -HOUSE_01_HALF_WIDTH,
@@ -4001,151 +4506,16 @@ function createHouse01GableGeometry() {
 const houseInstanceGableGeometry =
  createHouse01GableGeometry();
 
-// --------------------------------------------------
-// ROOF GEOMETRY
-// --------------------------------------------------
-/*
- * BoxGeometryを回転させない。
- *
- * 最初から正しい斜面の頂点を作る。
- *
- * これにより左右屋根が
- * クロスする問題をなくす。
- */
-function createHouse01RoofGeometry(
- side
-) {
- const geometry =
- new THREE.BufferGeometry();
-
- const outerX =
- side <
- 0
- ? -HOUSE_01_HALF_WIDTH -
- HOUSE_01_OVERHANG
- : HOUSE_01_HALF_WIDTH +
- HOUSE_01_OVERHANG;
-
- const ridgeX =
- 0;
-
- const outerY =
- 0;
-
- const ridgeY =
- HOUSE_01_ROOF_HEIGHT;
-
- const frontZ =
- -HOUSE_01_HALF_DEPTH -
- HOUSE_01_OVERHANG;
-
- const backZ =
- HOUSE_01_HALF_DEPTH +
- HOUSE_01_OVERHANG;
-
- const positions =
- new Float32Array([
- // Triangle 1
- outerX,
- outerY,
- frontZ,
-
- outerX,
- outerY,
- backZ,
-
- ridgeX,
- ridgeY,
- backZ,
-
- // Triangle 2
- outerX,
- outerY,
- frontZ,
-
- ridgeX,
- ridgeY,
- backZ,
-
- ridgeX,
- ridgeY,
- frontZ
- ]);
-
- const uvs =
- new Float32Array([
- 0,
- 0,
-
- 1,
- 0,
-
- 1,
- 1,
-
- 0,
- 0,
-
- 1,
- 1,
-
- 0,
- 1
- ]);
-
- geometry.setAttribute(
- "position",
- new THREE.BufferAttribute(
- positions,
- 3
- )
- );
-
- geometry.setAttribute(
- "uv",
- new THREE.BufferAttribute(
- uvs,
- 2
- )
- );
-
- geometry.computeVertexNormals();
-
- return geometry;
-}
-
-const houseInstanceLeftRoofGeometry =
- createHouse01RoofGeometry(
- -1
- );
-
-const houseInstanceRightRoofGeometry =
- createHouse01RoofGeometry(
- 1
- );
+// ==================================================
+// COLLIDERS
+// ==================================================
 
 // --------------------------------------------------
-// TEMP OBJECT
-// --------------------------------------------------
-const houseInstanceDummy =
- new THREE.Object3D();
-
-// --------------------------------------------------
-// BODY COLLIDER
+// BODY
 // --------------------------------------------------
 function createHouseTemplate01Collider(
  descriptor
 ) {
- const x =
- metersToUnits(
- descriptor.xMeters
- );
-
- const z =
- metersToUnits(
- descriptor.zMeters
- );
-
  const terrainY =
  metersToUnits(
  getTerrainHeightMeters(
@@ -4154,19 +4524,21 @@ function createHouseTemplate01Collider(
  )
  );
 
- /*
-  * 現行物理との互換性を維持するため
-  * 家本体はAABB。
-  */
  const object =
  new THREE.Object3D();
 
  object.position.set(
- x,
+ metersToUnits(
+ descriptor.xMeters
+ ),
+
  terrainY +
  HOUSE_01_HEIGHT /
  2,
- z
+
+ metersToUnits(
+ descriptor.zMeters
+ )
  );
 
  object.rotation.y =
@@ -4185,6 +4557,7 @@ function createHouseTemplate01Collider(
  2,
  -HOUSE_01_HALF_DEPTH
  ),
+
  new THREE.Vector3(
  HOUSE_01_HALF_WIDTH,
  HOUSE_01_HEIGHT /
@@ -4201,7 +4574,7 @@ function createHouseTemplate01Collider(
 }
 
 // --------------------------------------------------
-// ROOF COLLIDER
+// ROOF
 // --------------------------------------------------
 function createHouseTemplate01RoofCollider(
  descriptor
@@ -4232,25 +4605,74 @@ function createHouseTemplate01RoofCollider(
  descriptor.rotation ??
  0,
 
+ /*
+  * Colliderも軒まで含む。
+  */
  halfWidth:
- HOUSE_01_HALF_WIDTH,
+ HOUSE_01_ROOF_HALF_WIDTH,
 
  halfDepth:
- HOUSE_01_HALF_DEPTH +
- HOUSE_01_OVERHANG,
+ HOUSE_01_ROOF_HALF_DEPTH,
 
  baseY:
+ terrainY,
+
+ wallTopY:
  terrainY +
  HOUSE_01_HEIGHT,
 
  height:
- HOUSE_01_ROOF_HEIGHT
+ HOUSE_01_ROOF_HEIGHT,
+
+ thickness:
+ HOUSE_01_ROOF_THICKNESS
  };
 }
 
-// --------------------------------------------------
-// ADD WINDOW MATRIX
-// --------------------------------------------------
+// ==================================================
+// ROOF SURFACE
+// ==================================================
+/*
+ * この関数は描画Geometryと
+ * 同じ寸法から高さを求める。
+ */
+function getHouse01RoofHeightAtLocalX(
+ roof,
+ localX
+) {
+ const absoluteX =
+ Math.abs(
+ localX
+ );
+
+ if (
+ absoluteX >
+ roof.halfWidth
+ ) {
+ return null;
+ }
+
+ const t =
+ 1 -
+ absoluteX /
+ roof.halfWidth;
+
+ return (
+ roof.wallTopY +
+ roof.height *
+ t
+ );
+}
+
+// ==================================================
+// TEMP
+// ==================================================
+const houseInstanceDummy =
+ new THREE.Object3D();
+
+// ==================================================
+// WINDOWS
+// ==================================================
 function addHouse01WindowMatrix(
  matrices,
  houseX,
@@ -4262,10 +4684,6 @@ function addHouse01WindowMatrix(
  localZ,
  localRotationY
 ) {
- /*
-  * 窓のlocal位置を
-  * 家のY回転へ変換する。
-  */
  const cos =
  Math.cos(
  houseRotation
@@ -4317,9 +4735,6 @@ function addHouse01WindowMatrix(
  );
 }
 
-// --------------------------------------------------
-// BUILD HOUSE WINDOW MATRICES
-// --------------------------------------------------
 function buildHouse01WindowMatrices(
  descriptor,
  output
@@ -4356,7 +4771,8 @@ function buildHouse01WindowMatrices(
  // FLOORS
  // ------------------------------------------------
  for (
- let floor = 0;
+ let floor =
+ 0;
  floor <
  HOUSE_TEMPLATE_01.floorCount;
  floor++
@@ -4368,24 +4784,28 @@ function buildHouse01WindowMatrices(
  0.55
  );
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // FRONT / BACK
- // ------------------------------------------------
+ // ----------------------------------------------
  const frontCount =
  HOUSE_TEMPLATE_01
  .frontWindowsPerFloor;
 
  for (
- let i = 0;
- i < frontCount;
+ let i =
+ 0;
+ i <
+ frontCount;
  i++
  ) {
  const localX =
  THREE.MathUtils.lerp(
  -HOUSE_01_HALF_WIDTH *
  0.68,
+
  HOUSE_01_HALF_WIDTH *
  0.68,
+
  frontCount ===
  1
  ? 0.5
@@ -4396,12 +4816,7 @@ function buildHouse01WindowMatrices(
  )
  );
 
- // ----------------------------------------------
  // FRONT
- // ----------------------------------------------
- /*
-  * 1階中央は玄関用に空ける。
-  */
  if (
  !(
  floor ===
@@ -4427,9 +4842,7 @@ function buildHouse01WindowMatrices(
  );
  }
 
- // ----------------------------------------------
  // BACK
- // ----------------------------------------------
  addHouse01WindowMatrix(
  output,
  houseX,
@@ -4444,24 +4857,28 @@ function buildHouse01WindowMatrices(
  );
  }
 
- // ------------------------------------------------
- // LEFT / RIGHT
- // ------------------------------------------------
+ // ----------------------------------------------
+ // SIDES
+ // ----------------------------------------------
  const sideCount =
  HOUSE_TEMPLATE_01
  .sideWindowsPerFloor;
 
  for (
- let i = 0;
- i < sideCount;
+ let i =
+ 0;
+ i <
+ sideCount;
  i++
  ) {
  const localZ =
  THREE.MathUtils.lerp(
  -HOUSE_01_HALF_DEPTH *
  0.55,
+
  HOUSE_01_HALF_DEPTH *
  0.55,
+
  sideCount ===
  1
  ? 0.5
@@ -4505,9 +4922,9 @@ function buildHouse01WindowMatrices(
  }
 }
 
-// --------------------------------------------------
+// ==================================================
 // CREATE CHUNK INSTANCES
-// --------------------------------------------------
+// ==================================================
 function createHouseTemplate01Instances(
  descriptors,
  chunkData
@@ -4526,7 +4943,7 @@ function createHouseTemplate01Instances(
  return;
  }
 
- const houseCount =
+ const count =
  houses.length;
 
  // ------------------------------------------------
@@ -4536,38 +4953,38 @@ function createHouseTemplate01Instances(
  new THREE.InstancedMesh(
  houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
- houseCount
+ count
  );
 
  const floor2 =
  new THREE.InstancedMesh(
  houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
- houseCount
+ count
  );
 
  const floor3 =
  new THREE.InstancedMesh(
  houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
- houseCount
+ count
  );
 
  // ------------------------------------------------
- // ROOFS
+ // SOLID ROOFS
  // ------------------------------------------------
  const leftRoofs =
  new THREE.InstancedMesh(
  houseInstanceLeftRoofGeometry,
  houseInstanceRoofMaterial,
- houseCount
+ count
  );
 
  const rightRoofs =
  new THREE.InstancedMesh(
  houseInstanceRightRoofGeometry,
  houseInstanceRoofMaterial,
- houseCount
+ count
  );
 
  // ------------------------------------------------
@@ -4577,18 +4994,18 @@ function createHouseTemplate01Instances(
  new THREE.InstancedMesh(
  houseInstanceGableGeometry,
  houseInstanceWallMaterial,
- houseCount
+ count
  );
 
  const backGables =
  new THREE.InstancedMesh(
  houseInstanceGableGeometry,
  houseInstanceWallMaterial,
- houseCount
+ count
  );
 
  // ------------------------------------------------
- // WINDOW MATRICES
+ // WINDOWS
  // ------------------------------------------------
  const windowMatrices =
  [];
@@ -4617,11 +5034,13 @@ function createHouseTemplate01Instances(
  windowMatrices.length;
 
  // ------------------------------------------------
- // HOUSES
+ // HOUSE INSTANCES
  // ------------------------------------------------
  for (
- let i = 0;
- i < houseCount;
+ let i =
+ 0;
+ i <
+ count;
  i++
  ) {
  const descriptor =
@@ -4651,9 +5070,9 @@ function createHouseTemplate01Instances(
  descriptor.rotation ??
  0;
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // FLOOR 1
- // ------------------------------------------------
+ // ----------------------------------------------
  houseInstanceDummy.position.set(
  x,
  terrainY +
@@ -4681,16 +5100,13 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // FLOOR 2
- // ------------------------------------------------
- houseInstanceDummy.position.set(
- x,
+ // ----------------------------------------------
+ houseInstanceDummy.position.y =
  terrainY +
  HOUSE_01_FLOOR_HEIGHT *
- 1.5,
- z
- );
+ 1.5;
 
  houseInstanceDummy.updateMatrix();
 
@@ -4699,16 +5115,13 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // FLOOR 3
- // ------------------------------------------------
- houseInstanceDummy.position.set(
- x,
+ // ----------------------------------------------
+ houseInstanceDummy.position.y =
  terrainY +
  HOUSE_01_FLOOR_HEIGHT *
- 2.5,
- z
- );
+ 2.5;
 
  houseInstanceDummy.updateMatrix();
 
@@ -4717,14 +5130,12 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // ROOF
- // ------------------------------------------------
+ // ----------------------------------------------
  /*
-  * 屋根Geometry自身が
-  * 正しい /\ 形になっている。
-  *
-  * ここでは家のY回転しか行わない。
+  * Geometry自身が立体屋根なので、
+  * Y回転だけでよい。
   */
  houseInstanceDummy.position.set(
  x,
@@ -4751,9 +5162,9 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // FRONT GABLE
- // ------------------------------------------------
+ // ----------------------------------------------
  houseInstanceDummy.position.set(
  x,
  terrainY +
@@ -4779,9 +5190,9 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
- // ------------------------------------------------
+ // ----------------------------------------------
  // BACK GABLE
- // ------------------------------------------------
+ // ----------------------------------------------
  houseInstanceDummy.position.set(
  x,
  terrainY +
@@ -4808,9 +5219,9 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
- // ------------------------------------------------
- // BODY PHYSICS
- // ------------------------------------------------
+ // ----------------------------------------------
+ // BODY COLLIDER
+ // ----------------------------------------------
  const bodyCollider =
  createHouseTemplate01Collider(
  descriptor
@@ -4824,9 +5235,9 @@ function createHouseTemplate01Instances(
  bodyCollider
  );
 
- // ------------------------------------------------
- // ROOF PHYSICS
- // ------------------------------------------------
+ // ----------------------------------------------
+ // ROOF COLLIDER
+ // ----------------------------------------------
  const roofCollider =
  createHouseTemplate01RoofCollider(
  descriptor
@@ -4842,10 +5253,11 @@ function createHouseTemplate01Instances(
  }
 
  // ------------------------------------------------
- // WINDOWS
+ // WINDOW INSTANCES
  // ------------------------------------------------
  for (
- let i = 0;
+ let i =
+ 0;
  i <
  windowMatrices.length;
  i++
@@ -4859,11 +5271,9 @@ function createHouseTemplate01Instances(
  }
 
  // ------------------------------------------------
- // UPDATE MATRICES
+ // REGISTER RENDER OBJECTS
  // ------------------------------------------------
- for (
- const mesh
- of [
+ const renderMeshes = [
  floor1,
  floor2,
  floor3,
@@ -4872,15 +5282,15 @@ function createHouseTemplate01Instances(
  frontGables,
  backGables,
  windows
- ]
+ ];
+
+ for (
+ const mesh
+ of renderMeshes
  ) {
  mesh.instanceMatrix.needsUpdate =
  true;
 
- /*
-  * 王都のShadow Draw Callを
-  * 爆発させない。
-  */
  mesh.castShadow =
  false;
 
