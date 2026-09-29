@@ -3316,19 +3316,16 @@ function createRoad(
  * HOUSE TEMPLATE 01
  *
  * 3階建て木骨住宅
- * 切妻屋根
  *
- * 描画:
- * InstancedMesh
- *
- * 物理:
- * Box Collider
- * +
- * Gable Roof Collider
+ * ・InstancedMesh
+ * ・切妻屋根
+ * ・妻壁
+ * ・窓
+ * ・斜面屋根Collider
  */
 
 // --------------------------------------------------
-// TEMPLATE
+// TEMPLATE 01
 // --------------------------------------------------
 const HOUSE_TEMPLATE_01 = {
  widthMeters: 9,
@@ -3338,13 +3335,19 @@ const HOUSE_TEMPLATE_01 = {
  floorHeightMeters: 3,
 
  roofHeightMeters: 4,
-
  roofOverhangMeters: 0.45,
- roofThicknessMeters: 0.14
+
+ frontWindowsPerFloor: 3,
+ sideWindowsPerFloor: 2,
+
+ windowWidthMeters: 1.35,
+ windowHeightMeters: 1.75,
+
+ windowSurfaceOffsetMeters: 0.025
 };
 
 // --------------------------------------------------
-// SIZE
+// DIMENSIONS
 // --------------------------------------------------
 const HOUSE_01_WIDTH =
  metersToUnits(
@@ -3370,64 +3373,55 @@ const HOUSE_01_ROOF_HEIGHT =
  HOUSE_TEMPLATE_01.roofHeightMeters
  );
 
+const HOUSE_01_OVERHANG =
+ metersToUnits(
+ HOUSE_TEMPLATE_01.roofOverhangMeters
+ );
+
 const HOUSE_01_HALF_WIDTH =
  HOUSE_01_WIDTH /
  2;
 
-// --------------------------------------------------
-// ROOF
-// --------------------------------------------------
-const HOUSE_01_ROOF_ANGLE =
- Math.atan2(
- HOUSE_01_ROOF_HEIGHT,
- HOUSE_01_HALF_WIDTH
- );
-
-const HOUSE_01_ROOF_SLOPE =
- Math.sqrt(
- HOUSE_01_HALF_WIDTH *
- HOUSE_01_HALF_WIDTH +
- HOUSE_01_ROOF_HEIGHT *
- HOUSE_01_ROOF_HEIGHT
- );
-
-const HOUSE_01_ROOF_OVERHANG =
- metersToUnits(
- HOUSE_TEMPLATE_01
- .roofOverhangMeters
- );
-
-const HOUSE_01_ROOF_THICKNESS =
- metersToUnits(
- HOUSE_TEMPLATE_01
- .roofThicknessMeters
- );
+const HOUSE_01_HALF_DEPTH =
+ HOUSE_01_DEPTH /
+ 2;
 
 // --------------------------------------------------
 // MATERIALS
 // --------------------------------------------------
+/*
+ * 全住宅で共有する。
+ *
+ * 家ごと・窓ごとにMaterialを
+ * 作らないことが重要。
+ */
 const houseInstanceWallMaterial =
  new THREE.MeshStandardMaterial({
  map: houseWallTexture,
  color: 0xffffff,
- roughness: 0.9
+ roughness: 0.9,
+ side: THREE.DoubleSide
  });
 
 const houseInstanceRoofMaterial =
  new THREE.MeshStandardMaterial({
  map: houseRoofTexture,
  color: 0xffffff,
- roughness: 0.88
+ roughness: 0.88,
+ side: THREE.DoubleSide
+ });
+
+const houseInstanceWindowMaterial =
+ new THREE.MeshStandardMaterial({
+ map: houseWindowTexture,
+ color: 0xffffff,
+ roughness: 0.58,
+ side: THREE.DoubleSide
  });
 
 // --------------------------------------------------
-// GEOMETRIES
+// FLOOR GEOMETRY
 // --------------------------------------------------
-/*
- * 1階分。
- *
- * これを3段積む。
- */
 const houseInstanceFloorGeometry =
  new THREE.BoxGeometry(
  HOUSE_01_WIDTH,
@@ -3435,14 +3429,206 @@ const houseInstanceFloorGeometry =
  HOUSE_01_DEPTH
  );
 
-const houseInstanceRoofGeometry =
- new THREE.BoxGeometry(
- HOUSE_01_ROOF_SLOPE +
- HOUSE_01_ROOF_OVERHANG,
- HOUSE_01_ROOF_THICKNESS,
- HOUSE_01_DEPTH +
- HOUSE_01_ROOF_OVERHANG *
+// --------------------------------------------------
+// WINDOW GEOMETRY
+// --------------------------------------------------
+const houseInstanceWindowGeometry =
+ new THREE.PlaneGeometry(
+ metersToUnits(
+ HOUSE_TEMPLATE_01.windowWidthMeters
+ ),
+ metersToUnits(
+ HOUSE_TEMPLATE_01.windowHeightMeters
+ )
+ );
+
+// --------------------------------------------------
+// GABLE GEOMETRY
+// --------------------------------------------------
+function createHouse01GableGeometry() {
+ const geometry =
+ new THREE.BufferGeometry();
+
+ /*
+  * 正面から見た三角形。
+  *
+  *           C
+  *          / \
+  *         /   \
+  *        A-----B
+  */
+ const positions =
+ new Float32Array([
+ -HOUSE_01_HALF_WIDTH,
+ 0,
+ 0,
+
+ HOUSE_01_HALF_WIDTH,
+ 0,
+ 0,
+
+ 0,
+ HOUSE_01_ROOF_HEIGHT,
+ 0
+ ]);
+
+ const uvs =
+ new Float32Array([
+ 0,
+ 0,
+
+ 1,
+ 0,
+
+ 0.5,
+ 1
+ ]);
+
+ geometry.setAttribute(
+ "position",
+ new THREE.BufferAttribute(
+ positions,
+ 3
+ )
+ );
+
+ geometry.setAttribute(
+ "uv",
+ new THREE.BufferAttribute(
+ uvs,
  2
+ )
+ );
+
+ geometry.computeVertexNormals();
+
+ return geometry;
+}
+
+const houseInstanceGableGeometry =
+ createHouse01GableGeometry();
+
+// --------------------------------------------------
+// ROOF GEOMETRY
+// --------------------------------------------------
+/*
+ * BoxGeometryを回転させない。
+ *
+ * 最初から正しい斜面の頂点を作る。
+ *
+ * これにより左右屋根が
+ * クロスする問題をなくす。
+ */
+function createHouse01RoofGeometry(
+ side
+) {
+ const geometry =
+ new THREE.BufferGeometry();
+
+ const outerX =
+ side <
+ 0
+ ? -HOUSE_01_HALF_WIDTH -
+ HOUSE_01_OVERHANG
+ : HOUSE_01_HALF_WIDTH +
+ HOUSE_01_OVERHANG;
+
+ const ridgeX =
+ 0;
+
+ const outerY =
+ 0;
+
+ const ridgeY =
+ HOUSE_01_ROOF_HEIGHT;
+
+ const frontZ =
+ -HOUSE_01_HALF_DEPTH -
+ HOUSE_01_OVERHANG;
+
+ const backZ =
+ HOUSE_01_HALF_DEPTH +
+ HOUSE_01_OVERHANG;
+
+ const positions =
+ new Float32Array([
+ // Triangle 1
+ outerX,
+ outerY,
+ frontZ,
+
+ outerX,
+ outerY,
+ backZ,
+
+ ridgeX,
+ ridgeY,
+ backZ,
+
+ // Triangle 2
+ outerX,
+ outerY,
+ frontZ,
+
+ ridgeX,
+ ridgeY,
+ backZ,
+
+ ridgeX,
+ ridgeY,
+ frontZ
+ ]);
+
+ const uvs =
+ new Float32Array([
+ 0,
+ 0,
+
+ 1,
+ 0,
+
+ 1,
+ 1,
+
+ 0,
+ 0,
+
+ 1,
+ 1,
+
+ 0,
+ 1
+ ]);
+
+ geometry.setAttribute(
+ "position",
+ new THREE.BufferAttribute(
+ positions,
+ 3
+ )
+ );
+
+ geometry.setAttribute(
+ "uv",
+ new THREE.BufferAttribute(
+ uvs,
+ 2
+ )
+ );
+
+ geometry.computeVertexNormals();
+
+ return geometry;
+}
+
+const houseInstanceLeftRoofGeometry =
+ createHouse01RoofGeometry(
+ -1
+ );
+
+const houseInstanceRightRoofGeometry =
+ createHouse01RoofGeometry(
+ 1
  );
 
 // --------------------------------------------------
@@ -3475,6 +3661,10 @@ function createHouseTemplate01Collider(
  )
  );
 
+ /*
+  * 現行物理との互換性を維持するため
+  * 家本体はAABB。
+  */
  const object =
  new THREE.Object3D();
 
@@ -3497,20 +3687,16 @@ function createHouseTemplate01Collider(
  const box =
  new THREE.Box3(
  new THREE.Vector3(
- -HOUSE_01_WIDTH /
- 2,
+ -HOUSE_01_HALF_WIDTH,
  -HOUSE_01_HEIGHT /
  2,
- -HOUSE_01_DEPTH /
- 2
+ -HOUSE_01_HALF_DEPTH
  ),
  new THREE.Vector3(
- HOUSE_01_WIDTH /
- 2,
+ HOUSE_01_HALF_WIDTH,
  HOUSE_01_HEIGHT /
  2,
- HOUSE_01_DEPTH /
- 2
+ HOUSE_01_HALF_DEPTH
  )
  );
 
@@ -3557,9 +3743,8 @@ function createHouseTemplate01RoofCollider(
  HOUSE_01_HALF_WIDTH,
 
  halfDepth:
- HOUSE_01_DEPTH /
- 2 +
- HOUSE_01_ROOF_OVERHANG,
+ HOUSE_01_HALF_DEPTH +
+ HOUSE_01_OVERHANG,
 
  baseY:
  terrainY +
@@ -3568,6 +3753,263 @@ function createHouseTemplate01RoofCollider(
  height:
  HOUSE_01_ROOF_HEIGHT
  };
+}
+
+// --------------------------------------------------
+// ADD WINDOW MATRIX
+// --------------------------------------------------
+function addHouse01WindowMatrix(
+ matrices,
+ houseX,
+ terrainY,
+ houseZ,
+ houseRotation,
+ localX,
+ localY,
+ localZ,
+ localRotationY
+) {
+ /*
+  * 窓のlocal位置を
+  * 家のY回転へ変換する。
+  */
+ const cos =
+ Math.cos(
+ houseRotation
+ );
+
+ const sin =
+ Math.sin(
+ houseRotation
+ );
+
+ const worldX =
+ houseX +
+ localX *
+ cos +
+ localZ *
+ sin;
+
+ const worldZ =
+ houseZ -
+ localX *
+ sin +
+ localZ *
+ cos;
+
+ houseInstanceDummy.position.set(
+ worldX,
+ terrainY +
+ localY,
+ worldZ
+ );
+
+ houseInstanceDummy.rotation.set(
+ 0,
+ houseRotation +
+ localRotationY,
+ 0
+ );
+
+ houseInstanceDummy.scale.set(
+ 1,
+ 1,
+ 1
+ );
+
+ houseInstanceDummy.updateMatrix();
+
+ matrices.push(
+ houseInstanceDummy.matrix.clone()
+ );
+}
+
+// --------------------------------------------------
+// BUILD HOUSE WINDOW MATRICES
+// --------------------------------------------------
+function buildHouse01WindowMatrices(
+ descriptor,
+ output
+) {
+ const houseX =
+ metersToUnits(
+ descriptor.xMeters
+ );
+
+ const houseZ =
+ metersToUnits(
+ descriptor.zMeters
+ );
+
+ const terrainY =
+ metersToUnits(
+ getTerrainHeightMeters(
+ descriptor.xMeters,
+ descriptor.zMeters
+ )
+ );
+
+ const rotation =
+ descriptor.rotation ??
+ 0;
+
+ const offset =
+ metersToUnits(
+ HOUSE_TEMPLATE_01
+ .windowSurfaceOffsetMeters
+ );
+
+ // ------------------------------------------------
+ // FLOORS
+ // ------------------------------------------------
+ for (
+ let floor = 0;
+ floor <
+ HOUSE_TEMPLATE_01.floorCount;
+ floor++
+ ) {
+ const y =
+ HOUSE_01_FLOOR_HEIGHT *
+ (
+ floor +
+ 0.55
+ );
+
+ // ------------------------------------------------
+ // FRONT / BACK
+ // ------------------------------------------------
+ const frontCount =
+ HOUSE_TEMPLATE_01
+ .frontWindowsPerFloor;
+
+ for (
+ let i = 0;
+ i < frontCount;
+ i++
+ ) {
+ const localX =
+ THREE.MathUtils.lerp(
+ -HOUSE_01_HALF_WIDTH *
+ 0.68,
+ HOUSE_01_HALF_WIDTH *
+ 0.68,
+ frontCount ===
+ 1
+ ? 0.5
+ : i /
+ (
+ frontCount -
+ 1
+ )
+ );
+
+ // ----------------------------------------------
+ // FRONT
+ // ----------------------------------------------
+ /*
+  * 1階中央は玄関用に空ける。
+  */
+ if (
+ !(
+ floor ===
+ 0 &&
+ i ===
+ Math.floor(
+ frontCount /
+ 2
+ )
+ )
+ ) {
+ addHouse01WindowMatrix(
+ output,
+ houseX,
+ terrainY,
+ houseZ,
+ rotation,
+ localX,
+ y,
+ HOUSE_01_HALF_DEPTH +
+ offset,
+ 0
+ );
+ }
+
+ // ----------------------------------------------
+ // BACK
+ // ----------------------------------------------
+ addHouse01WindowMatrix(
+ output,
+ houseX,
+ terrainY,
+ houseZ,
+ rotation,
+ localX,
+ y,
+ -HOUSE_01_HALF_DEPTH -
+ offset,
+ Math.PI
+ );
+ }
+
+ // ------------------------------------------------
+ // LEFT / RIGHT
+ // ------------------------------------------------
+ const sideCount =
+ HOUSE_TEMPLATE_01
+ .sideWindowsPerFloor;
+
+ for (
+ let i = 0;
+ i < sideCount;
+ i++
+ ) {
+ const localZ =
+ THREE.MathUtils.lerp(
+ -HOUSE_01_HALF_DEPTH *
+ 0.55,
+ HOUSE_01_HALF_DEPTH *
+ 0.55,
+ sideCount ===
+ 1
+ ? 0.5
+ : i /
+ (
+ sideCount -
+ 1
+ )
+ );
+
+ // LEFT
+ addHouse01WindowMatrix(
+ output,
+ houseX,
+ terrainY,
+ houseZ,
+ rotation,
+ -HOUSE_01_HALF_WIDTH -
+ offset,
+ y,
+ localZ,
+ -Math.PI /
+ 2
+ );
+
+ // RIGHT
+ addHouse01WindowMatrix(
+ output,
+ houseX,
+ terrainY,
+ houseZ,
+ rotation,
+ HOUSE_01_HALF_WIDTH +
+ offset,
+ y,
+ localZ,
+ Math.PI /
+ 2
+ );
+ }
+ }
 }
 
 // --------------------------------------------------
@@ -3591,7 +4033,7 @@ function createHouseTemplate01Instances(
  return;
  }
 
- const count =
+ const houseCount =
  houses.length;
 
  // ------------------------------------------------
@@ -3601,21 +4043,21 @@ function createHouseTemplate01Instances(
  new THREE.InstancedMesh(
  houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
- count
+ houseCount
  );
 
  const floor2 =
  new THREE.InstancedMesh(
  houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
- count
+ houseCount
  );
 
  const floor3 =
  new THREE.InstancedMesh(
  houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
- count
+ houseCount
  );
 
  // ------------------------------------------------
@@ -3623,47 +4065,70 @@ function createHouseTemplate01Instances(
  // ------------------------------------------------
  const leftRoofs =
  new THREE.InstancedMesh(
- houseInstanceRoofGeometry,
+ houseInstanceLeftRoofGeometry,
  houseInstanceRoofMaterial,
- count
+ houseCount
  );
 
  const rightRoofs =
  new THREE.InstancedMesh(
- houseInstanceRoofGeometry,
+ houseInstanceRightRoofGeometry,
  houseInstanceRoofMaterial,
- count
+ houseCount
  );
 
  // ------------------------------------------------
- // SHADOWS
+ // GABLES
  // ------------------------------------------------
- for (
- const mesh
- of [
- floor1,
- floor2,
- floor3,
- leftRoofs,
- rightRoofs
- ]
- ) {
- /*
-  * 王都でのShadow負荷を抑える。
-  */
- mesh.castShadow =
- false;
+ const frontGables =
+ new THREE.InstancedMesh(
+ houseInstanceGableGeometry,
+ houseInstanceWallMaterial,
+ houseCount
+ );
 
- mesh.receiveShadow =
- true;
+ const backGables =
+ new THREE.InstancedMesh(
+ houseInstanceGableGeometry,
+ houseInstanceWallMaterial,
+ houseCount
+ );
+
+ // ------------------------------------------------
+ // WINDOW MATRICES
+ // ------------------------------------------------
+ const windowMatrices =
+ [];
+
+ for (
+ const descriptor
+ of houses
+ ) {
+ buildHouse01WindowMatrices(
+ descriptor,
+ windowMatrices
+ );
  }
 
+ const windows =
+ new THREE.InstancedMesh(
+ houseInstanceWindowGeometry,
+ houseInstanceWindowMaterial,
+ Math.max(
+ 1,
+ windowMatrices.length
+ )
+ );
+
+ windows.count =
+ windowMatrices.length;
+
  // ------------------------------------------------
- // INSTANCES
+ // HOUSES
  // ------------------------------------------------
  for (
  let i = 0;
- i < count;
+ i < houseCount;
  i++
  ) {
  const descriptor =
@@ -3734,12 +4199,6 @@ function createHouseTemplate01Instances(
  z
  );
 
- houseInstanceDummy.rotation.set(
- 0,
- rotation,
- 0
- );
-
  houseInstanceDummy.updateMatrix();
 
  floor2.setMatrixAt(
@@ -3758,12 +4217,6 @@ function createHouseTemplate01Instances(
  z
  );
 
- houseInstanceDummy.rotation.set(
- 0,
- rotation,
- 0
- );
-
  houseInstanceDummy.updateMatrix();
 
  floor3.setMatrixAt(
@@ -3772,30 +4225,25 @@ function createHouseTemplate01Instances(
  );
 
  // ------------------------------------------------
- // ROOF LEFT
+ // ROOF
  // ------------------------------------------------
+ /*
+  * 屋根Geometry自身が
+  * 正しい /\ 形になっている。
+  *
+  * ここでは家のY回転しか行わない。
+  */
  houseInstanceDummy.position.set(
  x,
  terrainY +
- HOUSE_01_HEIGHT +
- HOUSE_01_ROOF_HEIGHT /
- 2,
+ HOUSE_01_HEIGHT,
  z
  );
 
  houseInstanceDummy.rotation.set(
  0,
  rotation,
- HOUSE_01_ROOF_ANGLE
- );
-
- /*
-  * offsetはWorldではなく
-  * 家のlocal X方向。
-  */
- houseInstanceDummy.translateX(
- -HOUSE_01_HALF_WIDTH /
- 2
+ 0
  );
 
  houseInstanceDummy.updateMatrix();
@@ -3805,32 +4253,64 @@ function createHouseTemplate01Instances(
  houseInstanceDummy.matrix
  );
 
+ rightRoofs.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
+ );
+
  // ------------------------------------------------
- // ROOF RIGHT
+ // FRONT GABLE
  // ------------------------------------------------
  houseInstanceDummy.position.set(
  x,
  terrainY +
- HOUSE_01_HEIGHT +
- HOUSE_01_ROOF_HEIGHT /
- 2,
+ HOUSE_01_HEIGHT,
  z
  );
 
  houseInstanceDummy.rotation.set(
  0,
  rotation,
- -HOUSE_01_ROOF_ANGLE
+ 0
  );
 
- houseInstanceDummy.translateX(
- HOUSE_01_HALF_WIDTH /
- 2
+ houseInstanceDummy.translateZ(
+ HOUSE_01_HALF_DEPTH +
+ 0.01
  );
 
  houseInstanceDummy.updateMatrix();
 
- rightRoofs.setMatrixAt(
+ frontGables.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
+ );
+
+ // ------------------------------------------------
+ // BACK GABLE
+ // ------------------------------------------------
+ houseInstanceDummy.position.set(
+ x,
+ terrainY +
+ HOUSE_01_HEIGHT,
+ z
+ );
+
+ houseInstanceDummy.rotation.set(
+ 0,
+ rotation +
+ Math.PI,
+ 0
+ );
+
+ houseInstanceDummy.translateZ(
+ HOUSE_01_HALF_DEPTH +
+ 0.01
+ );
+
+ houseInstanceDummy.updateMatrix();
+
+ backGables.setMatrixAt(
  i,
  houseInstanceDummy.matrix
  );
@@ -3869,36 +4349,24 @@ function createHouseTemplate01Instances(
  }
 
  // ------------------------------------------------
- // MATRICES
+ // WINDOWS
  // ------------------------------------------------
- floor1.instanceMatrix.needsUpdate =
- true;
-
- floor2.instanceMatrix.needsUpdate =
- true;
-
- floor3.instanceMatrix.needsUpdate =
- true;
-
- leftRoofs.instanceMatrix.needsUpdate =
- true;
-
- rightRoofs.instanceMatrix.needsUpdate =
- true;
-
- // ------------------------------------------------
- // ADD
- // ------------------------------------------------
- chunkData.group.add(
- floor1,
- floor2,
- floor3,
- leftRoofs,
- rightRoofs
+ for (
+ let i = 0;
+ i <
+ windowMatrices.length;
+ i++
+ ) {
+ windows.setMatrixAt(
+ i,
+ windowMatrices[
+ i
+ ]
  );
+ }
 
  // ------------------------------------------------
- // ANCHORS
+ // UPDATE MATRICES
  // ------------------------------------------------
  for (
  const mesh
@@ -3907,9 +4375,29 @@ function createHouseTemplate01Instances(
  floor2,
  floor3,
  leftRoofs,
- rightRoofs
+ rightRoofs,
+ frontGables,
+ backGables,
+ windows
  ]
  ) {
+ mesh.instanceMatrix.needsUpdate =
+ true;
+
+ /*
+  * 王都のShadow Draw Callを
+  * 爆発させない。
+  */
+ mesh.castShadow =
+ false;
+
+ mesh.receiveShadow =
+ true;
+
+ chunkData.group.add(
+ mesh
+ );
+
  anchorTargets.push(
  mesh
  );
@@ -10820,7 +11308,7 @@ function moveVertical(
  delta;
 
  // --------------------------------------------------
- // TERRAIN
+ // TERRAIN HEIGHT
  // --------------------------------------------------
  const groundHeightMeters =
  getTerrainHeightMeters(
@@ -10839,8 +11327,135 @@ function moveVertical(
  PLAYER_HEIGHT;
 
  // --------------------------------------------------
+ // ROOF SURFACE
+ // --------------------------------------------------
+ /*
+  * 屋根上では毎フレーム
+  * 現在XZ位置の正確な屋根高さを求める。
+  */
+ const nearbyRoofs =
+ getNearbyRoofColliders(
+ camera.position
+ );
+
+ let roofSurfaceY =
+ -Infinity;
+
+ for (
+ const roof
+ of nearbyRoofs
+ ) {
+ const roofY =
+ getRoofSurfaceHeight(
+ roof,
+ camera.position.x,
+ camera.position.z
+ );
+
+ if (
+ roofY ===
+ null
+ ) {
+ continue;
+ }
+
+ const oldFeet =
+ oldY -
+ PLAYER_HEIGHT;
+
+ const newFeet =
+ next.y -
+ PLAYER_HEIGHT;
+
+ /*
+  * 上から屋根を横切った。
+  */
+ const crossedRoof =
+ oldFeet >=
+ roofY &&
+ newFeet <=
+ roofY;
+
+ /*
+  * 既に屋根へ接地している。
+  *
+  * 重力による微小な上下動を
+  * ここで吸収する。
+  */
+ const standingOnRoof =
+ grounded &&
+ Math.abs(
+ oldFeet -
+ roofY
+ ) <=
+ 0.35;
+
+ if (
+ (
+ crossedRoof ||
+ standingOnRoof
+ ) &&
+ roofY >
+ roofSurfaceY
+ ) {
+ roofSurfaceY =
+ roofY;
+ }
+ }
+
+ // --------------------------------------------------
+ // ROOF LANDING / FOLLOW
+ // --------------------------------------------------
+ if (
+ roofSurfaceY >
+ -Infinity &&
+ velocity.y <=
+ 0
+ ) {
+ /*
+  * 実際に落下してきた場合だけ
+  * 衝突ダメージを出す。
+  *
+  * 既に立っている時には
+  * 毎フレームDamageを出さない。
+  */
+ const oldFeet =
+ oldY -
+ PLAYER_HEIGHT;
+
+ if (
+ oldFeet >
+ roofSurfaceY +
+ 0.35
+ ) {
+ damageFromImpact(
+ velocity.y,
+ "building"
+ );
+ }
+
+ if (
+ dead
+ ) {
+ return;
+ }
+
+ camera.position.y =
+ roofSurfaceY +
+ PLAYER_HEIGHT;
+
+ velocity.y =
+ 0;
+
+ grounded =
+ true;
+
+ return;
+ }
+
+ // --------------------------------------------------
  // TERRAIN LANDING
-// --------------------------------------------------
+ // --------------------------------------------------
  if (
  next.y <=
  playerGroundY
@@ -10871,93 +11486,6 @@ function moveVertical(
  true;
 
  return;
- }
-
- // --------------------------------------------------
- // ROOF LANDING
- // --------------------------------------------------
- if (
- velocity.y <=
- 0
- ) {
- const roofs =
- getNearbyRoofColliders(
- camera.position
- );
-
- let highestRoofY =
- -Infinity;
-
- for (
- const roof
- of roofs
- ) {
- const roofY =
- getRoofSurfaceHeight(
- roof,
- camera.position.x,
- camera.position.z
- );
-
- if (
- roofY ===
- null
- ) {
- continue;
- }
-
- const oldFeet =
- oldY -
- PLAYER_HEIGHT;
-
- const newFeet =
- next.y -
- PLAYER_HEIGHT;
-
- /*
-  * このフレームで
-  * 屋根面を上から横切った場合。
-  */
- if (
- oldFeet >=
- roofY &&
- newFeet <=
- roofY &&
- roofY >
- highestRoofY
- ) {
- highestRoofY =
- roofY;
- }
- }
-
- if (
- highestRoofY >
- -Infinity
- ) {
- damageFromImpact(
- velocity.y,
- "building"
- );
-
- if (
- dead
- ) {
- return;
- }
-
- camera.position.y =
- highestRoofY +
- PLAYER_HEIGHT;
-
- velocity.y =
- 0;
-
- grounded =
- true;
-
- return;
- }
  }
 
  // --------------------------------------------------
@@ -11032,7 +11560,7 @@ function moveVertical(
  }
 
  // --------------------------------------------------
- // NEARBY BOX COLLIDERS
+ // NEARBY BUILDINGS
  // --------------------------------------------------
  const nearbyColliders =
  getNearbyColliders(
@@ -11057,7 +11585,7 @@ function moveVertical(
  }
 
  // --------------------------------------------------
- // LAND ON BUILDING BODY
+ // BUILDING TOP
  // --------------------------------------------------
  if (
  velocity.y <=
@@ -11131,7 +11659,7 @@ function moveVertical(
  }
 
  // --------------------------------------------------
- // CEILING / VERTICAL COLLISION
+ // CEILING
  // --------------------------------------------------
  damageFromImpact(
  velocity.y,
