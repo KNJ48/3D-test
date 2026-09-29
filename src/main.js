@@ -2120,26 +2120,517 @@ function updateAreaSystem() {
 // ==================================================
 // WORLD LISTS
 // ==================================================
-/*
- * colliders自体は互換性のため残す。
- *
- * ただし通常のプレイヤー衝突判定では
- * 全件走査しない。
- */
 const colliders =
  [];
 
-/*
- * 旧通常Mesh用。
- *
- * 家はInstancedMeshへ移行するが、
- * 巨人・木・壁などとの互換性のため残す。
- */
 const anchorTargets =
  [];
 
 const titanAttackTargets =
  [];
+
+// ==================================================
+// COLLISION SPATIAL INDEX
+// ==================================================
+const COLLISION_BASE_RANGE_METERS =
+ 50;
+
+const COLLISION_LOOK_AHEAD_SECONDS =
+ 0.5;
+
+// --------------------------------------------------
+// BOX COLLIDER INDEX
+// --------------------------------------------------
+const colliderChunkIndex =
+ new Map();
+
+// --------------------------------------------------
+// ROOF COLLIDER INDEX
+// --------------------------------------------------
+/*
+ * Box3では表現できない
+ * 切妻屋根専用Collider。
+ */
+const roofColliderChunkIndex =
+ new Map();
+
+// --------------------------------------------------
+// KEY
+// --------------------------------------------------
+function getColliderChunkKey(
+ chunkX,
+ chunkZ
+) {
+ return (
+ `${chunkX},${chunkZ}`
+ );
+}
+
+// --------------------------------------------------
+// REGISTER BOX COLLIDER
+// --------------------------------------------------
+function registerCollider(
+ box
+) {
+ if (
+ !box
+ ) {
+ return;
+ }
+
+ colliders.push(
+ box
+ );
+
+ const center =
+ new THREE.Vector3();
+
+ box.getCenter(
+ center
+ );
+
+ const chunkX =
+ getChunkCoordinate(
+ center.x
+ );
+
+ const chunkZ =
+ getChunkCoordinate(
+ center.z
+ );
+
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ let set =
+ colliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ set =
+ new Set();
+
+ colliderChunkIndex.set(
+ key,
+ set
+ );
+ }
+
+ set.add(
+ box
+ );
+
+ box.userDataChunkX =
+ chunkX;
+
+ box.userDataChunkZ =
+ chunkZ;
+}
+
+// --------------------------------------------------
+// UNREGISTER BOX COLLIDER
+// --------------------------------------------------
+function unregisterCollider(
+ box
+) {
+ if (
+ !box
+ ) {
+ return;
+ }
+
+ removeArrayItem(
+ colliders,
+ box
+ );
+
+ const chunkX =
+ box.userDataChunkX;
+
+ const chunkZ =
+ box.userDataChunkZ;
+
+ if (
+ !Number.isFinite(
+ chunkX
+ ) ||
+ !Number.isFinite(
+ chunkZ
+ )
+ ) {
+ return;
+ }
+
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ const set =
+ colliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ return;
+ }
+
+ set.delete(
+ box
+ );
+
+ if (
+ set.size ===
+ 0
+ ) {
+ colliderChunkIndex.delete(
+ key
+ );
+ }
+}
+
+// --------------------------------------------------
+// REGISTER ROOF COLLIDER
+// --------------------------------------------------
+function registerRoofCollider(
+ roof
+) {
+ if (
+ !roof
+ ) {
+ return;
+ }
+
+ const chunkX =
+ getChunkCoordinate(
+ roof.x
+ );
+
+ const chunkZ =
+ getChunkCoordinate(
+ roof.z
+ );
+
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ let set =
+ roofColliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ set =
+ new Set();
+
+ roofColliderChunkIndex.set(
+ key,
+ set
+ );
+ }
+
+ roof.chunkX =
+ chunkX;
+
+ roof.chunkZ =
+ chunkZ;
+
+ set.add(
+ roof
+ );
+}
+
+// --------------------------------------------------
+// UNREGISTER ROOF COLLIDER
+// --------------------------------------------------
+function unregisterRoofCollider(
+ roof
+) {
+ if (
+ !roof
+ ) {
+ return;
+ }
+
+ const key =
+ getColliderChunkKey(
+ roof.chunkX,
+ roof.chunkZ
+ );
+
+ const set =
+ roofColliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ return;
+ }
+
+ set.delete(
+ roof
+ );
+
+ if (
+ set.size ===
+ 0
+ ) {
+ roofColliderChunkIndex.delete(
+ key
+ );
+ }
+}
+
+// --------------------------------------------------
+// COLLISION RANGE
+// --------------------------------------------------
+function getCollisionRangeUnits() {
+ const speedMetersPerSecond =
+ velocity.length() *
+ METERS_PER_UNIT;
+
+ const rangeMeters =
+ COLLISION_BASE_RANGE_METERS +
+ speedMetersPerSecond *
+ COLLISION_LOOK_AHEAD_SECONDS;
+
+ return (
+ rangeMeters /
+ METERS_PER_UNIT
+ );
+}
+
+// --------------------------------------------------
+// NEARBY BOX COLLIDERS
+// --------------------------------------------------
+function getNearbyColliders(
+ position
+) {
+ const output =
+ [];
+
+ const range =
+ getCollisionRangeUnits();
+
+ const minChunkX =
+ getChunkCoordinate(
+ position.x -
+ range
+ );
+
+ const maxChunkX =
+ getChunkCoordinate(
+ position.x +
+ range
+ );
+
+ const minChunkZ =
+ getChunkCoordinate(
+ position.z -
+ range
+ );
+
+ const maxChunkZ =
+ getChunkCoordinate(
+ position.z +
+ range
+ );
+
+ const rangeSquared =
+ range *
+ range;
+
+ for (
+ let chunkX =
+ minChunkX;
+ chunkX <=
+ maxChunkX;
+ chunkX++
+ ) {
+ for (
+ let chunkZ =
+ minChunkZ;
+ chunkZ <=
+ maxChunkZ;
+ chunkZ++
+ ) {
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ const set =
+ colliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ continue;
+ }
+
+ for (
+ const box
+ of set
+ ) {
+ const nearestX =
+ THREE.MathUtils.clamp(
+ position.x,
+ box.min.x,
+ box.max.x
+ );
+
+ const nearestZ =
+ THREE.MathUtils.clamp(
+ position.z,
+ box.min.z,
+ box.max.z
+ );
+
+ const dx =
+ position.x -
+ nearestX;
+
+ const dz =
+ position.z -
+ nearestZ;
+
+ if (
+ dx *
+ dx +
+ dz *
+ dz <=
+ rangeSquared
+ ) {
+ output.push(
+ box
+ );
+ }
+ }
+ }
+ }
+
+ return output;
+}
+
+// --------------------------------------------------
+// NEARBY ROOF COLLIDERS
+// --------------------------------------------------
+function getNearbyRoofColliders(
+ position
+) {
+ const output =
+ [];
+
+ const range =
+ getCollisionRangeUnits();
+
+ const minChunkX =
+ getChunkCoordinate(
+ position.x -
+ range
+ );
+
+ const maxChunkX =
+ getChunkCoordinate(
+ position.x +
+ range
+ );
+
+ const minChunkZ =
+ getChunkCoordinate(
+ position.z -
+ range
+ );
+
+ const maxChunkZ =
+ getChunkCoordinate(
+ position.z +
+ range
+ );
+
+ const rangeSquared =
+ range *
+ range;
+
+ for (
+ let chunkX =
+ minChunkX;
+ chunkX <=
+ maxChunkX;
+ chunkX++
+ ) {
+ for (
+ let chunkZ =
+ minChunkZ;
+ chunkZ <=
+ maxChunkZ;
+ chunkZ++
+ ) {
+ const key =
+ getColliderChunkKey(
+ chunkX,
+ chunkZ
+ );
+
+ const set =
+ roofColliderChunkIndex.get(
+ key
+ );
+
+ if (
+ !set
+ ) {
+ continue;
+ }
+
+ for (
+ const roof
+ of set
+ ) {
+ const dx =
+ position.x -
+ roof.x;
+
+ const dz =
+ position.z -
+ roof.z;
+
+ if (
+ dx *
+ dx +
+ dz *
+ dz <=
+ rangeSquared
+ ) {
+ output.push(
+ roof
+ );
+ }
+ }
+ }
+ }
+
+ return output;
+}
 
 // ==================================================
 // COLLISION SPATIAL INDEX
@@ -3164,7 +3655,16 @@ function createRoad(
 /*
  * HOUSE TEMPLATE 01
  *
- * GPU INSTANCED VERSION
+ * 3階建て木骨住宅
+ * 切妻屋根
+ *
+ * 描画:
+ * InstancedMesh
+ *
+ * 物理:
+ * Box Collider
+ * +
+ * Gable Roof Collider
  */
 
 // --------------------------------------------------
@@ -3173,11 +3673,14 @@ function createRoad(
 const HOUSE_TEMPLATE_01 = {
  widthMeters: 9,
  depthMeters: 11,
- wallHeightMeters: 9,
+
+ floorCount: 3,
+ floorHeightMeters: 3,
+
  roofHeightMeters: 4,
 
- windowWidthMeters: 1.45,
- windowHeightMeters: 1.85
+ roofOverhangMeters: 0.45,
+ roofThicknessMeters: 0.14
 };
 
 // --------------------------------------------------
@@ -3193,55 +3696,27 @@ const HOUSE_01_DEPTH =
  HOUSE_TEMPLATE_01.depthMeters
  );
 
-const HOUSE_01_HEIGHT =
+const HOUSE_01_FLOOR_HEIGHT =
  metersToUnits(
- HOUSE_TEMPLATE_01.wallHeightMeters
+ HOUSE_TEMPLATE_01.floorHeightMeters
  );
+
+const HOUSE_01_HEIGHT =
+ HOUSE_01_FLOOR_HEIGHT *
+ HOUSE_TEMPLATE_01.floorCount;
 
 const HOUSE_01_ROOF_HEIGHT =
  metersToUnits(
  HOUSE_TEMPLATE_01.roofHeightMeters
  );
 
-// --------------------------------------------------
-// SHARED MATERIALS
-// --------------------------------------------------
-const houseInstanceWallMaterial =
- new THREE.MeshStandardMaterial({
- map: houseWallTexture,
- color: 0xffffff,
- roughness: 0.9
- });
-
-const houseInstanceRoofMaterial =
- new THREE.MeshStandardMaterial({
- map: houseRoofTexture,
- color: 0xffffff,
- roughness: 0.88
- });
-
-const houseInstanceWindowMaterial =
- new THREE.MeshStandardMaterial({
- map: houseWindowTexture,
- color: 0xffffff,
- roughness: 0.55,
- side: THREE.DoubleSide
- });
-
-// --------------------------------------------------
-// SHARED GEOMETRY
-// --------------------------------------------------
-const houseInstanceBodyGeometry =
- new THREE.BoxGeometry(
- HOUSE_01_WIDTH,
- HOUSE_01_HEIGHT,
- HOUSE_01_DEPTH
- );
-
 const HOUSE_01_HALF_WIDTH =
  HOUSE_01_WIDTH /
  2;
 
+// --------------------------------------------------
+// ROOF
+// --------------------------------------------------
 const HOUSE_01_ROOF_ANGLE =
  Math.atan2(
  HOUSE_01_ROOF_HEIGHT,
@@ -3258,12 +3733,46 @@ const HOUSE_01_ROOF_SLOPE =
 
 const HOUSE_01_ROOF_OVERHANG =
  metersToUnits(
- 0.45
+ HOUSE_TEMPLATE_01
+ .roofOverhangMeters
  );
 
 const HOUSE_01_ROOF_THICKNESS =
  metersToUnits(
- 0.14
+ HOUSE_TEMPLATE_01
+ .roofThicknessMeters
+ );
+
+// --------------------------------------------------
+// MATERIALS
+// --------------------------------------------------
+const houseInstanceWallMaterial =
+ new THREE.MeshStandardMaterial({
+ map: houseWallTexture,
+ color: 0xffffff,
+ roughness: 0.9
+ });
+
+const houseInstanceRoofMaterial =
+ new THREE.MeshStandardMaterial({
+ map: houseRoofTexture,
+ color: 0xffffff,
+ roughness: 0.88
+ });
+
+// --------------------------------------------------
+// GEOMETRIES
+// --------------------------------------------------
+/*
+ * 1階分。
+ *
+ * これを3段積む。
+ */
+const houseInstanceFloorGeometry =
+ new THREE.BoxGeometry(
+ HOUSE_01_WIDTH,
+ HOUSE_01_FLOOR_HEIGHT,
+ HOUSE_01_DEPTH
  );
 
 const houseInstanceRoofGeometry =
@@ -3276,16 +3785,6 @@ const houseInstanceRoofGeometry =
  2
  );
 
-const houseInstanceWindowGeometry =
- new THREE.PlaneGeometry(
- metersToUnits(
- HOUSE_TEMPLATE_01.windowWidthMeters
- ),
- metersToUnits(
- HOUSE_TEMPLATE_01.windowHeightMeters
- )
-);
-
 // --------------------------------------------------
 // TEMP OBJECT
 // --------------------------------------------------
@@ -3293,7 +3792,7 @@ const houseInstanceDummy =
  new THREE.Object3D();
 
 // --------------------------------------------------
-// CREATE HOUSE COLLIDER
+// BODY COLLIDER
 // --------------------------------------------------
 function createHouseTemplate01Collider(
  descriptor
@@ -3316,14 +3815,6 @@ function createHouseTemplate01Collider(
  )
  );
 
- /*
-  * Colliderは今のBox3物理と互換にする。
-  *
-  * 家の回転を考慮して
-  * BoxGeometryから一度だけ生成する。
-  *
-  * 描画Meshとは完全に独立。
-  */
  const object =
  new THREE.Object3D();
 
@@ -3344,9 +3835,6 @@ function createHouseTemplate01Collider(
  );
 
  const box =
- new THREE.Box3();
-
- const localBox =
  new THREE.Box3(
  new THREE.Vector3(
  -HOUSE_01_WIDTH /
@@ -3366,10 +3854,6 @@ function createHouseTemplate01Collider(
  )
  );
 
- box.copy(
- localBox
- );
-
  box.applyMatrix4(
  object.matrixWorld
  );
@@ -3378,7 +3862,56 @@ function createHouseTemplate01Collider(
 }
 
 // --------------------------------------------------
-// BUILD CHUNK INSTANCES
+// ROOF COLLIDER
+// --------------------------------------------------
+function createHouseTemplate01RoofCollider(
+ descriptor
+) {
+ const terrainY =
+ metersToUnits(
+ getTerrainHeightMeters(
+ descriptor.xMeters,
+ descriptor.zMeters
+ )
+ );
+
+ return {
+ type:
+ "gable-roof",
+
+ x:
+ metersToUnits(
+ descriptor.xMeters
+ ),
+
+ z:
+ metersToUnits(
+ descriptor.zMeters
+ ),
+
+ rotation:
+ descriptor.rotation ??
+ 0,
+
+ halfWidth:
+ HOUSE_01_HALF_WIDTH,
+
+ halfDepth:
+ HOUSE_01_DEPTH /
+ 2 +
+ HOUSE_01_ROOF_OVERHANG,
+
+ baseY:
+ terrainY +
+ HOUSE_01_HEIGHT,
+
+ height:
+ HOUSE_01_ROOF_HEIGHT
+ };
+}
+
+// --------------------------------------------------
+// CREATE CHUNK INSTANCES
 // --------------------------------------------------
 function createHouseTemplate01Instances(
  descriptors,
@@ -3402,26 +3935,31 @@ function createHouseTemplate01Instances(
  houses.length;
 
  // ------------------------------------------------
- // BODY
+ // FLOORS
  // ------------------------------------------------
- const bodies =
+ const floor1 =
  new THREE.InstancedMesh(
- houseInstanceBodyGeometry,
+ houseInstanceFloorGeometry,
  houseInstanceWallMaterial,
  count
  );
 
- bodies.castShadow =
- false;
+ const floor2 =
+ new THREE.InstancedMesh(
+ houseInstanceFloorGeometry,
+ houseInstanceWallMaterial,
+ count
+ );
 
- bodies.receiveShadow =
- true;
-
- bodies.frustumCulled =
- true;
+ const floor3 =
+ new THREE.InstancedMesh(
+ houseInstanceFloorGeometry,
+ houseInstanceWallMaterial,
+ count
+ );
 
  // ------------------------------------------------
- // ROOF LEFT
+ // ROOFS
  // ------------------------------------------------
  const leftRoofs =
  new THREE.InstancedMesh(
@@ -3430,15 +3968,6 @@ function createHouseTemplate01Instances(
  count
  );
 
- leftRoofs.castShadow =
- false;
-
- leftRoofs.receiveShadow =
- true;
-
- // ------------------------------------------------
- // ROOF RIGHT
- // ------------------------------------------------
  const rightRoofs =
  new THREE.InstancedMesh(
  houseInstanceRoofGeometry,
@@ -3446,11 +3975,28 @@ function createHouseTemplate01Instances(
  count
  );
 
- rightRoofs.castShadow =
+ // ------------------------------------------------
+ // SHADOWS
+ // ------------------------------------------------
+ for (
+ const mesh
+ of [
+ floor1,
+ floor2,
+ floor3,
+ leftRoofs,
+ rightRoofs
+ ]
+ ) {
+ /*
+  * 王都でのShadow負荷を抑える。
+  */
+ mesh.castShadow =
  false;
 
- rightRoofs.receiveShadow =
+ mesh.receiveShadow =
  true;
+ }
 
  // ------------------------------------------------
  // INSTANCES
@@ -3488,13 +4034,13 @@ function createHouseTemplate01Instances(
  0;
 
  // ------------------------------------------------
- // BODY MATRIX
+ // FLOOR 1
  // ------------------------------------------------
  houseInstanceDummy.position.set(
  x,
  terrainY +
- HOUSE_01_HEIGHT /
- 2,
+ HOUSE_01_FLOOR_HEIGHT *
+ 0.5,
  z
  );
 
@@ -3512,13 +4058,61 @@ function createHouseTemplate01Instances(
 
  houseInstanceDummy.updateMatrix();
 
- bodies.setMatrixAt(
+ floor1.setMatrixAt(
  i,
  houseInstanceDummy.matrix
  );
 
  // ------------------------------------------------
- // LEFT ROOF
+ // FLOOR 2
+ // ------------------------------------------------
+ houseInstanceDummy.position.set(
+ x,
+ terrainY +
+ HOUSE_01_FLOOR_HEIGHT *
+ 1.5,
+ z
+ );
+
+ houseInstanceDummy.rotation.set(
+ 0,
+ rotation,
+ 0
+ );
+
+ houseInstanceDummy.updateMatrix();
+
+ floor2.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
+ );
+
+ // ------------------------------------------------
+ // FLOOR 3
+ // ------------------------------------------------
+ houseInstanceDummy.position.set(
+ x,
+ terrainY +
+ HOUSE_01_FLOOR_HEIGHT *
+ 2.5,
+ z
+ );
+
+ houseInstanceDummy.rotation.set(
+ 0,
+ rotation,
+ 0
+ );
+
+ houseInstanceDummy.updateMatrix();
+
+ floor3.setMatrixAt(
+ i,
+ houseInstanceDummy.matrix
+ );
+
+ // ------------------------------------------------
+ // ROOF LEFT
  // ------------------------------------------------
  houseInstanceDummy.position.set(
  x,
@@ -3535,6 +4129,10 @@ function createHouseTemplate01Instances(
  HOUSE_01_ROOF_ANGLE
  );
 
+ /*
+  * offsetはWorldではなく
+  * 家のlocal X方向。
+  */
  houseInstanceDummy.translateX(
  -HOUSE_01_HALF_WIDTH /
  2
@@ -3548,7 +4146,7 @@ function createHouseTemplate01Instances(
  );
 
  // ------------------------------------------------
- // RIGHT ROOF
+ // ROOF RIGHT
  // ------------------------------------------------
  houseInstanceDummy.position.set(
  x,
@@ -3578,23 +4176,48 @@ function createHouseTemplate01Instances(
  );
 
  // ------------------------------------------------
- // PHYSICS
+ // BODY PHYSICS
  // ------------------------------------------------
- const collider =
+ const bodyCollider =
  createHouseTemplate01Collider(
  descriptor
  );
 
  registerCollider(
- collider
+ bodyCollider
  );
 
  chunkData.colliders.push(
- collider
+ bodyCollider
+ );
+
+ // ------------------------------------------------
+ // ROOF PHYSICS
+ // ------------------------------------------------
+ const roofCollider =
+ createHouseTemplate01RoofCollider(
+ descriptor
+ );
+
+ registerRoofCollider(
+ roofCollider
+ );
+
+ chunkData.roofColliders.push(
+ roofCollider
  );
  }
 
- bodies.instanceMatrix.needsUpdate =
+ // ------------------------------------------------
+ // MATRICES
+ // ------------------------------------------------
+ floor1.instanceMatrix.needsUpdate =
+ true;
+
+ floor2.instanceMatrix.needsUpdate =
+ true;
+
+ floor3.instanceMatrix.needsUpdate =
  true;
 
  leftRoofs.instanceMatrix.needsUpdate =
@@ -3607,49 +4230,34 @@ function createHouseTemplate01Instances(
  // ADD
  // ------------------------------------------------
  chunkData.group.add(
- bodies
- );
-
- chunkData.group.add(
- leftRoofs
- );
-
- chunkData.group.add(
+ floor1,
+ floor2,
+ floor3,
+ leftRoofs,
  rightRoofs
  );
 
  // ------------------------------------------------
- // ANCHOR
+ // ANCHORS
  // ------------------------------------------------
- /*
-  * THREE.RaycasterはInstancedMeshにも対応する。
-  *
-  * hit.instanceIdで
-  * どの家へ当たったか取得できる。
-  */
- anchorTargets.push(
- bodies
- );
-
- anchorTargets.push(
- leftRoofs
- );
-
- anchorTargets.push(
+ for (
+ const mesh
+ of [
+ floor1,
+ floor2,
+ floor3,
+ leftRoofs,
  rightRoofs
+ ]
+ ) {
+ anchorTargets.push(
+ mesh
  );
 
  chunkData.anchorTargets.push(
- bodies
+ mesh
  );
-
- chunkData.anchorTargets.push(
- leftRoofs
- );
-
- chunkData.anchorTargets.push(
- rightRoofs
- );
+ }
 }
 
 // ==================================================
@@ -10050,6 +10658,150 @@ function intersects(
  );
 }
 
+// --------------------------------------------------
+// ROOF HEIGHT
+// --------------------------------------------------
+function getRoofSurfaceHeight(
+ roof,
+ worldX,
+ worldZ
+) {
+ // ------------------------------------------------
+ // WORLD OFFSET
+ // ------------------------------------------------
+ const dx =
+ worldX -
+ roof.x;
+
+ const dz =
+ worldZ -
+ roof.z;
+
+ // ------------------------------------------------
+ // WORLD -> HOUSE LOCAL
+ // ------------------------------------------------
+ const cos =
+ Math.cos(
+ roof.rotation
+ );
+
+ const sin =
+ Math.sin(
+ roof.rotation
+ );
+
+ const localX =
+ dx *
+ cos -
+ dz *
+ sin;
+
+ const localZ =
+ dx *
+ sin +
+ dz *
+ cos;
+
+ // ------------------------------------------------
+ // BOUNDS
+ // ------------------------------------------------
+ if (
+ Math.abs(
+ localX
+ ) >
+ roof.halfWidth +
+ PLAYER_RADIUS
+ ) {
+ return null;
+ }
+
+ if (
+ Math.abs(
+ localZ
+ ) >
+ roof.halfDepth +
+ PLAYER_RADIUS
+ ) {
+ return null;
+ }
+
+ // ------------------------------------------------
+ // GABLE SLOPE
+ // ------------------------------------------------
+ /*
+  * localX = 0
+  *
+  * → 棟
+  * → roof.height
+  *
+  * localX = ±halfWidth
+  *
+  * → 軒
+  * → 0
+  */
+ const normalized =
+ 1 -
+ Math.abs(
+ localX
+ ) /
+ roof.halfWidth;
+
+ const heightFactor =
+ THREE.MathUtils.clamp(
+ normalized,
+ 0,
+ 1
+ );
+
+ return (
+ roof.baseY +
+ roof.height *
+ heightFactor
+ );
+}
+
+// --------------------------------------------------
+// COLLIDES
+// --------------------------------------------------
+function collides(
+ position
+) {
+ const nearby =
+ getNearbyColliders(
+ position
+ );
+
+ // ------------------------------------------------
+ // BOX OBJECTS
+ // ------------------------------------------------
+ for (
+ const box
+ of nearby
+ ) {
+ if (
+ intersects(
+ position,
+ box
+ )
+ ) {
+ return true;
+ }
+ }
+
+ // ------------------------------------------------
+ // WALL
+ // ------------------------------------------------
+ if (
+ collidesRingWall(
+ position
+ )
+ ) {
+ return true;
+ }
+
+ return false;
+}
+
 // ==================================================
 // RING WALL COLLISION
 // ==================================================
@@ -10392,7 +11144,7 @@ function moveVertical(
  delta;
 
  // --------------------------------------------------
- // TERRAIN HEIGHT
+ // TERRAIN
  // --------------------------------------------------
  const groundHeightMeters =
  getTerrainHeightMeters(
@@ -10412,7 +11164,7 @@ function moveVertical(
 
  // --------------------------------------------------
  // TERRAIN LANDING
- // --------------------------------------------------
+// --------------------------------------------------
  if (
  next.y <=
  playerGroundY
@@ -10443,6 +11195,93 @@ function moveVertical(
  true;
 
  return;
+ }
+
+ // --------------------------------------------------
+ // ROOF LANDING
+ // --------------------------------------------------
+ if (
+ velocity.y <=
+ 0
+ ) {
+ const roofs =
+ getNearbyRoofColliders(
+ camera.position
+ );
+
+ let highestRoofY =
+ -Infinity;
+
+ for (
+ const roof
+ of roofs
+ ) {
+ const roofY =
+ getRoofSurfaceHeight(
+ roof,
+ camera.position.x,
+ camera.position.z
+ );
+
+ if (
+ roofY ===
+ null
+ ) {
+ continue;
+ }
+
+ const oldFeet =
+ oldY -
+ PLAYER_HEIGHT;
+
+ const newFeet =
+ next.y -
+ PLAYER_HEIGHT;
+
+ /*
+  * このフレームで
+  * 屋根面を上から横切った場合。
+  */
+ if (
+ oldFeet >=
+ roofY &&
+ newFeet <=
+ roofY &&
+ roofY >
+ highestRoofY
+ ) {
+ highestRoofY =
+ roofY;
+ }
+ }
+
+ if (
+ highestRoofY >
+ -Infinity
+ ) {
+ damageFromImpact(
+ velocity.y,
+ "building"
+ );
+
+ if (
+ dead
+ ) {
+ return;
+ }
+
+ camera.position.y =
+ highestRoofY +
+ PLAYER_HEIGHT;
+
+ velocity.y =
+ 0;
+
+ grounded =
+ true;
+
+ return;
+ }
  }
 
  // --------------------------------------------------
@@ -10517,7 +11356,7 @@ function moveVertical(
  }
 
  // --------------------------------------------------
- // NEARBY COLLIDERS
+ // NEARBY BOX COLLIDERS
  // --------------------------------------------------
  const nearbyColliders =
  getNearbyColliders(
@@ -10542,7 +11381,7 @@ function moveVertical(
  }
 
  // --------------------------------------------------
- // LAND ON BUILDING
+ // LAND ON BUILDING BODY
  // --------------------------------------------------
  if (
  velocity.y <=
