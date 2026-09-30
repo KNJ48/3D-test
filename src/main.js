@@ -15775,23 +15775,19 @@ function getActiveGroundHeightMeters(
 // ==================================================
 // TUTORIAL GUIDE SYSTEM
 // ==================================================
+
 /*
- * 戦闘なし。
+ * PARADIS FULL TUTORIAL
  *
- * このTutorialでは
- *
- * 1. WALK
- * 2. JUMP
- * 3. GAS
- * 4. MANUAL ANCHOR
- * 5. WIRE PULL
- * 6. AUTO DUAL
- * 7. GOAL
- *
- * を順番に練習する。
- *
- * Tutorial終了後は
- * FREE TRAININGとしてそのまま遊べる。
+ * BASIC
+ * ↓
+ * 3D MANEUVER
+ * ↓
+ * INTERFACE
+ * ↓
+ * FINAL MANEUVER
+ * ↓
+ * FREE TRAINING
  */
 
 // ==================================================
@@ -15809,14 +15805,23 @@ let tutorialStepIndex =
 let tutorialStepTimer =
  0;
 
+let tutorialFinalCheckpointIndex =
+ 0;
+
+let tutorialMouseLookAmount =
+ 0;
+
+let tutorialMapWheelUsed =
+ false;
+
+let tutorialMapDragUsed =
+ false;
+
 const tutorialStepStartPosition =
  new THREE.Vector3();
 
 const tutorialPreviousPosition =
  new THREE.Vector3();
-
-let tutorialStepStartY =
- 0;
 
 let tutorialPreviousGrounded =
  true;
@@ -15824,8 +15829,14 @@ let tutorialPreviousGrounded =
 let tutorialPullDistance =
  0;
 
+let tutorialRopeLockTime =
+ 0;
+
+let tutorialGasBurstDetected =
+ false;
+
 // ==================================================
-// HUD
+// TUTORIAL HUD
 // ==================================================
 const tutorialGuideHUD =
  document.createElement(
@@ -15845,7 +15856,7 @@ Object.assign(
    "100px",
 
   width:
-   "370px",
+   "385px",
 
   display:
    "none",
@@ -15860,7 +15871,7 @@ Object.assign(
    "white",
 
   background:
-   "rgba(10,15,12,.90)",
+   "rgba(10,15,12,.91)",
 
   border:
    "1px solid rgba(190,210,190,.45)",
@@ -15878,7 +15889,7 @@ Object.assign(
    "0 1px 3px black",
 
   zIndex:
-   "2000",
+   "20000",
 
   pointerEvents:
    "auto"
@@ -15887,6 +15898,41 @@ Object.assign(
 
 document.body.appendChild(
  tutorialGuideHUD
+);
+
+// ==================================================
+// CHAPTER
+// ==================================================
+const tutorialGuideChapter =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideChapter.style,
+ {
+  color:
+   "#729572",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "11px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "2px",
+
+  marginBottom:
+   "4px"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialGuideChapter
 );
 
 // ==================================================
@@ -15901,7 +15947,7 @@ Object.assign(
  tutorialGuideProgress.style,
  {
   color:
-   "#8db58d",
+   "#9ac49a",
 
   fontFamily:
    "monospace",
@@ -15916,7 +15962,7 @@ Object.assign(
    "2px",
 
   marginBottom:
-   "9px"
+   "10px"
  }
 );
 
@@ -15965,7 +16011,7 @@ Object.assign(
    "#d4dbd4",
 
   fontSize:
-   "15px",
+   "14px",
 
   lineHeight:
    "1.65",
@@ -15980,7 +16026,7 @@ tutorialGuideHUD.appendChild(
 );
 
 // ==================================================
-// KEY HINT
+// KEY
 // ==================================================
 const tutorialGuideKey =
  document.createElement(
@@ -15997,13 +16043,13 @@ Object.assign(
    "9px 11px",
 
   color:
-   "#ffffff",
+   "#fff",
 
   background:
    "rgba(255,255,255,.07)",
 
   border:
-   "1px solid rgba(255,255,255,.12)",
+   "1px solid rgba(255,255,255,.14)",
 
   borderRadius:
    "3px",
@@ -16018,10 +16064,7 @@ Object.assign(
    "bold",
 
   textAlign:
-   "center",
-
-  letterSpacing:
-   "1px"
+   "center"
  }
 );
 
@@ -16044,7 +16087,7 @@ Object.assign(
    "18px",
 
   marginTop:
-   "13px",
+   "12px",
 
   color:
    "#ffdc87",
@@ -16062,7 +16105,7 @@ tutorialGuideHUD.appendChild(
 );
 
 // ==================================================
-// SKIP BUTTON
+// SKIP
 // ==================================================
 const tutorialSkipButton =
  document.createElement(
@@ -16079,7 +16122,7 @@ Object.assign(
    "100%",
 
   marginTop:
-   "16px",
+   "15px",
 
   padding:
    "10px",
@@ -16103,10 +16146,7 @@ Object.assign(
    "monospace",
 
   fontSize:
-   "12px",
-
-  letterSpacing:
-   "1px"
+   "12px"
  }
 );
 
@@ -16115,13 +16155,10 @@ tutorialGuideHUD.appendChild(
 );
 
 // ==================================================
-// WORLD BEACON
+// BEACON
 // ==================================================
 const tutorialBeacon =
  new THREE.Group();
-
-tutorialBeacon.name =
- "tutorial-guide-beacon";
 
 tutorialBeacon.visible =
  false;
@@ -16130,9 +16167,6 @@ scene.add(
  tutorialBeacon
 );
 
-// ==================================================
-// BEACON RING
-// ==================================================
 const tutorialBeaconRing =
  new THREE.Mesh(
   new THREE.TorusGeometry(
@@ -16168,9 +16202,6 @@ tutorialBeacon.add(
  tutorialBeaconRing
 );
 
-// ==================================================
-// BEACON CORE
-// ==================================================
 const tutorialBeaconCore =
  new THREE.Mesh(
   new THREE.SphereGeometry(
@@ -16192,15 +16223,12 @@ tutorialBeacon.add(
  tutorialBeaconCore
 );
 
-// ==================================================
-// BEACON COLUMN
-// ==================================================
 const tutorialBeaconColumn =
  new THREE.Mesh(
   new THREE.CylinderGeometry(
    0.13,
    0.13,
-   14,
+   16,
    8
   ),
 
@@ -16212,7 +16240,7 @@ const tutorialBeaconColumn =
     true,
 
    opacity:
-    0.45,
+    0.42,
 
    depthWrite:
     false,
@@ -16223,20 +16251,37 @@ const tutorialBeaconColumn =
  );
 
 tutorialBeaconColumn.position.y =
- 7;
+ 8;
 
 tutorialBeacon.add(
  tutorialBeaconColumn
 );
 
 // ==================================================
-// TUTORIAL STEPS
+// STEPS
 // ==================================================
 const TUTORIAL_STEPS = [
- // ------------------------------------------------
- // 1 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 1 — BASIC",
+
+  id:
+   "look",
+
+  title:
+   "視点操作",
+
+  key:
+   "MOVE MOUSE",
+
+  text:
+   "マウスで周囲を見渡せる。\nまず視点を動かして訓練場を確認しよう。"
+ },
+
+ {
+  chapter:
+   "CHAPTER 1 — BASIC",
+
   id:
    "move",
 
@@ -16247,13 +16292,13 @@ const TUTORIAL_STEPS = [
    "W  A  S  D",
 
   text:
-   "まずは移動してみよう。\nWASDで周囲を歩ける。"
+   "WASDで移動。\n黄色いチェックポイントまで進もう。"
  },
 
- // ------------------------------------------------
- // 2 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 1 — BASIC",
+
   id:
    "jump",
 
@@ -16264,13 +16309,13 @@ const TUTORIAL_STEPS = [
    "SPACE",
 
   text:
-   "SPACEでジャンプ。\n地上から飛び上がってみよう。"
+   "SPACEでジャンプ。\n前方の低い壁を越えよう。"
  },
 
- // ------------------------------------------------
- // 3 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 1 — BASIC",
+
   id:
    "gas",
 
@@ -16281,13 +16326,13 @@ const TUTORIAL_STEPS = [
    "AIRBORNE + SPACE HOLD",
 
   text:
-   "空中でSPACEを押し続けるとガスを使用する。\nガスを噴射して上昇してみよう。"
+   "空中でSPACEを押し続けるとガスを噴射する。\n高い障害物を越えて先へ進もう。"
  },
 
- // ------------------------------------------------
- // 4 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 2 — 3D MANEUVER",
+
   id:
    "anchor",
 
@@ -16295,16 +16340,16 @@ const TUTORIAL_STEPS = [
    "手動アンカー",
 
   key:
-   "Q : LEFT    R : RIGHT",
+   "Q : LEFT     R : RIGHT",
 
   text:
-   "画面中央で塔を狙おう。\nQで左、Rで右アンカーを発射できる。"
+   "画面中央で建物を狙いQまたはR。\n同じキーをもう一度押すと解除できる。"
  },
 
- // ------------------------------------------------
- // 5 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 2 — 3D MANEUVER",
+
   id:
    "pull",
 
@@ -16312,93 +16357,254 @@ const TUTORIAL_STEPS = [
    "ワイヤー牽引",
 
   key:
-   "ANCHOR + W",
+   "CONNECTED + W",
 
   text:
-   "アンカーが接続されたらW。\nガスを消費して接続地点へ加速する。"
+   "アンカー接続中にW。\nガスを使ってアンカー方向へ加速する。\n牽引を使って次のエリアまで進もう。"
  },
 
- // ------------------------------------------------
- // 6 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 2 — 3D MANEUVER",
+
+  id:
+   "rope-lock",
+
+  title:
+   "ロープ長固定",
+
+  key:
+   "SHIFT",
+
+  text:
+   "アンカー接続中にSHIFT。\n押した瞬間のロープ長を固定する。\n牽引せず、慣性を利用した旋回に使える。"
+ },
+
+ {
+  chapter:
+   "CHAPTER 2 — 3D MANEUVER",
+
   id:
    "auto",
 
   title:
-   "AUTO DUAL ANCHOR",
+   "AUTO ANCHOR",
 
   key:
    "RIGHT CLICK",
 
   text:
-   "右クリックで周囲のアンカー候補を自動探索する。\n左右の建物を使って立体機動してみよう。"
+   "右クリックで左右のアンカー候補を自動探索。\nもう一度右クリックするとアンカーを解除できる。"
  },
 
- // ------------------------------------------------
- // 7 / 7
- // ------------------------------------------------
  {
+  chapter:
+   "CHAPTER 2 — 3D MANEUVER",
+
   id:
-   "goal",
+   "burst",
+
+  title:
+   "ガスバースト",
+
+  key:
+   "AIRBORNE : SPACE × 2",
+
+  text:
+   "空中でSPACEを素早く2回。\n視線方向へ瞬間的に加速する。"
+ },
+
+ {
+  chapter:
+   "CHAPTER 3 — INTERFACE",
+
+  id:
+   "map",
+
+  title:
+   "ワールドマップ",
+
+  key:
+   "M",
+
+  text:
+   "Mでマップを開ける。\n現在位置や周辺を確認しよう。"
+ },
+
+ {
+  chapter:
+   "CHAPTER 3 — INTERFACE",
+
+  id:
+   "map-control",
+
+  title:
+   "マップ操作",
+
+  key:
+   "WHEEL : ZOOM     DRAG : MOVE",
+
+  text:
+   "ホイールでズーム。\n左ドラッグでマップを移動できる。\n確認できたらMまたはESCで閉じよう。"
+ },
+
+ {
+  chapter:
+   "CHAPTER 3 — INTERFACE",
+
+  id:
+   "system",
+
+  title:
+   "その他の機能",
+
+  key:
+   "T : TELEPORT     ESC : SETTINGS",
+
+  text:
+   "Tでテレポートメニュー。\nESCで設定画面。\n\n左クリックのブレードは現在OPTIONAL装備。移動には必要ない。"
+ },
+
+ {
+  chapter:
+   "FINAL — TRAINING CITY",
+
+  id:
+   "city",
+
+  title:
+   "最終訓練開始",
+
+  key:
+   "ENTER TRAINING CITY",
+
+  text:
+   "ここから操作指定はない。\n門を抜け、訓練都市へ進もう。"
+ },
+
+ {
+  chapter:
+   "FINAL — FREE MANEUVER",
+
+  id:
+   "final",
 
   title:
    "自由立体機動",
 
   key:
-   "REACH THE GOAL",
+   "CP 1 → CP 2 → CP 3 → GOAL",
 
   text:
-   "基本操作はすべて習得した。\n黄色いビーコンまで自由なルートで移動しよう。"
+   "これまで覚えた操作を自由に組み合わせよう。\n3つのチェックポイントを通過し、最終ゴールへ到達せよ。"
  }
 ];
 
 // ==================================================
-// FIND TUTORIAL OBJECT BY ROLE
+// CHECKPOINT HELPER
 // ==================================================
-function findTutorialDescriptorByRole(
- role
+function getTutorialCheckpoint(
+ id
 ) {
+ const checkpoints =
+  tutorialWorldData
+   ?.checkpoints;
+
  if (
-  !tutorialWorldData ||
   !Array.isArray(
-   tutorialWorldData.objects
+   checkpoints
   )
  ) {
   return null;
  }
 
  return (
-  tutorialWorldData
-   .objects
-   .find(
-    object =>
-     object.role ===
-     role
-   ) ||
+  checkpoints.find(
+   checkpoint =>
+    checkpoint.id ===
+    id
+  ) ||
   null
+ );
+}
+
+// ==================================================
+// DISTANCE TO CHECKPOINT
+// ==================================================
+function getTutorialDistanceMeters(
+ checkpoint
+) {
+ if (
+  !checkpoint
+ ) {
+  return Infinity;
+ }
+
+ return Math.hypot(
+  camera.position.x *
+   METERS_PER_UNIT -
+   checkpoint.xMeters,
+
+  camera.position.z *
+   METERS_PER_UNIT -
+   checkpoint.zMeters
+ );
+}
+
+// ==================================================
+// INSIDE CHECKPOINT
+// ==================================================
+function isInsideTutorialCheckpoint(
+ checkpoint
+) {
+ if (
+  !checkpoint
+ ) {
+  return false;
+ }
+
+ return (
+  getTutorialDistanceMeters(
+   checkpoint
+  ) <=
+  (
+   Number(
+    checkpoint.radiusMeters
+   ) ||
+   12
+  )
  );
 }
 
 // ==================================================
 // SET BEACON
 // ==================================================
-function setTutorialBeaconMeters(
- xMeters,
- zMeters,
- yMeters = 2
+function setTutorialBeaconToCheckpoint(
+ checkpoint
 ) {
+ if (
+  !checkpoint
+ ) {
+  tutorialBeacon.visible =
+   false;
+
+  return;
+ }
+
  tutorialBeacon.position.set(
   metersToUnits(
-   xMeters
+   checkpoint.xMeters
   ),
 
   metersToUnits(
-   yMeters
+   Number(
+    checkpoint.yMeters
+   ) ||
+   1
   ),
 
   metersToUnits(
-   zMeters
+   checkpoint.zMeters
   )
  );
 
@@ -16415,153 +16621,56 @@ function hideTutorialBeacon() {
 }
 
 // ==================================================
-// UPDATE STEP BEACON
+// STEP TARGET
 // ==================================================
-function updateTutorialStepBeacon() {
- const step =
-  TUTORIAL_STEPS[
-   tutorialStepIndex
+function getTutorialStepTarget(
+ step
+) {
+ if (!step) {
+  return null;
+ }
+
+ const targets = {
+  move:
+   "basic-move",
+
+  jump:
+   "jump-complete",
+
+  gas:
+   "gas-complete",
+
+  anchor:
+   "manual-anchor-zone",
+
+  pull:
+   "wire-pull-complete",
+
+  "rope-lock":
+   "rope-lock-zone",
+
+  auto:
+   "auto-zone",
+
+  burst:
+   "gas-burst-zone",
+
+  city:
+   "city-gate"
+ };
+
+ const id =
+  targets[
+   step.id
   ];
 
- if (
-  !step
- ) {
-  hideTutorialBeacon();
-
-  return;
+ if (!id) {
+  return null;
  }
 
- // ------------------------------------------------
- // MANUAL ANCHOR
- // ------------------------------------------------
- if (
-  step.id ===
-  "anchor"
- ) {
-  const tower =
-   findTutorialDescriptorByRole(
-    "tower"
-   );
-
-  if (
-   tower
-  ) {
-   const height =
-    Number(
-     tower.heightMeters
-    ) ||
-    20;
-
-   setTutorialBeaconMeters(
-    tower.xMeters,
-    tower.zMeters,
-    Math.min(
-     height *
-     0.7,
-     height -
-     2
-    )
-   );
-
-   return;
-  }
- }
-
- // ------------------------------------------------
- // WIRE PULL
- // ------------------------------------------------
- if (
-  step.id ===
-  "pull"
- ) {
-  /*
-   * 接続済みアンカーがあれば
-   * その地点を表示。
-   */
-  if (
-   leftAnchor.connected
-  ) {
-   tutorialBeacon.position.copy(
-    leftAnchor.point
-   );
-
-   tutorialBeacon.visible =
-    true;
-
-   return;
-  }
-
-  if (
-   rightAnchor.connected
-  ) {
-   tutorialBeacon.position.copy(
-    rightAnchor.point
-   );
-
-   tutorialBeacon.visible =
-    true;
-
-   return;
-  }
-
-  const tower =
-   findTutorialDescriptorByRole(
-    "tower"
-   );
-
-  if (
-   tower
-  ) {
-   setTutorialBeaconMeters(
-    tower.xMeters,
-    tower.zMeters,
-    15
-   );
-
-   return;
-  }
- }
-
- // ------------------------------------------------
- // AUTO DUAL AREA
- // ------------------------------------------------
- if (
-  step.id ===
-  "auto"
- ) {
-  setTutorialBeaconMeters(
-   0,
-   0,
-   8
-  );
-
-  return;
- }
-
- // ------------------------------------------------
- // GOAL
- // ------------------------------------------------
- if (
-  step.id ===
-  "goal"
- ) {
-  const goal =
-   tutorialWorldData?.goal;
-
-  if (
-   goal
-  ) {
-   setTutorialBeaconMeters(
-    goal.xMeters,
-    goal.zMeters,
-    1
-   );
-
-   return;
-  }
- }
-
- hideTutorialBeacon();
+ return getTutorialCheckpoint(
+  id
+ );
 }
 
 // ==================================================
@@ -16582,17 +16691,18 @@ function refreshTutorialGuideHUD() {
    tutorialStepIndex
   ];
 
- if (
-  !step
- ) {
+ if (!step) {
   return;
  }
 
  tutorialGuideHUD.style.display =
   "block";
 
+ tutorialGuideChapter.textContent =
+  step.chapter;
+
  tutorialGuideProgress.textContent =
-  `TUTORIAL ${
+  `STEP ${
    tutorialStepIndex +
    1
   } / ${
@@ -16613,6 +16723,21 @@ function refreshTutorialGuideHUD() {
 
  tutorialGuideStatus.style.color =
   "#ffdc87";
+
+ const target =
+  getTutorialStepTarget(
+   step
+  );
+
+ if (
+  target
+ ) {
+  setTutorialBeaconToCheckpoint(
+   target
+  );
+ } else {
+  hideTutorialBeacon();
+ }
 }
 
 // ==================================================
@@ -16632,6 +16757,21 @@ function beginTutorialStep(
  tutorialStepTimer =
   0;
 
+ tutorialPullDistance =
+  0;
+
+ tutorialRopeLockTime =
+  0;
+
+ tutorialGasBurstDetected =
+  false;
+
+ tutorialMapWheelUsed =
+  false;
+
+ tutorialMapDragUsed =
+  false;
+
  tutorialStepStartPosition.copy(
   camera.position
  );
@@ -16640,18 +16780,10 @@ function beginTutorialStep(
   camera.position
  );
 
- tutorialStepStartY =
-  camera.position.y;
-
  tutorialPreviousGrounded =
   grounded;
 
- tutorialPullDistance =
-  0;
-
  refreshTutorialGuideHUD();
-
- updateTutorialStepBeacon();
 }
 
 // ==================================================
@@ -16670,15 +16802,12 @@ function completeTutorialStep() {
  tutorialGuideStatus.style.color =
   "#81d58a";
 
- const nextStep =
+ const next =
   tutorialStepIndex +
   1;
 
- // =================================================
- // ALL COMPLETE
- // =================================================
  if (
-  nextStep >=
+  next >=
   TUTORIAL_STEPS.length
  ) {
   tutorialGuideActive =
@@ -16692,6 +16821,9 @@ function completeTutorialStep() {
   tutorialGuideHUD.style.display =
    "block";
 
+  tutorialGuideChapter.textContent =
+   "TRAINING COMPLETE";
+
   tutorialGuideProgress.textContent =
    "TUTORIAL COMPLETE";
 
@@ -16699,16 +16831,13 @@ function completeTutorialStep() {
    "FREE TRAINING";
 
   tutorialGuideText.textContent =
-   "チュートリアル完了。\nこのまま訓練場で自由に立体機動を練習できる。\n\nTIP: 左クリックでブレードを振ることもできる。";
+   "基本操作と立体機動の訓練は完了。\nこのまま自由に訓練場を使用できる。";
 
   tutorialGuideKey.textContent =
    "FREE TRAINING";
 
   tutorialGuideStatus.textContent =
-   "✓ TRAINING COMPLETE";
-
-  tutorialGuideStatus.style.color =
-   "#81d58a";
+   "✓ COMPLETE";
 
   tutorialSkipButton.textContent =
    "CLOSE GUIDE";
@@ -16720,22 +16849,19 @@ function completeTutorialStep() {
   return;
  }
 
- // =================================================
- // NEXT STEP
- // =================================================
  setTimeout(
   () => {
    if (
     currentGameMode ===
      GAME_MODES.TUTORIAL &&
-    !tutorialGuideCompleted
+    tutorialGuideActive
    ) {
     beginTutorialStep(
-     nextStep
+     next
     );
    }
   },
-  450
+  500
  );
 }
 
@@ -16743,11 +16869,17 @@ function completeTutorialStep() {
 // START GUIDE
 // ==================================================
 function startTutorialGuide() {
+ tutorialGuideActive =
+  true;
+
  tutorialGuideCompleted =
   false;
 
- tutorialGuideActive =
-  true;
+ tutorialFinalCheckpointIndex =
+  0;
+
+ tutorialMouseLookAmount =
+  0;
 
  tutorialSkipButton.textContent =
   "SKIP TUTORIAL";
@@ -16778,7 +16910,7 @@ function skipTutorialGuide() {
 }
 
 // ==================================================
-// SKIP / CLOSE BUTTON
+// SKIP BUTTON
 // ==================================================
 tutorialSkipButton.addEventListener(
  "click",
@@ -16797,7 +16929,64 @@ tutorialSkipButton.addEventListener(
 );
 
 // ==================================================
-// UPDATE GUIDE
+// REGISTER MOUSE LOOK
+// ==================================================
+document.addEventListener(
+ "mousemove",
+ event => {
+  if (
+   currentGameMode !==
+    GAME_MODES.TUTORIAL ||
+   !tutorialGuideActive
+  ) {
+   return;
+  }
+
+  tutorialMouseLookAmount +=
+   Math.abs(
+    event.movementX
+   ) +
+   Math.abs(
+    event.movementY
+   );
+ }
+);
+
+// ==================================================
+// TUTORIAL MAP INPUT FLAGS
+// ==================================================
+worldMapHUD.addEventListener(
+ "wheel",
+ () => {
+  if (
+   currentGameMode ===
+   GAME_MODES.TUTORIAL &&
+   worldMapOpen
+  ) {
+   tutorialMapWheelUsed =
+    true;
+  }
+ }
+);
+
+worldMapHUD.addEventListener(
+ "mousedown",
+ event => {
+  if (
+   currentGameMode ===
+    GAME_MODES.TUTORIAL &&
+   worldMapOpen &&
+   event.button ===
+    0
+  ) {
+   tutorialMapDragUsed =
+    true;
+  }
+ }
+);
+
+// ==================================================
+// UPDATE TUTORIAL GUIDE
 // ==================================================
 function updateTutorialGuide(
  delta
@@ -16809,15 +16998,15 @@ function updateTutorialGuide(
   return;
  }
 
- // =================================================
+ // ------------------------------------------------
  // BEACON ANIMATION
- // =================================================
+ // ------------------------------------------------
  if (
   tutorialBeacon.visible
  ) {
   tutorialBeacon.rotation.y +=
    delta *
-   0.9;
+   0.8;
 
   tutorialBeaconRing.rotation.z +=
    delta *
@@ -16836,9 +17025,6 @@ function updateTutorialGuide(
   );
  }
 
- // =================================================
- // GUIDE INACTIVE
- // =================================================
  if (
   !tutorialGuideActive
  ) {
@@ -16850,36 +17036,31 @@ function updateTutorialGuide(
    tutorialStepIndex
   ];
 
- if (
-  !step
- ) {
+ if (!step) {
   return;
  }
 
  tutorialStepTimer +=
   delta;
 
+ const target =
+  getTutorialStepTarget(
+   step
+  );
+
  // =================================================
- // 1. MOVE
+ // LOOK
  // =================================================
  if (
   step.id ===
-  "move"
+  "look"
  ) {
-  const distanceMeters =
-   camera.position.distanceTo(
-    tutorialStepStartPosition
-   ) *
-   METERS_PER_UNIT;
-
   tutorialGuideStatus.textContent =
-   `${distanceMeters.toFixed(
-    1
-   )} / 6.0 m`;
+   "周囲を見渡そう";
 
   if (
-   distanceMeters >=
-   6
+   tutorialMouseLookAmount >=
+   450
   ) {
    completeTutorialStep();
   }
@@ -16888,62 +17069,68 @@ function updateTutorialGuide(
  }
 
  // =================================================
- // 2. JUMP
+ // MOVE
+ // =================================================
+ if (
+  step.id ===
+  "move"
+ ) {
+  const distance =
+   getTutorialDistanceMeters(
+    target
+   );
+
+  tutorialGuideStatus.textContent =
+   `CHECKPOINT ${distance.toFixed(
+    0
+   )} m`;
+
+  if (
+   isInsideTutorialCheckpoint(
+    target
+   )
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // JUMP
  // =================================================
  if (
   step.id ===
   "jump"
  ) {
   tutorialGuideStatus.textContent =
-   "SPACEでジャンプ";
+   "壁を越えてCHECKPOINTへ";
 
   if (
-   tutorialPreviousGrounded &&
-   !grounded &&
-   velocity.y >
-   0
+   isInsideTutorialCheckpoint(
+    target
+   )
   ) {
    completeTutorialStep();
-
-   return;
   }
-
-  tutorialPreviousGrounded =
-   grounded;
 
   return;
  }
 
  // =================================================
- // 3. GAS
+ // GAS
  // =================================================
  if (
   step.id ===
   "gas"
  ) {
-  const riseMeters =
-   (
-    camera.position.y -
-    tutorialStepStartY
-   ) *
-   METERS_PER_UNIT;
-
-  const displayedRise =
-   Math.max(
-    0,
-    riseMeters
-   );
-
   tutorialGuideStatus.textContent =
-   `上昇 ${displayedRise.toFixed(
-    1
-   )} / 2.0 m`;
+   "GASを使って障害物を越えよう";
 
   if (
-   !grounded &&
-   keys["Space"] &&
-   riseMeters >=
-   2
+   isInsideTutorialCheckpoint(
+    target
+   )
   ) {
    completeTutorialStep();
   }
@@ -16952,7 +17139,7 @@ function updateTutorialGuide(
  }
 
  // =================================================
- // 4. MANUAL ANCHOR
+ // MANUAL ANCHOR
  // =================================================
  if (
   step.id ===
@@ -16962,26 +17149,20 @@ function updateTutorialGuide(
    leftAnchor.connected ||
    rightAnchor.connected;
 
-  if (
-   leftAnchor.state ===
-    "FIRING" ||
-   rightAnchor.state ===
-    "FIRING"
-  ) {
-   tutorialGuideStatus.textContent =
-    "ANCHOR FIRING...";
-  } else if (
+  tutorialGuideStatus.textContent =
    connected
-  ) {
-   tutorialGuideStatus.textContent =
-    "CONNECTED";
-  } else {
-   tutorialGuideStatus.textContent =
-    "黄色い目印の塔を狙って Q / R";
-  }
+    ? "ANCHOR CONNECTED"
+    : "塔を狙って Q / R";
 
   if (
-   connected
+   connected &&
+   (
+    !target ||
+    getTutorialDistanceMeters(
+     target
+    ) <
+    100
+   )
   ) {
    completeTutorialStep();
   }
@@ -16990,16 +17171,12 @@ function updateTutorialGuide(
  }
 
  // =================================================
- // 5. WIRE PULL
+ // WIRE PULL
  // =================================================
  if (
   step.id ===
   "pull"
  ) {
-  const connected =
-   leftAnchor.connected ||
-   rightAnchor.connected;
-
   const pulling =
    leftAnchor.pulling ||
    rightAnchor.pulling;
@@ -17021,42 +17198,17 @@ function updateTutorialGuide(
     moved;
   }
 
-  if (
-   !connected
-  ) {
-   tutorialGuideStatus.textContent =
-    "アンカーを接続し直そう";
-
-   /*
-    * アンカーを解除した場合は
-    * 塔をもう一度案内。
-    */
-   const tower =
-    findTutorialDescriptorByRole(
-     "tower"
-    );
-
-   if (
-    tower
-   ) {
-    setTutorialBeaconMeters(
-     tower.xMeters,
-     tower.zMeters,
-     15
-    );
-   }
-
-   return;
-  }
-
   tutorialGuideStatus.textContent =
-   `牽引 ${tutorialPullDistance.toFixed(
-    1
-   )} / 8.0 m`;
+   `PULL ${tutorialPullDistance.toFixed(
+    0
+   )} m`;
 
   if (
    tutorialPullDistance >=
-   8
+    20 &&
+   isInsideTutorialCheckpoint(
+    target
+   )
   ) {
    completeTutorialStep();
   }
@@ -17065,117 +17217,329 @@ function updateTutorialGuide(
  }
 
  // =================================================
- // 6. AUTO DUAL
+ // ROPE LOCK
+ // =================================================
+ if (
+  step.id ===
+  "rope-lock"
+ ) {
+  const shiftHeld =
+   keys["ShiftLeft"] ||
+   keys["ShiftRight"];
+
+  const anchorLocked =
+   leftAnchor.ropeLocked ||
+   rightAnchor.ropeLocked;
+
+  if (
+   shiftHeld &&
+   anchorLocked
+  ) {
+   tutorialRopeLockTime +=
+    delta;
+  } else {
+   tutorialRopeLockTime =
+    0;
+  }
+
+  tutorialGuideStatus.textContent =
+   `LOCK ${tutorialRopeLockTime.toFixed(
+    1
+   )} / 1.0 s`;
+
+  if (
+   tutorialRopeLockTime >=
+   1
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // AUTO
  // =================================================
  if (
   step.id ===
   "auto"
  ) {
-  const leftActive =
+  const left =
    leftAnchor.state !==
    "OFF";
 
-  const rightActive =
+  const right =
    rightAnchor.state !==
    "OFF";
 
-  const bothActive =
-   leftActive &&
-   rightActive;
-
-  const eitherActive =
-   leftActive ||
-   rightActive;
+  tutorialGuideStatus.textContent =
+   "RIGHT CLICK";
 
   if (
-   bothActive
+   left &&
+   right
   ) {
-   tutorialGuideStatus.textContent =
-    "DUAL ANCHOR";
-
    completeTutorialStep();
 
    return;
   }
 
   /*
-   * 現在のAUTO実装は、
-   * 適切な左右ペアがない場合
-   * 片側だけ発射することがある。
-   *
-   * Tutorialでそこで詰まらないよう、
-   * 右クリックAUTOによりアンカーが
-   * 発射された状態が少し続けば成功扱い。
+   * AUTOは条件次第で片側接続になるため
+   * 片側でも少し継続すれば成功。
    */
   if (
-   eitherActive &&
-   tutorialStepTimer >=
-   0.8
+   (
+    left ||
+    right
+   ) &&
+   tutorialStepTimer >
+    1
   ) {
-   tutorialGuideStatus.textContent =
-    "AUTO ANCHOR";
-
    completeTutorialStep();
-
-   return;
   }
-
-  tutorialGuideStatus.textContent =
-   "黄色いエリアで右クリック";
 
   return;
  }
 
  // =================================================
- // 7. GOAL
+ // GAS BURST
  // =================================================
  if (
   step.id ===
-  "goal"
+  "burst"
  ) {
-  const goal =
-   tutorialWorldData?.goal;
+  /*
+   * gasBurstCooldownが発生すれば
+   * Burstが成功している。
+   */
+  if (
+   gasBurstCooldown >
+   0
+  ) {
+   tutorialGasBurstDetected =
+    true;
+  }
+
+  tutorialGuideStatus.textContent =
+   "空中で SPACE × 2";
 
   if (
-   !goal
+   tutorialGasBurstDetected
   ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // WORLD MAP
+ // =================================================
+ if (
+  step.id ===
+  "map"
+ ) {
+  tutorialGuideStatus.textContent =
+   "MでMAPを開こう";
+
+  if (
+   worldMapOpen
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // MAP CONTROL
+ // =================================================
+ if (
+  step.id ===
+  "map-control"
+ ) {
+  tutorialGuideStatus.textContent =
+   `ZOOM ${
+    tutorialMapWheelUsed
+     ? "✓"
+     : "..."
+   }   DRAG ${
+    tutorialMapDragUsed
+     ? "✓"
+     : "..."
+   }`;
+
+  if (
+   tutorialMapWheelUsed &&
+   tutorialMapDragUsed
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // SYSTEM INFO
+ // =================================================
+ if (
+  step.id ===
+  "system"
+ ) {
+  /*
+   * 情報紹介ステップ。
+   * 読む時間だけ確保し、
+   * 操作を強制しない。
+   */
+  const remaining =
+   Math.max(
+    0,
+    4 -
+    tutorialStepTimer
+   );
+
+  tutorialGuideStatus.textContent =
+   `CONTINUE IN ${remaining.toFixed(
+    1
+   )}`;
+
+  if (
+   tutorialStepTimer >=
+   4
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // ENTER CITY
+ // =================================================
+ if (
+  step.id ===
+  "city"
+ ) {
+  const distance =
+   getTutorialDistanceMeters(
+    target
+   );
+
+  tutorialGuideStatus.textContent =
+   `CITY GATE ${distance.toFixed(
+    0
+   )} m`;
+
+  if (
+   isInsideTutorialCheckpoint(
+    target
+   )
+  ) {
+   tutorialFinalCheckpointIndex =
+    0;
+
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // FINAL
+ // =================================================
+ if (
+  step.id ===
+  "final"
+ ) {
+  const finalIds = [
+   "final-1",
+   "final-2",
+   "final-3"
+  ];
+
+  // ------------------------------------------------
+  // CHECKPOINTS
+  // ------------------------------------------------
+  if (
+   tutorialFinalCheckpointIndex <
+   finalIds.length
+  ) {
+   const checkpoint =
+    getTutorialCheckpoint(
+     finalIds[
+      tutorialFinalCheckpointIndex
+     ]
+    );
+
+   setTutorialBeaconToCheckpoint(
+    checkpoint
+   );
+
+   const distance =
+    getTutorialDistanceMeters(
+     checkpoint
+    );
+
    tutorialGuideStatus.textContent =
-    "GOAL DATA NOT FOUND";
+    `CP ${
+     tutorialFinalCheckpointIndex +
+     1
+    } / 3   ${distance.toFixed(
+     0
+    )} m`;
+
+   if (
+    isInsideTutorialCheckpoint(
+     checkpoint
+    )
+   ) {
+    tutorialFinalCheckpointIndex++;
+   }
 
    return;
   }
 
-  const playerXMeters =
-   camera.position.x *
-   METERS_PER_UNIT;
+  // ------------------------------------------------
+  // GOAL
+  // ------------------------------------------------
+  const goal =
+   tutorialWorldData
+    ?.goal;
 
-  const playerZMeters =
-   camera.position.z *
-   METERS_PER_UNIT;
+  if (!goal) {
+   return;
+  }
+
+  const goalCheckpoint = {
+   xMeters:
+    goal.xMeters,
+
+   zMeters:
+    goal.zMeters,
+
+   radiusMeters:
+    goal.radiusMeters
+  };
+
+  setTutorialBeaconToCheckpoint(
+   goalCheckpoint
+  );
 
   const distance =
-   Math.hypot(
-    playerXMeters -
-     goal.xMeters,
-
-    playerZMeters -
-     goal.zMeters
+   getTutorialDistanceMeters(
+    goalCheckpoint
    );
 
   tutorialGuideStatus.textContent =
-   `GOAL ${distance.toFixed(
+   `FINAL GOAL ${distance.toFixed(
     0
    )} m`;
 
-  const goalRadius =
-   Number(
-    goal.radiusMeters
-   ) ||
-   12;
-
   if (
-   distance <=
-   goalRadius
+   isInsideTutorialCheckpoint(
+    goalCheckpoint
+   )
   ) {
    completeTutorialStep();
   }
