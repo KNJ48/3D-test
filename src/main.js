@@ -15619,6 +15619,1416 @@ function getActiveGroundHeightMeters(
 }
 
 // ==================================================
+// TUTORIAL GUIDE SYSTEM
+// ==================================================
+/*
+ * 戦闘なし。
+ *
+ * このTutorialでは
+ *
+ * 1. WALK
+ * 2. JUMP
+ * 3. GAS
+ * 4. MANUAL ANCHOR
+ * 5. WIRE PULL
+ * 6. AUTO DUAL
+ * 7. GOAL
+ *
+ * を順番に練習する。
+ *
+ * Tutorial終了後は
+ * FREE TRAININGとしてそのまま遊べる。
+ */
+
+// ==================================================
+// STATE
+// ==================================================
+let tutorialGuideActive =
+ false;
+
+let tutorialGuideCompleted =
+ false;
+
+let tutorialStepIndex =
+ 0;
+
+let tutorialStepTimer =
+ 0;
+
+const tutorialStepStartPosition =
+ new THREE.Vector3();
+
+const tutorialPreviousPosition =
+ new THREE.Vector3();
+
+let tutorialStepStartY =
+ 0;
+
+let tutorialPreviousGrounded =
+ true;
+
+let tutorialPullDistance =
+ 0;
+
+// ==================================================
+// HUD
+// ==================================================
+const tutorialGuideHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideHUD.style,
+ {
+  position:
+   "fixed",
+
+  left:
+   "28px",
+
+  top:
+   "100px",
+
+  width:
+   "370px",
+
+  display:
+   "none",
+
+  padding:
+   "20px 22px",
+
+  boxSizing:
+   "border-box",
+
+  color:
+   "white",
+
+  background:
+   "rgba(10,15,12,.90)",
+
+  border:
+   "1px solid rgba(190,210,190,.45)",
+
+  borderLeft:
+   "4px solid #7eae7e",
+
+  borderRadius:
+   "5px",
+
+  fontFamily:
+   "Arial, sans-serif",
+
+  textShadow:
+   "0 1px 3px black",
+
+  zIndex:
+   "2000",
+
+  pointerEvents:
+   "auto"
+ }
+);
+
+document.body.appendChild(
+ tutorialGuideHUD
+);
+
+// ==================================================
+// PROGRESS
+// ==================================================
+const tutorialGuideProgress =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideProgress.style,
+ {
+  color:
+   "#8db58d",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "13px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "2px",
+
+  marginBottom:
+   "9px"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialGuideProgress
+);
+
+// ==================================================
+// TITLE
+// ==================================================
+const tutorialGuideTitle =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideTitle.style,
+ {
+  fontSize:
+   "21px",
+
+  fontWeight:
+   "bold",
+
+  marginBottom:
+   "9px"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialGuideTitle
+);
+
+// ==================================================
+// TEXT
+// ==================================================
+const tutorialGuideText =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideText.style,
+ {
+  color:
+   "#d4dbd4",
+
+  fontSize:
+   "15px",
+
+  lineHeight:
+   "1.65",
+
+  whiteSpace:
+   "pre-line"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialGuideText
+);
+
+// ==================================================
+// KEY HINT
+// ==================================================
+const tutorialGuideKey =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideKey.style,
+ {
+  marginTop:
+   "14px",
+
+  padding:
+   "9px 11px",
+
+  color:
+   "#ffffff",
+
+  background:
+   "rgba(255,255,255,.07)",
+
+  border:
+   "1px solid rgba(255,255,255,.12)",
+
+  borderRadius:
+   "3px",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "14px",
+
+  fontWeight:
+   "bold",
+
+  textAlign:
+   "center",
+
+  letterSpacing:
+   "1px"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialGuideKey
+);
+
+// ==================================================
+// STATUS
+// ==================================================
+const tutorialGuideStatus =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ tutorialGuideStatus.style,
+ {
+  minHeight:
+   "18px",
+
+  marginTop:
+   "13px",
+
+  color:
+   "#ffdc87",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "13px"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialGuideStatus
+);
+
+// ==================================================
+// SKIP BUTTON
+// ==================================================
+const tutorialSkipButton =
+ document.createElement(
+  "button"
+ );
+
+tutorialSkipButton.textContent =
+ "SKIP TUTORIAL";
+
+Object.assign(
+ tutorialSkipButton.style,
+ {
+  width:
+   "100%",
+
+  marginTop:
+   "16px",
+
+  padding:
+   "10px",
+
+  color:
+   "#bbb",
+
+  background:
+   "rgba(255,255,255,.06)",
+
+  border:
+   "1px solid #666",
+
+  borderRadius:
+   "3px",
+
+  cursor:
+   "pointer",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "12px",
+
+  letterSpacing:
+   "1px"
+ }
+);
+
+tutorialGuideHUD.appendChild(
+ tutorialSkipButton
+);
+
+// ==================================================
+// WORLD BEACON
+// ==================================================
+const tutorialBeacon =
+ new THREE.Group();
+
+tutorialBeacon.name =
+ "tutorial-guide-beacon";
+
+tutorialBeacon.visible =
+ false;
+
+scene.add(
+ tutorialBeacon
+);
+
+// ==================================================
+// BEACON RING
+// ==================================================
+const tutorialBeaconRing =
+ new THREE.Mesh(
+  new THREE.TorusGeometry(
+   2.5,
+   0.16,
+   8,
+   32
+  ),
+
+  new THREE.MeshBasicMaterial({
+   color:
+    0xffd65c,
+
+   transparent:
+    true,
+
+   opacity:
+    0.95,
+
+   depthWrite:
+    false,
+
+   toneMapped:
+    false
+  })
+ );
+
+tutorialBeaconRing.rotation.x =
+ Math.PI /
+ 2;
+
+tutorialBeacon.add(
+ tutorialBeaconRing
+);
+
+// ==================================================
+// BEACON CORE
+// ==================================================
+const tutorialBeaconCore =
+ new THREE.Mesh(
+  new THREE.SphereGeometry(
+   0.45,
+   12,
+   8
+  ),
+
+  new THREE.MeshBasicMaterial({
+   color:
+    0xffffff,
+
+   toneMapped:
+    false
+  })
+ );
+
+tutorialBeacon.add(
+ tutorialBeaconCore
+);
+
+// ==================================================
+// BEACON COLUMN
+// ==================================================
+const tutorialBeaconColumn =
+ new THREE.Mesh(
+  new THREE.CylinderGeometry(
+   0.13,
+   0.13,
+   14,
+   8
+  ),
+
+  new THREE.MeshBasicMaterial({
+   color:
+    0xffd65c,
+
+   transparent:
+    true,
+
+   opacity:
+    0.45,
+
+   depthWrite:
+    false,
+
+   toneMapped:
+    false
+  })
+ );
+
+tutorialBeaconColumn.position.y =
+ 7;
+
+tutorialBeacon.add(
+ tutorialBeaconColumn
+);
+
+// ==================================================
+// TUTORIAL STEPS
+// ==================================================
+const TUTORIAL_STEPS = [
+ // ------------------------------------------------
+ // 1 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "move",
+
+  title:
+   "基本移動",
+
+  key:
+   "W  A  S  D",
+
+  text:
+   "まずは移動してみよう。\nWASDで周囲を歩ける。"
+ },
+
+ // ------------------------------------------------
+ // 2 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "jump",
+
+  title:
+   "ジャンプ",
+
+  key:
+   "SPACE",
+
+  text:
+   "SPACEでジャンプ。\n地上から飛び上がってみよう。"
+ },
+
+ // ------------------------------------------------
+ // 3 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "gas",
+
+  title:
+   "ガス飛行",
+
+  key:
+   "AIRBORNE + SPACE HOLD",
+
+  text:
+   "空中でSPACEを押し続けるとガスを使用する。\nガスを噴射して上昇してみよう。"
+ },
+
+ // ------------------------------------------------
+ // 4 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "anchor",
+
+  title:
+   "手動アンカー",
+
+  key:
+   "Q : LEFT    R : RIGHT",
+
+  text:
+   "画面中央で塔を狙おう。\nQで左、Rで右アンカーを発射できる。"
+ },
+
+ // ------------------------------------------------
+ // 5 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "pull",
+
+  title:
+   "ワイヤー牽引",
+
+  key:
+   "ANCHOR + W",
+
+  text:
+   "アンカーが接続されたらW。\nガスを消費して接続地点へ加速する。"
+ },
+
+ // ------------------------------------------------
+ // 6 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "auto",
+
+  title:
+   "AUTO DUAL ANCHOR",
+
+  key:
+   "RIGHT CLICK",
+
+  text:
+   "右クリックで周囲のアンカー候補を自動探索する。\n左右の建物を使って立体機動してみよう。"
+ },
+
+ // ------------------------------------------------
+ // 7 / 7
+ // ------------------------------------------------
+ {
+  id:
+   "goal",
+
+  title:
+   "自由立体機動",
+
+  key:
+   "REACH THE GOAL",
+
+  text:
+   "基本操作はすべて習得した。\n黄色いビーコンまで自由なルートで移動しよう。"
+ }
+];
+
+// ==================================================
+// FIND TUTORIAL OBJECT BY ROLE
+// ==================================================
+function findTutorialDescriptorByRole(
+ role
+) {
+ if (
+  !tutorialWorldData ||
+  !Array.isArray(
+   tutorialWorldData.objects
+  )
+ ) {
+  return null;
+ }
+
+ return (
+  tutorialWorldData
+   .objects
+   .find(
+    object =>
+     object.role ===
+     role
+   ) ||
+  null
+ );
+}
+
+// ==================================================
+// SET BEACON
+// ==================================================
+function setTutorialBeaconMeters(
+ xMeters,
+ zMeters,
+ yMeters = 2
+) {
+ tutorialBeacon.position.set(
+  metersToUnits(
+   xMeters
+  ),
+
+  metersToUnits(
+   yMeters
+  ),
+
+  metersToUnits(
+   zMeters
+  )
+ );
+
+ tutorialBeacon.visible =
+  true;
+}
+
+// ==================================================
+// HIDE BEACON
+// ==================================================
+function hideTutorialBeacon() {
+ tutorialBeacon.visible =
+  false;
+}
+
+// ==================================================
+// UPDATE STEP BEACON
+// ==================================================
+function updateTutorialStepBeacon() {
+ const step =
+  TUTORIAL_STEPS[
+   tutorialStepIndex
+  ];
+
+ if (
+  !step
+ ) {
+  hideTutorialBeacon();
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // MANUAL ANCHOR
+ // ------------------------------------------------
+ if (
+  step.id ===
+  "anchor"
+ ) {
+  const tower =
+   findTutorialDescriptorByRole(
+    "tower"
+   );
+
+  if (
+   tower
+  ) {
+   const height =
+    Number(
+     tower.heightMeters
+    ) ||
+    20;
+
+   setTutorialBeaconMeters(
+    tower.xMeters,
+    tower.zMeters,
+    Math.min(
+     height *
+     0.7,
+     height -
+     2
+    )
+   );
+
+   return;
+  }
+ }
+
+ // ------------------------------------------------
+ // WIRE PULL
+ // ------------------------------------------------
+ if (
+  step.id ===
+  "pull"
+ ) {
+  /*
+   * 接続済みアンカーがあれば
+   * その地点を表示。
+   */
+  if (
+   leftAnchor.connected
+  ) {
+   tutorialBeacon.position.copy(
+    leftAnchor.point
+   );
+
+   tutorialBeacon.visible =
+    true;
+
+   return;
+  }
+
+  if (
+   rightAnchor.connected
+  ) {
+   tutorialBeacon.position.copy(
+    rightAnchor.point
+   );
+
+   tutorialBeacon.visible =
+    true;
+
+   return;
+  }
+
+  const tower =
+   findTutorialDescriptorByRole(
+    "tower"
+   );
+
+  if (
+   tower
+  ) {
+   setTutorialBeaconMeters(
+    tower.xMeters,
+    tower.zMeters,
+    15
+   );
+
+   return;
+  }
+ }
+
+ // ------------------------------------------------
+ // AUTO DUAL AREA
+ // ------------------------------------------------
+ if (
+  step.id ===
+  "auto"
+ ) {
+  setTutorialBeaconMeters(
+   0,
+   0,
+   8
+  );
+
+  return;
+ }
+
+ // ------------------------------------------------
+ // GOAL
+ // ------------------------------------------------
+ if (
+  step.id ===
+  "goal"
+ ) {
+  const goal =
+   tutorialWorldData?.goal;
+
+  if (
+   goal
+  ) {
+   setTutorialBeaconMeters(
+    goal.xMeters,
+    goal.zMeters,
+    1
+   );
+
+   return;
+  }
+ }
+
+ hideTutorialBeacon();
+}
+
+// ==================================================
+// REFRESH HUD
+// ==================================================
+function refreshTutorialGuideHUD() {
+ if (
+  !tutorialGuideActive
+ ) {
+  tutorialGuideHUD.style.display =
+   "none";
+
+  return;
+ }
+
+ const step =
+  TUTORIAL_STEPS[
+   tutorialStepIndex
+  ];
+
+ if (
+  !step
+ ) {
+  return;
+ }
+
+ tutorialGuideHUD.style.display =
+  "block";
+
+ tutorialGuideProgress.textContent =
+  `TUTORIAL ${
+   tutorialStepIndex +
+   1
+  } / ${
+   TUTORIAL_STEPS.length
+  }`;
+
+ tutorialGuideTitle.textContent =
+  step.title;
+
+ tutorialGuideText.textContent =
+  step.text;
+
+ tutorialGuideKey.textContent =
+  step.key;
+
+ tutorialGuideStatus.textContent =
+  "";
+
+ tutorialGuideStatus.style.color =
+  "#ffdc87";
+}
+
+// ==================================================
+// BEGIN STEP
+// ==================================================
+function beginTutorialStep(
+ index
+) {
+ tutorialStepIndex =
+  THREE.MathUtils.clamp(
+   index,
+   0,
+   TUTORIAL_STEPS.length -
+   1
+  );
+
+ tutorialStepTimer =
+  0;
+
+ tutorialStepStartPosition.copy(
+  camera.position
+ );
+
+ tutorialPreviousPosition.copy(
+  camera.position
+ );
+
+ tutorialStepStartY =
+  camera.position.y;
+
+ tutorialPreviousGrounded =
+  grounded;
+
+ tutorialPullDistance =
+  0;
+
+ refreshTutorialGuideHUD();
+
+ updateTutorialStepBeacon();
+}
+
+// ==================================================
+// COMPLETE STEP
+// ==================================================
+function completeTutorialStep() {
+ if (
+  !tutorialGuideActive
+ ) {
+  return;
+ }
+
+ tutorialGuideStatus.textContent =
+  "✓ COMPLETE";
+
+ tutorialGuideStatus.style.color =
+  "#81d58a";
+
+ const nextStep =
+  tutorialStepIndex +
+  1;
+
+ // =================================================
+ // ALL COMPLETE
+ // =================================================
+ if (
+  nextStep >=
+  TUTORIAL_STEPS.length
+ ) {
+  tutorialGuideActive =
+   false;
+
+  tutorialGuideCompleted =
+   true;
+
+  hideTutorialBeacon();
+
+  tutorialGuideHUD.style.display =
+   "block";
+
+  tutorialGuideProgress.textContent =
+   "TUTORIAL COMPLETE";
+
+  tutorialGuideTitle.textContent =
+   "FREE TRAINING";
+
+  tutorialGuideText.textContent =
+   "チュートリアル完了。\nこのまま訓練場で自由に立体機動を練習できる。\n\nTIP: 左クリックでブレードを振ることもできる。";
+
+  tutorialGuideKey.textContent =
+   "FREE TRAINING";
+
+  tutorialGuideStatus.textContent =
+   "✓ TRAINING COMPLETE";
+
+  tutorialGuideStatus.style.color =
+   "#81d58a";
+
+  tutorialSkipButton.textContent =
+   "CLOSE GUIDE";
+
+  showMessage(
+   "TUTORIAL COMPLETE"
+  );
+
+  return;
+ }
+
+ // =================================================
+ // NEXT STEP
+ // =================================================
+ setTimeout(
+  () => {
+   if (
+    currentGameMode ===
+     GAME_MODES.TUTORIAL &&
+    !tutorialGuideCompleted
+   ) {
+    beginTutorialStep(
+     nextStep
+    );
+   }
+  },
+  450
+ );
+}
+
+// ==================================================
+// START GUIDE
+// ==================================================
+function startTutorialGuide() {
+ tutorialGuideCompleted =
+  false;
+
+ tutorialGuideActive =
+  true;
+
+ tutorialSkipButton.textContent =
+  "SKIP TUTORIAL";
+
+ beginTutorialStep(
+  0
+ );
+}
+
+// ==================================================
+// SKIP GUIDE
+// ==================================================
+function skipTutorialGuide() {
+ tutorialGuideActive =
+  false;
+
+ tutorialGuideCompleted =
+  true;
+
+ tutorialGuideHUD.style.display =
+  "none";
+
+ hideTutorialBeacon();
+
+ showMessage(
+  "FREE TRAINING"
+ );
+}
+
+// ==================================================
+// SKIP / CLOSE BUTTON
+// ==================================================
+tutorialSkipButton.addEventListener(
+ "click",
+ () => {
+  if (
+   tutorialGuideCompleted
+  ) {
+   tutorialGuideHUD.style.display =
+    "none";
+
+   return;
+  }
+
+  skipTutorialGuide();
+ }
+);
+
+// ==================================================
+// UPDATE GUIDE
+// ==================================================
+function updateTutorialGuide(
+ delta
+) {
+ if (
+  currentGameMode !==
+   GAME_MODES.TUTORIAL
+ ) {
+  return;
+ }
+
+ // =================================================
+ // BEACON ANIMATION
+ // =================================================
+ if (
+  tutorialBeacon.visible
+ ) {
+  tutorialBeacon.rotation.y +=
+   delta *
+   0.9;
+
+  tutorialBeaconRing.rotation.z +=
+   delta *
+   0.8;
+
+  const pulse =
+   1 +
+   Math.sin(
+    performance.now() *
+    0.004
+   ) *
+   0.12;
+
+  tutorialBeaconCore.scale.setScalar(
+   pulse
+  );
+ }
+
+ // =================================================
+ // GUIDE INACTIVE
+ // =================================================
+ if (
+  !tutorialGuideActive
+ ) {
+  return;
+ }
+
+ const step =
+  TUTORIAL_STEPS[
+   tutorialStepIndex
+  ];
+
+ if (
+  !step
+ ) {
+  return;
+ }
+
+ tutorialStepTimer +=
+  delta;
+
+ // =================================================
+ // 1. MOVE
+ // =================================================
+ if (
+  step.id ===
+  "move"
+ ) {
+  const distanceMeters =
+   camera.position.distanceTo(
+    tutorialStepStartPosition
+   ) *
+   METERS_PER_UNIT;
+
+  tutorialGuideStatus.textContent =
+   `${distanceMeters.toFixed(
+    1
+   )} / 6.0 m`;
+
+  if (
+   distanceMeters >=
+   6
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // 2. JUMP
+ // =================================================
+ if (
+  step.id ===
+  "jump"
+ ) {
+  tutorialGuideStatus.textContent =
+   "SPACEでジャンプ";
+
+  if (
+   tutorialPreviousGrounded &&
+   !grounded &&
+   velocity.y >
+   0
+  ) {
+   completeTutorialStep();
+
+   return;
+  }
+
+  tutorialPreviousGrounded =
+   grounded;
+
+  return;
+ }
+
+ // =================================================
+ // 3. GAS
+ // =================================================
+ if (
+  step.id ===
+  "gas"
+ ) {
+  const riseMeters =
+   (
+    camera.position.y -
+    tutorialStepStartY
+   ) *
+   METERS_PER_UNIT;
+
+  const displayedRise =
+   Math.max(
+    0,
+    riseMeters
+   );
+
+  tutorialGuideStatus.textContent =
+   `上昇 ${displayedRise.toFixed(
+    1
+   )} / 2.0 m`;
+
+  if (
+   !grounded &&
+   keys["Space"] &&
+   riseMeters >=
+   2
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // 4. MANUAL ANCHOR
+ // =================================================
+ if (
+  step.id ===
+  "anchor"
+ ) {
+  const connected =
+   leftAnchor.connected ||
+   rightAnchor.connected;
+
+  if (
+   leftAnchor.state ===
+    "FIRING" ||
+   rightAnchor.state ===
+    "FIRING"
+  ) {
+   tutorialGuideStatus.textContent =
+    "ANCHOR FIRING...";
+  } else if (
+   connected
+  ) {
+   tutorialGuideStatus.textContent =
+    "CONNECTED";
+  } else {
+   tutorialGuideStatus.textContent =
+    "黄色い目印の塔を狙って Q / R";
+  }
+
+  if (
+   connected
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // 5. WIRE PULL
+ // =================================================
+ if (
+  step.id ===
+  "pull"
+ ) {
+  const connected =
+   leftAnchor.connected ||
+   rightAnchor.connected;
+
+  const pulling =
+   leftAnchor.pulling ||
+   rightAnchor.pulling;
+
+  const moved =
+   camera.position.distanceTo(
+    tutorialPreviousPosition
+   ) *
+   METERS_PER_UNIT;
+
+  tutorialPreviousPosition.copy(
+   camera.position
+  );
+
+  if (
+   pulling
+  ) {
+   tutorialPullDistance +=
+    moved;
+  }
+
+  if (
+   !connected
+  ) {
+   tutorialGuideStatus.textContent =
+    "アンカーを接続し直そう";
+
+   /*
+    * アンカーを解除した場合は
+    * 塔をもう一度案内。
+    */
+   const tower =
+    findTutorialDescriptorByRole(
+     "tower"
+    );
+
+   if (
+    tower
+   ) {
+    setTutorialBeaconMeters(
+     tower.xMeters,
+     tower.zMeters,
+     15
+    );
+   }
+
+   return;
+  }
+
+  tutorialGuideStatus.textContent =
+   `牽引 ${tutorialPullDistance.toFixed(
+    1
+   )} / 8.0 m`;
+
+  if (
+   tutorialPullDistance >=
+   8
+  ) {
+   completeTutorialStep();
+  }
+
+  return;
+ }
+
+ // =================================================
+ // 6. AUTO DUAL
+ // =================================================
+ if (
+  step.id ===
+  "auto"
+ ) {
+  const leftActive =
+   leftAnchor.state !==
+   "OFF";
+
+  const rightActive =
+   rightAnchor.state !==
+   "OFF";
+
+  const bothActive =
+   leftActive &&
+   rightActive;
+
+  const eitherActive =
+   leftActive ||
+   rightActive;
+
+  if (
+   bothActive
+  ) {
+   tutorialGuideStatus.textContent =
+    "DUAL ANCHOR";
+
+   completeTutorialStep();
+
+   return;
+  }
+
+  /*
+   * 現在のAUTO実装は、
+   * 適切な左右ペアがない場合
+   * 片側だけ発射することがある。
+   *
+   * Tutorialでそこで詰まらないよう、
+   * 右クリックAUTOによりアンカーが
+   * 発射された状態が少し続けば成功扱い。
+   */
+  if (
+   eitherActive &&
+   tutorialStepTimer >=
+   0.8
+  ) {
+   tutorialGuideStatus.textContent =
+    "AUTO ANCHOR";
+
+   completeTutorialStep();
+
+   return;
+  }
+
+  tutorialGuideStatus.textContent =
+   "黄色いエリアで右クリック";
+
+  return;
+ }
+
+ // =================================================
+ // 7. GOAL
+ // =================================================
+ if (
+  step.id ===
+  "goal"
+ ) {
+  const goal =
+   tutorialWorldData?.goal;
+
+  if (
+   !goal
+  ) {
+   tutorialGuideStatus.textContent =
+    "GOAL DATA NOT FOUND";
+
+   return;
+  }
+
+  const playerXMeters =
+   camera.position.x *
+   METERS_PER_UNIT;
+
+  const playerZMeters =
+   camera.position.z *
+   METERS_PER_UNIT;
+
+  const distance =
+   Math.hypot(
+    playerXMeters -
+     goal.xMeters,
+
+    playerZMeters -
+     goal.zMeters
+   );
+
+  tutorialGuideStatus.textContent =
+   `GOAL ${distance.toFixed(
+    0
+   )} m`;
+
+  const goalRadius =
+   Number(
+    goal.radiusMeters
+   ) ||
+   12;
+
+  if (
+   distance <=
+   goalRadius
+  ) {
+   completeTutorialStep();
+  }
+ }
+}
+
+// ==================================================
 // MAIN MENU
 // ==================================================
 const mainMenuHUD =
