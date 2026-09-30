@@ -21937,9 +21937,16 @@ const clock =
 let gameLoopStarted =
  false;
 
-// --------------------------------------------------
+/*
+ * Tutorialへ入ったあと、
+ * GUIDEを1回だけ開始する。
+ */
+let tutorialGuideAutoStarted =
+ false;
+
+// ==================================================
 // ANIMATE
-// --------------------------------------------------
+// ==================================================
 function animate() {
  requestAnimationFrame(
   animate
@@ -21948,10 +21955,6 @@ function animate() {
  // =================================================
  // MENU
  // =================================================
- /*
-  * ワールドに入っていない場合は
-  * 3D更新を行わない。
-  */
  if (
   currentGameMode ===
   GAME_MODES.MENU
@@ -21960,7 +21963,7 @@ function animate() {
  }
 
  // =================================================
- // READY
+ // READY CHECK
  // =================================================
  if (
   !worldDatabaseReady
@@ -21988,6 +21991,42 @@ function animate() {
   currentGameMode ===
   GAME_MODES.OPEN_WORLD
  ) {
+  /*
+   * 次にTutorialへ入った時、
+   * GUIDEを最初から開始できるようにする。
+   */
+  tutorialGuideAutoStarted =
+   false;
+
+  // ------------------------------------------------
+  // TUTORIAL UI OFF
+  // ------------------------------------------------
+  if (
+   typeof tutorialGuideActive !==
+   "undefined"
+  ) {
+   tutorialGuideActive =
+    false;
+  }
+
+  if (
+   typeof tutorialGuideHUD !==
+   "undefined"
+  ) {
+   tutorialGuideHUD.style.display =
+    "none";
+  }
+
+  if (
+   typeof hideTutorialBeacon ===
+   "function"
+  ) {
+   hideTutorialBeacon();
+  }
+
+  // ------------------------------------------------
+  // WORLD STREAMING
+  // ------------------------------------------------
   updateWorldStreaming(
    delta
   );
@@ -21997,6 +22036,13 @@ function animate() {
   updateRoadStreaming();
 
   updateAreaSystem();
+
+  // ------------------------------------------------
+  // TITAN
+  // ------------------------------------------------
+  updateTitanParts(
+   delta
+  );
  }
 
  // =================================================
@@ -22006,17 +22052,35 @@ function animate() {
   currentGameMode ===
   GAME_MODES.TUTORIAL
  ) {
-  /*
-   * Tutorial Worldは小さいため
-   * Streaming不要。
-   *
-   * buildTutorialWorld()で
-   * 全オブジェクトをロード済み。
-   */
+  // ------------------------------------------------
+  // START GUIDE ONCE
+  // ------------------------------------------------
+  if (
+   !tutorialGuideAutoStarted
+  ) {
+   tutorialGuideAutoStarted =
+    true;
 
+   console.log(
+    "STARTING TUTORIAL GUIDE"
+   );
+
+   startTutorialGuide();
+  }
+
+  // ------------------------------------------------
+  // GUIDE UPDATE
+  // ------------------------------------------------
+  updateTutorialGuide(
+   delta
+  );
+
+  // ------------------------------------------------
+  // FREE TRAINING GAS RECOVERY
+  // ------------------------------------------------
   /*
-   * FREE TRAININGなので
-   * 当面Gasを自動回復する。
+   * TutorialではGas切れで
+   * 操作練習が止まらないようにする。
    */
   gas =
    Math.min(
@@ -22028,31 +22092,15 @@ function animate() {
  }
 
  // =================================================
- // TITAN
- // =================================================
- /*
-  * 現在のTitanはOpen Worldの
-  *既存TitanなのでTutorialでは
-  *まだ更新しない。
-  *
-  * 後でTraining Titanを追加する。
-  */
- if (
-  currentGameMode ===
-  GAME_MODES.OPEN_WORLD
- ) {
-  updateTitanParts(
-   delta
-  );
- }
-
- // =================================================
  // EQUIPMENT
  // =================================================
  updateBladeAnimation(
   delta
  );
 
+ // =================================================
+ // WIRE VISUAL
+ // =================================================
  updateWireVisual(
   leftAnchor
  );
@@ -22089,6 +22137,10 @@ function startGameLoop() {
   true;
 
  clock.start();
+
+ console.log(
+  "GAME LOOP STARTED"
+ );
 
  animate();
 }
