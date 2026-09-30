@@ -3808,62 +3808,30 @@ function updateRoadStreaming() {
 /*
  * HOUSE TEMPLATE 01
  *
- * COMPLETE SOLID ROOF VERSION
- *
  * ・3階建て
  * ・木骨壁
  * ・窓
- * ・妻壁
- * ・厚みのある切妻屋根
+ * ・切妻屋根
+ * ・厚みのある屋根
  * ・InstancedMesh
- * ・屋根Colliderと描画寸法を完全共有
+ * ・専用 Roof Collider
  */
-
 // ==================================================
 // TEMPLATE 01
 // ==================================================
 const HOUSE_TEMPLATE_01 = {
- widthMeters:
- 9,
-
- depthMeters:
- 11,
-
- floorCount:
- 3,
-
- floorHeightMeters:
- 3,
-
- roofHeightMeters:
- 4,
-
- /*
-  * 家本体から少しだけ出す。
-  */
- roofOverhangMeters:
- 0.6,
-
- /*
-  * 見た目の屋根厚。
-  */
- roofThicknessMeters:
- 0.28,
-
- frontWindowsPerFloor:
- 3,
-
- sideWindowsPerFloor:
- 2,
-
- windowWidthMeters:
- 1.35,
-
- windowHeightMeters:
- 1.75,
-
- windowSurfaceOffsetMeters:
- 0.03
+ widthMeters: 9,
+ depthMeters: 11,
+ floorCount: 3,
+ floorHeightMeters: 3,
+ roofHeightMeters: 4,
+ roofOverhangMeters: 0.6,
+ roofThicknessMeters: 0.28,
+ frontWindowsPerFloor: 3,
+ sideWindowsPerFloor: 2,
+ windowWidthMeters: 1.35,
+ windowHeightMeters: 1.75,
+ windowSurfaceOffsetMeters: 0.03
 };
 
 // ==================================================
@@ -3871,17 +3839,17 @@ const HOUSE_TEMPLATE_01 = {
 // ==================================================
 const HOUSE_01_WIDTH =
  metersToUnits(
- HOUSE_TEMPLATE_01.widthMeters
+  HOUSE_TEMPLATE_01.widthMeters
  );
 
 const HOUSE_01_DEPTH =
  metersToUnits(
- HOUSE_TEMPLATE_01.depthMeters
+  HOUSE_TEMPLATE_01.depthMeters
  );
 
 const HOUSE_01_FLOOR_HEIGHT =
  metersToUnits(
- HOUSE_TEMPLATE_01.floorHeightMeters
+  HOUSE_TEMPLATE_01.floorHeightMeters
  );
 
 const HOUSE_01_HEIGHT =
@@ -3890,28 +3858,24 @@ const HOUSE_01_HEIGHT =
 
 const HOUSE_01_ROOF_HEIGHT =
  metersToUnits(
- HOUSE_TEMPLATE_01.roofHeightMeters
+  HOUSE_TEMPLATE_01.roofHeightMeters
  );
 
 const HOUSE_01_OVERHANG =
  metersToUnits(
- HOUSE_TEMPLATE_01
- .roofOverhangMeters
+  HOUSE_TEMPLATE_01.roofOverhangMeters
  );
 
 const HOUSE_01_ROOF_THICKNESS =
  metersToUnits(
- HOUSE_TEMPLATE_01
- .roofThicknessMeters
+  HOUSE_TEMPLATE_01.roofThicknessMeters
  );
 
 const HOUSE_01_HALF_WIDTH =
- HOUSE_01_WIDTH /
- 2;
+ HOUSE_01_WIDTH / 2;
 
 const HOUSE_01_HALF_DEPTH =
- HOUSE_01_DEPTH /
- 2;
+ HOUSE_01_DEPTH / 2;
 
 const HOUSE_01_ROOF_HALF_WIDTH =
  HOUSE_01_HALF_WIDTH +
@@ -3926,47 +3890,26 @@ const HOUSE_01_ROOF_HALF_DEPTH =
 // ==================================================
 const houseInstanceWallMaterial =
  new THREE.MeshStandardMaterial({
- map:
- houseWallTexture,
-
- color:
- 0xffffff,
-
- roughness:
- 0.9,
-
- side:
- THREE.DoubleSide
+  map: houseWallTexture,
+  color: 0xffffff,
+  roughness: 0.9,
+  side: THREE.DoubleSide
  });
 
 const houseInstanceRoofMaterial =
  new THREE.MeshStandardMaterial({
- map:
- houseRoofTexture,
-
- color:
- 0xffffff,
-
- roughness:
- 0.85,
-
- side:
- THREE.DoubleSide
+  map: houseRoofTexture,
+  color: 0xffffff,
+  roughness: 0.85,
+  side: THREE.DoubleSide
  });
 
 const houseInstanceWindowMaterial =
  new THREE.MeshStandardMaterial({
- map:
- houseWindowTexture,
-
- color:
- 0xffffff,
-
- roughness:
- 0.55,
-
- side:
- THREE.DoubleSide
+  map: houseWindowTexture,
+  color: 0xffffff,
+  roughness: 0.55,
+  side: THREE.DoubleSide
  });
 
 // ==================================================
@@ -3974,9 +3917,9 @@ const houseInstanceWindowMaterial =
 // ==================================================
 const houseInstanceFloorGeometry =
  new THREE.BoxGeometry(
- HOUSE_01_WIDTH,
- HOUSE_01_FLOOR_HEIGHT,
- HOUSE_01_DEPTH
+  HOUSE_01_WIDTH,
+  HOUSE_01_FLOOR_HEIGHT,
+  HOUSE_01_DEPTH
  );
 
 // ==================================================
@@ -3984,420 +3927,330 @@ const houseInstanceFloorGeometry =
 // ==================================================
 const houseInstanceWindowGeometry =
  new THREE.PlaneGeometry(
- metersToUnits(
- HOUSE_TEMPLATE_01
- .windowWidthMeters
- ),
-
- metersToUnits(
- HOUSE_TEMPLATE_01
- .windowHeightMeters
- )
-);
+  metersToUnits(
+   HOUSE_TEMPLATE_01.windowWidthMeters
+  ),
+  metersToUnits(
+   HOUSE_TEMPLATE_01.windowHeightMeters
+  )
+ );
 
 // ==================================================
-// SOLID ROOF
+// SOLID ROOF GEOMETRY
 // ==================================================
-/*
- * 屋根片面を完全に閉じた
- * 六面体として生成する。
- *
- *
- * 断面:
- *
- *                RIDGE TOP
- *                    ●
- *                   /|
- *                  / |
- *                 /  |
- *      OUTER TOP ●   |
- *                |   ● RIDGE BOTTOM
- *                |  /
- *                | /
- *   OUTER BOTTOM ●
- *
- *
- * この断面をZ方向へ押し出す。
- */
-
-// --------------------------------------------------
-// CREATE SOLID ROOF GEOMETRY
-// --------------------------------------------------
 function createSolidHouseRoofGeometry(
  side
 ) {
  const geometry =
- new THREE.BufferGeometry();
+  new THREE.BufferGeometry();
 
- // ------------------------------------------------
- // SLOPE
- // ------------------------------------------------
  const run =
- HOUSE_01_ROOF_HALF_WIDTH;
+  HOUSE_01_ROOF_HALF_WIDTH;
 
  const rise =
- HOUSE_01_ROOF_HEIGHT;
+  HOUSE_01_ROOF_HEIGHT;
 
  const slopeLength =
- Math.hypot(
- run,
- rise
- );
+  Math.hypot(
+   run,
+   rise
+  );
 
- /*
-  * 上面から建物内部方向へ
-  * 厚みを取る法線。
-  */
  const inwardNormalX =
- side <
- 0
- ? (
- rise /
- slopeLength
- )
- : (
- -rise /
- slopeLength
- );
+  side < 0
+   ? rise / slopeLength
+   : -rise / slopeLength;
 
  const inwardNormalY =
- -run /
- slopeLength;
+  -run / slopeLength;
 
  const thicknessX =
- inwardNormalX *
- HOUSE_01_ROOF_THICKNESS;
+  inwardNormalX *
+  HOUSE_01_ROOF_THICKNESS;
 
  const thicknessY =
- inwardNormalY *
- HOUSE_01_ROOF_THICKNESS;
+  inwardNormalY *
+  HOUSE_01_ROOF_THICKNESS;
 
- // ------------------------------------------------
- // TOP CROSS SECTION
- // ------------------------------------------------
  const outerTopX =
- side <
- 0
- ? -HOUSE_01_ROOF_HALF_WIDTH
- : HOUSE_01_ROOF_HALF_WIDTH;
+  side < 0
+   ? -HOUSE_01_ROOF_HALF_WIDTH
+   : HOUSE_01_ROOF_HALF_WIDTH;
 
- const outerTopY =
- 0;
+ const outerTopY = 0;
 
- const ridgeTopX =
- 0;
+ const ridgeTopX = 0;
 
  const ridgeTopY =
- HOUSE_01_ROOF_HEIGHT;
+  HOUSE_01_ROOF_HEIGHT;
 
- // ------------------------------------------------
- // BOTTOM CROSS SECTION
- // ------------------------------------------------
  const outerBottomX =
- outerTopX +
- thicknessX;
+  outerTopX +
+  thicknessX;
 
  const outerBottomY =
- outerTopY +
- thicknessY;
+  outerTopY +
+  thicknessY;
 
  const ridgeBottomX =
- ridgeTopX +
- thicknessX;
+  ridgeTopX +
+  thicknessX;
 
  const ridgeBottomY =
- ridgeTopY +
- thicknessY;
+  ridgeTopY +
+  thicknessY;
 
- // ------------------------------------------------
- // DEPTH
- // ------------------------------------------------
  const frontZ =
- -HOUSE_01_ROOF_HALF_DEPTH;
+  -HOUSE_01_ROOF_HALF_DEPTH;
 
  const backZ =
- HOUSE_01_ROOF_HALF_DEPTH;
+  HOUSE_01_ROOF_HALF_DEPTH;
 
- // ------------------------------------------------
- // POINTS
- // ------------------------------------------------
  const OT_F = [
- outerTopX,
- outerTopY,
- frontZ
+  outerTopX,
+  outerTopY,
+  frontZ
  ];
 
  const OT_B = [
- outerTopX,
- outerTopY,
- backZ
+  outerTopX,
+  outerTopY,
+  backZ
  ];
 
  const RT_F = [
- ridgeTopX,
- ridgeTopY,
- frontZ
+  ridgeTopX,
+  ridgeTopY,
+  frontZ
  ];
 
  const RT_B = [
- ridgeTopX,
- ridgeTopY,
- backZ
+  ridgeTopX,
+  ridgeTopY,
+  backZ
  ];
 
  const OB_F = [
- outerBottomX,
- outerBottomY,
- frontZ
+  outerBottomX,
+  outerBottomY,
+  frontZ
  ];
 
  const OB_B = [
- outerBottomX,
- outerBottomY,
- backZ
+  outerBottomX,
+  outerBottomY,
+  backZ
  ];
 
  const RB_F = [
- ridgeBottomX,
- ridgeBottomY,
- frontZ
+  ridgeBottomX,
+  ridgeBottomY,
+  frontZ
  ];
 
  const RB_B = [
- ridgeBottomX,
- ridgeBottomY,
- backZ
+  ridgeBottomX,
+  ridgeBottomY,
+  backZ
  ];
 
- const positions =
- [];
+ const positions = [];
+ const uvs = [];
 
- const uvs =
- [];
-
- // ------------------------------------------------
- // TRIANGLE
- // ------------------------------------------------
  function triangle(
- a,
- b,
- c,
- ua,
- ub,
- uc
+  a,
+  b,
+  c,
+  ua,
+  ub,
+  uc
  ) {
- positions.push(
- ...a,
- ...b,
- ...c
- );
+  positions.push(
+   ...a,
+   ...b,
+   ...c
+  );
 
- uvs.push(
- ...ua,
- ...ub,
- ...uc
- );
+  uvs.push(
+   ...ua,
+   ...ub,
+   ...uc
+  );
  }
 
- // ------------------------------------------------
- // QUAD
- // ------------------------------------------------
  function quad(
- a,
- b,
- c,
- d
+  a,
+  b,
+  c,
+  d
  ) {
- triangle(
- a,
- b,
- c,
- [0, 0],
- [1, 0],
- [1, 1]
- );
+  triangle(
+   a,
+   b,
+   c,
+   [0, 0],
+   [1, 0],
+   [1, 1]
+  );
 
- triangle(
- a,
- c,
- d,
- [0, 0],
- [1, 1],
- [0, 1]
- );
+  triangle(
+   a,
+   c,
+   d,
+   [0, 0],
+   [1, 1],
+   [0, 1]
+  );
  }
 
- // ------------------------------------------------
  // TOP
- // ------------------------------------------------
  if (
- side <
- 0
+  side < 0
  ) {
- quad(
- OT_F,
- OT_B,
- RT_B,
- RT_F
- );
+  quad(
+   OT_F,
+   OT_B,
+   RT_B,
+   RT_F
+  );
  } else {
- quad(
- RT_F,
- RT_B,
- OT_B,
- OT_F
- );
+  quad(
+   RT_F,
+   RT_B,
+   OT_B,
+   OT_F
+  );
  }
 
- // ------------------------------------------------
  // BOTTOM
- // ------------------------------------------------
  if (
- side <
- 0
+  side < 0
  ) {
- quad(
- RB_F,
- RB_B,
- OB_B,
- OB_F
- );
+  quad(
+   RB_F,
+   RB_B,
+   OB_B,
+   OB_F
+  );
  } else {
- quad(
- OB_F,
- OB_B,
- RB_B,
- RB_F
- );
+  quad(
+   OB_F,
+   OB_B,
+   RB_B,
+   RB_F
+  );
  }
 
- // ------------------------------------------------
  // OUTER EDGE
- // ------------------------------------------------
  if (
- side <
- 0
+  side < 0
  ) {
- quad(
- OB_F,
- OB_B,
- OT_B,
- OT_F
- );
+  quad(
+   OB_F,
+   OB_B,
+   OT_B,
+   OT_F
+  );
  } else {
- quad(
- OT_F,
- OT_B,
- OB_B,
- OB_F
- );
+  quad(
+   OT_F,
+   OT_B,
+   OB_B,
+   OB_F
+  );
  }
 
- // ------------------------------------------------
  // RIDGE EDGE
- // ------------------------------------------------
  if (
- side <
- 0
+  side < 0
  ) {
- quad(
- RT_F,
- RT_B,
- RB_B,
- RB_F
- );
+  quad(
+   RT_F,
+   RT_B,
+   RB_B,
+   RB_F
+  );
  } else {
- quad(
- RB_F,
- RB_B,
- RT_B,
- RT_F
- );
+  quad(
+   RB_F,
+   RB_B,
+   RT_B,
+   RT_F
+  );
  }
 
- // ------------------------------------------------
- // FRONT CAP
- // ------------------------------------------------
+ // FRONT
  if (
- side <
- 0
+  side < 0
  ) {
- quad(
- OT_F,
- RT_F,
- RB_F,
- OB_F
- );
+  quad(
+   OT_F,
+   RT_F,
+   RB_F,
+   OB_F
+  );
  } else {
- quad(
- RT_F,
- OT_F,
- OB_F,
- RB_F
- );
+  quad(
+   RT_F,
+   OT_F,
+   OB_F,
+   RB_F
+  );
  }
 
- // ------------------------------------------------
- // BACK CAP
- // ------------------------------------------------
+ // BACK
  if (
- side <
- 0
+  side < 0
  ) {
- quad(
- RT_B,
- OT_B,
- OB_B,
- RB_B
- );
+  quad(
+   RT_B,
+   OT_B,
+   OB_B,
+   RB_B
+  );
  } else {
- quad(
- OT_B,
- RT_B,
- RB_B,
- OB_B
- );
+  quad(
+   OT_B,
+   RT_B,
+   RB_B,
+   OB_B
+  );
  }
 
- // ------------------------------------------------
- // ATTRIBUTES
- // ------------------------------------------------
  geometry.setAttribute(
- "position",
- new THREE.Float32BufferAttribute(
- positions,
- 3
- )
+  "position",
+  new THREE.Float32BufferAttribute(
+   positions,
+   3
+  )
  );
 
  geometry.setAttribute(
- "uv",
- new THREE.Float32BufferAttribute(
- uvs,
- 2
- )
+  "uv",
+  new THREE.Float32BufferAttribute(
+   uvs,
+   2
+  )
  );
 
  geometry.computeVertexNormals();
-
  geometry.computeBoundingBox();
-
  geometry.computeBoundingSphere();
 
  return geometry;
 }
 
-// --------------------------------------------------
+// ==================================================
 // ROOF GEOMETRIES
-// --------------------------------------------------
+// ==================================================
 const houseInstanceLeftRoofGeometry =
  createSolidHouseRoofGeometry(
- -1
+  -1
  );
 
 const houseInstanceRightRoofGeometry =
  createSolidHouseRoofGeometry(
- 1
+  1
  );
 
 // ==================================================
@@ -4405,43 +4258,49 @@ const houseInstanceRightRoofGeometry =
 // ==================================================
 function createHouse01GableGeometry() {
  const geometry =
- new THREE.BufferGeometry();
+  new THREE.BufferGeometry();
+
+ const positions =
+  new Float32Array([
+   -HOUSE_01_HALF_WIDTH,
+   0,
+   0,
+
+   HOUSE_01_HALF_WIDTH,
+   0,
+   0,
+
+   0,
+   HOUSE_01_ROOF_HEIGHT,
+   0
+  ]);
+
+ const uvs =
+  new Float32Array([
+   0,
+   0,
+
+   1,
+   0,
+
+   0.5,
+   1
+  ]);
 
  geometry.setAttribute(
- "position",
- new THREE.Float32BufferAttribute(
- [
- -HOUSE_01_HALF_WIDTH,
- 0,
- 0,
-
- HOUSE_01_HALF_WIDTH,
- 0,
- 0,
-
- 0,
- HOUSE_01_ROOF_HEIGHT,
- 0
- ],
- 3
- )
+  "position",
+  new THREE.BufferAttribute(
+   positions,
+   3
+  )
  );
 
  geometry.setAttribute(
- "uv",
- new THREE.Float32BufferAttribute(
- [
- 0,
- 0,
-
- 1,
- 0,
-
- 0.5,
- 1
- ],
- 2
- )
+  "uv",
+  new THREE.BufferAttribute(
+   uvs,
+   2
+  )
  );
 
  geometry.computeVertexNormals();
@@ -4453,119 +4312,113 @@ const houseInstanceGableGeometry =
  createHouse01GableGeometry();
 
 // ==================================================
-// COLLIDER CREATION
+// COLLIDERS
 // ==================================================
 
 // --------------------------------------------------
-// BODY COLLIDER
+// BODY
 // --------------------------------------------------
 function createHouseTemplate01Collider(
  descriptor
 ) {
  const terrainY =
- metersToUnits(
- getTerrainHeightMeters(
- descriptor.xMeters,
- descriptor.zMeters
- )
+  metersToUnits(
+   getTerrainHeightMeters(
+    descriptor.xMeters,
+    descriptor.zMeters
+   )
+  );
+
+ const object =
+  new THREE.Object3D();
+
+ object.position.set(
+  metersToUnits(
+   descriptor.xMeters
+  ),
+  terrainY +
+   HOUSE_01_HEIGHT / 2,
+  metersToUnits(
+   descriptor.zMeters
+  )
  );
 
- const center =
- new THREE.Object3D();
+ object.rotation.y =
+  descriptor.rotation ?? 0;
 
- center.position.set(
- metersToUnits(
- descriptor.xMeters
- ),
-
- terrainY +
- HOUSE_01_HEIGHT /
- 2,
-
- metersToUnits(
- descriptor.zMeters
- )
- );
-
- center.rotation.y =
- descriptor.rotation ??
- 0;
-
- center.updateMatrixWorld(
- true
+ object.updateMatrixWorld(
+  true
  );
 
  const box =
- new THREE.Box3(
- new THREE.Vector3(
- -HOUSE_01_HALF_WIDTH,
- -HOUSE_01_HEIGHT /
- 2,
- -HOUSE_01_HALF_DEPTH
- ),
-
- new THREE.Vector3(
- HOUSE_01_HALF_WIDTH,
- HOUSE_01_HEIGHT /
- 2,
- HOUSE_01_HALF_DEPTH
- )
- );
+  new THREE.Box3(
+   new THREE.Vector3(
+    -HOUSE_01_HALF_WIDTH,
+    -HOUSE_01_HEIGHT / 2,
+    -HOUSE_01_HALF_DEPTH
+   ),
+   new THREE.Vector3(
+    HOUSE_01_HALF_WIDTH,
+    HOUSE_01_HEIGHT / 2,
+    HOUSE_01_HALF_DEPTH
+   )
+  );
 
  box.applyMatrix4(
- center.matrixWorld
+  object.matrixWorld
  );
 
  return box;
 }
 
 // --------------------------------------------------
-// ROOF COLLIDER
+// ROOF
 // --------------------------------------------------
 function createHouseTemplate01RoofCollider(
  descriptor
 ) {
  const terrainY =
- metersToUnits(
- getTerrainHeightMeters(
- descriptor.xMeters,
- descriptor.zMeters
- )
- );
+  metersToUnits(
+   getTerrainHeightMeters(
+    descriptor.xMeters,
+    descriptor.zMeters
+   )
+  );
 
  return {
- type:
- "gable-roof",
+  type: "gable-roof",
 
- x:
- metersToUnits(
- descriptor.xMeters
- ),
+  x:
+   metersToUnits(
+    descriptor.xMeters
+   ),
 
- z:
- metersToUnits(
- descriptor.zMeters
- ),
+  z:
+   metersToUnits(
+    descriptor.zMeters
+   ),
 
- rotation:
- descriptor.rotation ??
- 0,
+  rotation:
+   descriptor.rotation ?? 0,
 
- halfWidth:
- HOUSE_01_ROOF_HALF_WIDTH,
+  halfWidth:
+   HOUSE_01_ROOF_HALF_WIDTH,
 
- halfDepth:
- HOUSE_01_ROOF_HALF_DEPTH,
+  halfDepth:
+   HOUSE_01_ROOF_HALF_DEPTH,
 
- wallTopY:
- terrainY +
- HOUSE_01_HEIGHT,
+  baseY:
+   terrainY,
 
- roofHeight:
- HOUSE_01_ROOF_HEIGHT,
+  wallTopY:
+   terrainY +
+   HOUSE_01_HEIGHT,
 
- thickness:
- HOUSE_01_ROOF_THICKNESS
+  height:
+   HOUSE_01_ROOF_HEIGHT,
+
+  thickness:
+   HOUSE_01_ROOF_THICKNESS
  };
 }
 
@@ -4583,624 +4436,564 @@ function addHouse01WindowMatrix(
  houseX,
  terrainY,
  houseZ,
- rotation,
+ houseRotation,
  localX,
  localY,
  localZ,
- localRotation
+ localRotationY
 ) {
  const cos =
- Math.cos(
- rotation
- );
+  Math.cos(
+   houseRotation
+  );
 
  const sin =
- Math.sin(
- rotation
- );
+  Math.sin(
+   houseRotation
+  );
 
  const worldX =
- houseX +
- localX *
- cos +
- localZ *
- sin;
+  houseX +
+  localX * cos +
+  localZ * sin;
 
  const worldZ =
- houseZ -
- localX *
- sin +
- localZ *
- cos;
+  houseZ -
+  localX * sin +
+  localZ * cos;
 
  houseInstanceDummy.position.set(
- worldX,
- terrainY +
- localY,
- worldZ
+  worldX,
+  terrainY + localY,
+  worldZ
  );
 
  houseInstanceDummy.rotation.set(
- 0,
- rotation +
- localRotation,
- 0
+  0,
+  houseRotation +
+   localRotationY,
+  0
  );
 
  houseInstanceDummy.scale.set(
- 1,
- 1,
- 1
+  1,
+  1,
+  1
  );
 
  houseInstanceDummy.updateMatrix();
 
  matrices.push(
- houseInstanceDummy.matrix.clone()
+  houseInstanceDummy.matrix.clone()
  );
 }
 
-// --------------------------------------------------
-// BUILD WINDOW MATRICES
-// --------------------------------------------------
 function buildHouse01WindowMatrices(
  descriptor,
  output
 ) {
  const houseX =
- metersToUnits(
- descriptor.xMeters
- );
+  metersToUnits(
+   descriptor.xMeters
+  );
 
  const houseZ =
- metersToUnits(
- descriptor.zMeters
- );
+  metersToUnits(
+   descriptor.zMeters
+  );
 
  const terrainY =
- metersToUnits(
- getTerrainHeightMeters(
- descriptor.xMeters,
- descriptor.zMeters
- )
- );
+  metersToUnits(
+   getTerrainHeightMeters(
+    descriptor.xMeters,
+    descriptor.zMeters
+   )
+  );
 
  const rotation =
- descriptor.rotation ??
- 0;
+  descriptor.rotation ?? 0;
 
  const offset =
- metersToUnits(
- HOUSE_TEMPLATE_01
- .windowSurfaceOffsetMeters
- );
+  metersToUnits(
+   HOUSE_TEMPLATE_01
+    .windowSurfaceOffsetMeters
+  );
 
  for (
- let floor =
- 0;
- floor <
- HOUSE_TEMPLATE_01.floorCount;
- floor++
+  let floor = 0;
+  floor <
+  HOUSE_TEMPLATE_01.floorCount;
+  floor++
  ) {
- const y =
- HOUSE_01_FLOOR_HEIGHT *
- (
- floor +
- 0.55
- );
+  const y =
+   HOUSE_01_FLOOR_HEIGHT *
+   (
+    floor +
+    0.55
+   );
 
- // ----------------------------------------------
- // FRONT / BACK
- // ----------------------------------------------
- const frontCount =
- HOUSE_TEMPLATE_01
- .frontWindowsPerFloor;
+  // FRONT / BACK
+  const frontCount =
+   HOUSE_TEMPLATE_01
+    .frontWindowsPerFloor;
 
- for (
- let i =
- 0;
- i <
- frontCount;
- i++
- ) {
- const localX =
- THREE.MathUtils.lerp(
- -HOUSE_01_HALF_WIDTH *
- 0.68,
+  for (
+   let i = 0;
+   i < frontCount;
+   i++
+  ) {
+   const localX =
+    THREE.MathUtils.lerp(
+     -HOUSE_01_HALF_WIDTH *
+      0.68,
+     HOUSE_01_HALF_WIDTH *
+      0.68,
+     frontCount === 1
+      ? 0.5
+      : i /
+        (
+         frontCount -
+         1
+        )
+    );
 
- HOUSE_01_HALF_WIDTH *
- 0.68,
+   // FRONT
+   if (
+    !(
+     floor === 0 &&
+     i ===
+      Math.floor(
+       frontCount / 2
+      )
+    )
+   ) {
+    addHouse01WindowMatrix(
+     output,
+     houseX,
+     terrainY,
+     houseZ,
+     rotation,
+     localX,
+     y,
+     HOUSE_01_HALF_DEPTH +
+      offset,
+     0
+    );
+   }
 
- i /
- Math.max(
- 1,
- frontCount -
- 1
- )
- );
+   // BACK
+   addHouse01WindowMatrix(
+    output,
+    houseX,
+    terrainY,
+    houseZ,
+    rotation,
+    localX,
+    y,
+    -HOUSE_01_HALF_DEPTH -
+     offset,
+    Math.PI
+   );
+  }
 
- /*
-  * 正面1階中央は玄関用。
-  */
- if (
- !(
- floor ===
- 0 &&
- i ===
- Math.floor(
- frontCount /
- 2
- )
- )
- ) {
- addHouse01WindowMatrix(
- output,
- houseX,
- terrainY,
- houseZ,
- rotation,
- localX,
- y,
- HOUSE_01_HALF_DEPTH +
- offset,
- 0
- );
- }
+  // SIDES
+  const sideCount =
+   HOUSE_TEMPLATE_01
+    .sideWindowsPerFloor;
 
- addHouse01WindowMatrix(
- output,
- houseX,
- terrainY,
- houseZ,
- rotation,
- localX,
- y,
- -HOUSE_01_HALF_DEPTH -
- offset,
- Math.PI
- );
- }
+  for (
+   let i = 0;
+   i < sideCount;
+   i++
+  ) {
+   const localZ =
+    THREE.MathUtils.lerp(
+     -HOUSE_01_HALF_DEPTH *
+      0.55,
+     HOUSE_01_HALF_DEPTH *
+      0.55,
+     sideCount === 1
+      ? 0.5
+      : i /
+        (
+         sideCount -
+         1
+        )
+    );
 
- // ----------------------------------------------
- // SIDES
- // ----------------------------------------------
- const sideCount =
- HOUSE_TEMPLATE_01
- .sideWindowsPerFloor;
+   // LEFT
+   addHouse01WindowMatrix(
+    output,
+    houseX,
+    terrainY,
+    houseZ,
+    rotation,
+    -HOUSE_01_HALF_WIDTH -
+     offset,
+    y,
+    localZ,
+    -Math.PI / 2
+   );
 
- for (
- let i =
- 0;
- i <
- sideCount;
- i++
- ) {
- const localZ =
- THREE.MathUtils.lerp(
- -HOUSE_01_HALF_DEPTH *
- 0.55,
-
- HOUSE_01_HALF_DEPTH *
- 0.55,
-
- i /
- Math.max(
- 1,
- sideCount -
- 1
- )
- );
-
- addHouse01WindowMatrix(
- output,
- houseX,
- terrainY,
- houseZ,
- rotation,
- -HOUSE_01_HALF_WIDTH -
- offset,
- y,
- localZ,
- -Math.PI /
- 2
- );
-
- addHouse01WindowMatrix(
- output,
- houseX,
- terrainY,
- houseZ,
- rotation,
- HOUSE_01_HALF_WIDTH +
- offset,
- y,
- localZ,
- Math.PI /
- 2
- );
- }
+   // RIGHT
+   addHouse01WindowMatrix(
+    output,
+    houseX,
+    terrainY,
+    houseZ,
+    rotation,
+    HOUSE_01_HALF_WIDTH +
+     offset,
+    y,
+    localZ,
+    Math.PI / 2
+   );
+  }
  }
 }
 
 // ==================================================
-// CREATE INSTANCES
+// CREATE CHUNK INSTANCES
 // ==================================================
 function createHouseTemplate01Instances(
  descriptors,
  chunkData
 ) {
  const houses =
- descriptors.filter(
- descriptor =>
- descriptor.type ===
- "house"
- );
+  descriptors.filter(
+   descriptor =>
+    descriptor.type ===
+    "house"
+  );
 
  if (
- houses.length ===
- 0
+  houses.length === 0
  ) {
- return;
+  return;
  }
 
  const count =
- houses.length;
+  houses.length;
 
- // ------------------------------------------------
  // FLOORS
- // ------------------------------------------------
  const floor1 =
- new THREE.InstancedMesh(
- houseInstanceFloorGeometry,
- houseInstanceWallMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceFloorGeometry,
+   houseInstanceWallMaterial,
+   count
+  );
 
  const floor2 =
- new THREE.InstancedMesh(
- houseInstanceFloorGeometry,
- houseInstanceWallMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceFloorGeometry,
+   houseInstanceWallMaterial,
+   count
+  );
 
  const floor3 =
- new THREE.InstancedMesh(
- houseInstanceFloorGeometry,
- houseInstanceWallMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceFloorGeometry,
+   houseInstanceWallMaterial,
+   count
+  );
 
- // ------------------------------------------------
  // ROOFS
- // ------------------------------------------------
  const leftRoofs =
- new THREE.InstancedMesh(
- houseInstanceLeftRoofGeometry,
- houseInstanceRoofMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceLeftRoofGeometry,
+   houseInstanceRoofMaterial,
+   count
+  );
 
  const rightRoofs =
- new THREE.InstancedMesh(
- houseInstanceRightRoofGeometry,
- houseInstanceRoofMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceRightRoofGeometry,
+   houseInstanceRoofMaterial,
+   count
+  );
 
- // ------------------------------------------------
  // GABLES
- // ------------------------------------------------
  const frontGables =
- new THREE.InstancedMesh(
- houseInstanceGableGeometry,
- houseInstanceWallMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceGableGeometry,
+   houseInstanceWallMaterial,
+   count
+  );
 
  const backGables =
- new THREE.InstancedMesh(
- houseInstanceGableGeometry,
- houseInstanceWallMaterial,
- count
- );
+  new THREE.InstancedMesh(
+   houseInstanceGableGeometry,
+   houseInstanceWallMaterial,
+   count
+  );
 
- // ------------------------------------------------
  // WINDOWS
- // ------------------------------------------------
- const windowMatrices =
- [];
+ const windowMatrices = [];
 
  for (
- const descriptor
- of houses
+  const descriptor
+  of houses
  ) {
- buildHouse01WindowMatrices(
- descriptor,
- windowMatrices
- );
+  buildHouse01WindowMatrices(
+   descriptor,
+   windowMatrices
+  );
  }
 
  const windows =
- new THREE.InstancedMesh(
- houseInstanceWindowGeometry,
- houseInstanceWindowMaterial,
- Math.max(
- 1,
- windowMatrices.length
- )
- );
+  new THREE.InstancedMesh(
+   houseInstanceWindowGeometry,
+   houseInstanceWindowMaterial,
+   Math.max(
+    1,
+    windowMatrices.length
+   )
+  );
 
  windows.count =
- windowMatrices.length;
+  windowMatrices.length;
 
- // ------------------------------------------------
  // HOUSES
- // ------------------------------------------------
  for (
- let index =
- 0;
- index <
- count;
- index++
+  let i = 0;
+  i < count;
+  i++
  ) {
- const descriptor =
- houses[
- index
- ];
+  const descriptor =
+   houses[i];
 
- const x =
- metersToUnits(
- descriptor.xMeters
- );
+  const x =
+   metersToUnits(
+    descriptor.xMeters
+   );
 
- const z =
- metersToUnits(
- descriptor.zMeters
- );
+  const z =
+   metersToUnits(
+    descriptor.zMeters
+   );
 
- const terrainY =
- metersToUnits(
- getTerrainHeightMeters(
- descriptor.xMeters,
- descriptor.zMeters
- )
- );
+  const terrainY =
+   metersToUnits(
+    getTerrainHeightMeters(
+     descriptor.xMeters,
+     descriptor.zMeters
+    )
+   );
 
- const rotation =
- descriptor.rotation ??
- 0;
+  const rotation =
+   descriptor.rotation ?? 0;
 
- // ----------------------------------------------
- // COMMON TRANSFORM
- // ----------------------------------------------
- houseInstanceDummy.scale.set(
- 1,
- 1,
- 1
- );
+  // FLOOR 1
+  houseInstanceDummy.position.set(
+   x,
+   terrainY +
+    HOUSE_01_FLOOR_HEIGHT *
+    0.5,
+   z
+  );
 
- houseInstanceDummy.rotation.set(
- 0,
- rotation,
- 0
- );
+  houseInstanceDummy.rotation.set(
+   0,
+   rotation,
+   0
+  );
 
- // ----------------------------------------------
- // FLOOR 1
- // ----------------------------------------------
- houseInstanceDummy.position.set(
- x,
- terrainY +
- HOUSE_01_FLOOR_HEIGHT *
- 0.5,
- z
- );
+  houseInstanceDummy.scale.set(
+   1,
+   1,
+   1
+  );
 
- houseInstanceDummy.updateMatrix();
+  houseInstanceDummy.updateMatrix();
 
- floor1.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  floor1.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- // ----------------------------------------------
- // FLOOR 2
- // ----------------------------------------------
- houseInstanceDummy.position.y =
- terrainY +
- HOUSE_01_FLOOR_HEIGHT *
- 1.5;
+  // FLOOR 2
+  houseInstanceDummy.position.y =
+   terrainY +
+   HOUSE_01_FLOOR_HEIGHT *
+   1.5;
 
- houseInstanceDummy.updateMatrix();
+  houseInstanceDummy.updateMatrix();
 
- floor2.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  floor2.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- // ----------------------------------------------
- // FLOOR 3
- // ----------------------------------------------
- houseInstanceDummy.position.y =
- terrainY +
- HOUSE_01_FLOOR_HEIGHT *
- 2.5;
+  // FLOOR 3
+  houseInstanceDummy.position.y =
+   terrainY +
+   HOUSE_01_FLOOR_HEIGHT *
+   2.5;
 
- houseInstanceDummy.updateMatrix();
+  houseInstanceDummy.updateMatrix();
 
- floor3.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  floor3.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- // ----------------------------------------------
- // SOLID ROOFS
- // ----------------------------------------------
- houseInstanceDummy.position.set(
- x,
- terrainY +
- HOUSE_01_HEIGHT,
- z
- );
+  // ROOF
+  houseInstanceDummy.position.set(
+   x,
+   terrainY +
+    HOUSE_01_HEIGHT,
+   z
+  );
 
- houseInstanceDummy.updateMatrix();
+  houseInstanceDummy.rotation.set(
+   0,
+   rotation,
+   0
+  );
 
- leftRoofs.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  houseInstanceDummy.updateMatrix();
 
- rightRoofs.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  leftRoofs.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- // ----------------------------------------------
- // FRONT GABLE
- // ----------------------------------------------
- houseInstanceDummy.position.set(
- x,
- terrainY +
- HOUSE_01_HEIGHT,
- z
- );
+  rightRoofs.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- houseInstanceDummy.rotation.set(
- 0,
- rotation,
- 0
- );
+  // FRONT GABLE
+  houseInstanceDummy.position.set(
+   x,
+   terrainY +
+    HOUSE_01_HEIGHT,
+   z
+  );
 
- houseInstanceDummy.translateZ(
- HOUSE_01_HALF_DEPTH +
- 0.01
- );
+  houseInstanceDummy.rotation.set(
+   0,
+   rotation,
+   0
+  );
 
- houseInstanceDummy.updateMatrix();
+  houseInstanceDummy.translateZ(
+   HOUSE_01_HALF_DEPTH +
+   0.01
+  );
 
- frontGables.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  houseInstanceDummy.updateMatrix();
 
- // ----------------------------------------------
- // BACK GABLE
- // ----------------------------------------------
- houseInstanceDummy.position.set(
- x,
- terrainY +
- HOUSE_01_HEIGHT,
- z
- );
+  frontGables.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- houseInstanceDummy.rotation.set(
- 0,
- rotation +
- Math.PI,
- 0
- );
+  // BACK GABLE
+  houseInstanceDummy.position.set(
+   x,
+   terrainY +
+    HOUSE_01_HEIGHT,
+   z
+  );
 
- houseInstanceDummy.translateZ(
- HOUSE_01_HALF_DEPTH +
- 0.01
- );
+  houseInstanceDummy.rotation.set(
+   0,
+   rotation +
+    Math.PI,
+   0
+  );
 
- houseInstanceDummy.updateMatrix();
+  houseInstanceDummy.translateZ(
+   HOUSE_01_HALF_DEPTH +
+   0.01
+  );
 
- backGables.setMatrixAt(
- index,
- houseInstanceDummy.matrix
- );
+  houseInstanceDummy.updateMatrix();
 
- // ----------------------------------------------
- // BODY COLLIDER
- // ----------------------------------------------
- const bodyCollider =
- createHouseTemplate01Collider(
- descriptor
- );
+  backGables.setMatrixAt(
+   i,
+   houseInstanceDummy.matrix
+  );
 
- registerCollider(
- bodyCollider
- );
+  // BODY COLLIDER
+  const bodyCollider =
+   createHouseTemplate01Collider(
+    descriptor
+   );
 
- chunkData.colliders.push(
- bodyCollider
- );
+  registerCollider(
+   bodyCollider
+  );
 
- // ----------------------------------------------
- // ROOF COLLIDER
- // ----------------------------------------------
- const roofCollider =
- createHouseTemplate01RoofCollider(
- descriptor
- );
+  chunkData.colliders.push(
+   bodyCollider
+  );
 
- registerRoofCollider(
- roofCollider
- );
+  // ROOF COLLIDER
+  const roofCollider =
+   createHouseTemplate01RoofCollider(
+    descriptor
+   );
 
- chunkData.roofColliders.push(
- roofCollider
- );
+  registerRoofCollider(
+   roofCollider
+  );
+
+  chunkData.roofColliders.push(
+   roofCollider
+  );
  }
 
- // ------------------------------------------------
- // WINDOWS
- // ------------------------------------------------
+ // WINDOW MATRICES
  for (
- let i =
- 0;
- i <
- windowMatrices.length;
- i++
+  let i = 0;
+  i <
+  windowMatrices.length;
+  i++
  ) {
- windows.setMatrixAt(
- i,
- windowMatrices[
- i
- ]
- );
+  windows.setMatrixAt(
+   i,
+   windowMatrices[i]
+  );
  }
 
- // ------------------------------------------------
- // FINALIZE
- // ------------------------------------------------
- const meshes = [
- floor1,
- floor2,
- floor3,
- leftRoofs,
- rightRoofs,
- frontGables,
- backGables,
- windows
+ // REGISTER
+ const renderMeshes = [
+  floor1,
+  floor2,
+  floor3,
+  leftRoofs,
+  rightRoofs,
+  frontGables,
+  backGables,
+  windows
  ];
 
  for (
- const mesh
- of meshes
+  const mesh
+  of renderMeshes
  ) {
- mesh.instanceMatrix.needsUpdate =
- true;
+  mesh.instanceMatrix.needsUpdate =
+   true;
 
- mesh.castShadow =
- false;
+  mesh.castShadow =
+   false;
 
- mesh.receiveShadow =
- true;
+  mesh.receiveShadow =
+   true;
 
- chunkData.group.add(
- mesh
- );
+  chunkData.group.add(
+   mesh
+  );
 
- anchorTargets.push(
- mesh
- );
+  anchorTargets.push(
+   mesh
+  );
 
- chunkData.anchorTargets.push(
- mesh
- );
+  chunkData.anchorTargets.push(
+   mesh
+  );
  }
 }
 
@@ -11664,432 +11457,29 @@ function intersects(
  box
 ) {
  return (
- position.x +
- PLAYER_RADIUS >
- box.min.x &&
+  position.x +
+   PLAYER_RADIUS >
+   box.min.x &&
 
- position.x -
- PLAYER_RADIUS <
- box.max.x &&
+  position.x -
+   PLAYER_RADIUS <
+   box.max.x &&
 
- position.y >
- box.min.y &&
+  position.y >
+   box.min.y &&
 
- position.y -
- PLAYER_HEIGHT <
- box.max.y &&
+  position.y -
+   PLAYER_HEIGHT <
+   box.max.y &&
 
- position.z +
- PLAYER_RADIUS >
- box.min.z &&
+  position.z +
+   PLAYER_RADIUS >
+   box.min.z &&
 
- position.z -
- PLAYER_RADIUS <
- box.max.z
+  position.z -
+   PLAYER_RADIUS <
+   box.max.z
  );
-}
-
-// --------------------------------------------------
-// ROOF LOCAL POSITION
-// --------------------------------------------------
-function getRoofLocalPosition(
- roof,
- worldX,
- worldZ
-) {
- const dx =
- worldX -
- roof.x;
-
- const dz =
- worldZ -
- roof.z;
-
- const cos =
- Math.cos(
- roof.rotation
- );
-
- const sin =
- Math.sin(
- roof.rotation
- );
-
- return {
- x:
- dx *
- cos -
- dz *
- sin,
-
- z:
- dx *
- sin +
- dz *
- cos
- };
-}
-
-// --------------------------------------------------
-// ROOF SURFACE
-// --------------------------------------------------
-function getRoofSurfaceHeight(
- roof,
- worldX,
- worldZ,
- padding =
- PLAYER_RADIUS
-) {
- if (
- !roof
- ) {
- return null;
- }
-
- if (
- !Number.isFinite(
- roof.wallTopY
- ) ||
- !Number.isFinite(
- roof.roofHeight
- ) ||
- !Number.isFinite(
- roof.halfWidth
- ) ||
- !Number.isFinite(
- roof.halfDepth
- )
- ) {
- return null;
- }
-
- const local =
- getRoofLocalPosition(
- roof,
- worldX,
- worldZ
- );
-
- if (
- Math.abs(
- local.z
- ) >
- roof.halfDepth +
- padding
- ) {
- return null;
- }
-
- if (
- Math.abs(
- local.x
- ) >
- roof.halfWidth +
- padding
- ) {
- return null;
- }
-
- const surfaceX =
- THREE.MathUtils.clamp(
- local.x,
- -roof.halfWidth,
- roof.halfWidth
- );
-
- const t =
- THREE.MathUtils.clamp(
- 1 -
- Math.abs(
- surfaceX
- ) /
- roof.halfWidth,
- 0,
- 1
- );
-
- return (
- roof.wallTopY +
- roof.roofHeight *
- t
- );
-}
-
-// --------------------------------------------------
-// FIND ROOF CROSSING
-// --------------------------------------------------
-function findRoofCrossing(
- oldPosition,
- nextPosition
-) {
- const roofs =
- getNearbyRoofColliders(
- oldPosition
- );
-
- const oldFeet =
- oldPosition.y -
- PLAYER_HEIGHT;
-
- const nextFeet =
- nextPosition.y -
- PLAYER_HEIGHT;
-
- /*
-  * 上昇中は着地しない。
-  */
- if (
- nextFeet >
- oldFeet
- ) {
- return null;
- }
-
- let best =
- null;
-
- for (
- const roof
- of roofs
- ) {
- /*
-  * 高速時も取り逃さないよう
-  * 移動区間を分割する。
-  */
- const distance =
- oldPosition.distanceTo(
- nextPosition
- );
-
- const steps =
- THREE.MathUtils.clamp(
- Math.ceil(
- distance /
- 0.15
- ),
- 2,
- 256
- );
-
- let previousDifference =
- null;
-
- let previousT =
- 0;
-
- for (
- let i =
- 0;
- i <=
- steps;
- i++
- ) {
- const t =
- i /
- steps;
-
- const x =
- THREE.MathUtils.lerp(
- oldPosition.x,
- nextPosition.x,
- t
- );
-
- const z =
- THREE.MathUtils.lerp(
- oldPosition.z,
- nextPosition.z,
- t
- );
-
- const feet =
- THREE.MathUtils.lerp(
- oldFeet,
- nextFeet,
- t
- );
-
- const roofY =
- getRoofSurfaceHeight(
- roof,
- x,
- z,
- 0
- );
-
- if (
- roofY ===
- null
- ) {
- previousDifference =
- null;
-
- previousT =
- t;
-
- continue;
- }
-
- const difference =
- feet -
- roofY;
-
- if (
- previousDifference !==
- null &&
- previousDifference >=
- 0 &&
- difference <=
- 0
- ) {
- const denominator =
- previousDifference -
- difference;
-
- const fraction =
- denominator >
- 0.000001
- ? previousDifference /
- denominator
- : 0;
-
- const hitT =
- THREE.MathUtils.lerp(
- previousT,
- t,
- fraction
- );
-
- const hitX =
- THREE.MathUtils.lerp(
- oldPosition.x,
- nextPosition.x,
- hitT
- );
-
- const hitZ =
- THREE.MathUtils.lerp(
- oldPosition.z,
- nextPosition.z,
- hitT
- );
-
- const hitY =
- getRoofSurfaceHeight(
- roof,
- hitX,
- hitZ,
- 0
- );
-
- if (
- hitY !==
- null &&
- (
- !best ||
- hitT <
- best.t
- )
- ) {
- best = {
- roof,
- t:
- hitT,
- x:
- hitX,
- z:
- hitZ,
- y:
- hitY
- };
- }
-
- break;
- }
-
- previousDifference =
- difference;
-
- previousT =
- t;
- }
- }
-
- return best;
-}
-
-// --------------------------------------------------
-// FIND ROOF BELOW PLAYER
-// --------------------------------------------------
-function findRoofBelowPlayer(
- worldX,
- worldZ,
- feetY,
- tolerance =
- 0.5
-) {
- const searchPosition =
- new THREE.Vector3(
- worldX,
- feetY +
- PLAYER_HEIGHT,
- worldZ
- );
-
- const roofs =
- getNearbyRoofColliders(
- searchPosition
- );
-
- let best =
- null;
-
- for (
- const roof
- of roofs
- ) {
- const roofY =
- getRoofSurfaceHeight(
- roof,
- worldX,
- worldZ,
- 0
- );
-
- if (
- roofY ===
- null
- ) {
- continue;
- }
-
- const difference =
- feetY -
- roofY;
-
- if (
- difference <
- -tolerance ||
- difference >
- tolerance
- ) {
- continue;
- }
-
- if (
- !best ||
- roofY >
- best.height
- ) {
- best = {
- roof,
- height:
- roofY
- };
- }
- }
-
- return best;
 }
 
 // ==================================================
@@ -12105,39 +11495,31 @@ function getRoofLocalPosition(
  worldZ
 ) {
  const dx =
- worldX -
- roof.x;
+  worldX -
+  roof.x;
 
  const dz =
- worldZ -
- roof.z;
+  worldZ -
+  roof.z;
 
  const cos =
- Math.cos(
- roof.rotation
- );
+  Math.cos(
+   roof.rotation
+  );
 
  const sin =
- Math.sin(
- roof.rotation
- );
+  Math.sin(
+   roof.rotation
+  );
 
- /*
-  * World座標を
-  * 家のLocal座標へ戻す。
-  */
  return {
- x:
- dx *
- cos -
- dz *
- sin,
+  x:
+   dx * cos -
+   dz * sin,
 
- z:
- dx *
- sin +
- dz *
- cos
+  z:
+   dx * sin +
+   dz * cos
  };
 }
 
@@ -12148,34 +11530,33 @@ function isInsideRoofHorizontal(
  roof,
  worldX,
  worldZ,
- padding =
- 0
+ padding = 0
 ) {
  if (
- !roof
+  !roof
  ) {
- return false;
+  return false;
  }
 
  const local =
- getRoofLocalPosition(
- roof,
- worldX,
- worldZ
- );
+  getRoofLocalPosition(
+   roof,
+   worldX,
+   worldZ
+  );
 
  return (
- Math.abs(
- local.x
- ) <=
- roof.halfWidth +
- padding &&
+  Math.abs(
+   local.x
+  ) <=
+   roof.halfWidth +
+   padding &&
 
- Math.abs(
- local.z
- ) <=
- roof.halfDepth +
- padding
+  Math.abs(
+   local.z
+  ) <=
+   roof.halfDepth +
+   padding
  );
 }
 
@@ -12187,121 +11568,81 @@ function getRoofSurfaceHeight(
  worldX,
  worldZ,
  padding =
- PLAYER_RADIUS
+  PLAYER_RADIUS
 ) {
  if (
- !roof
+  !roof
  ) {
- return null;
+  return null;
  }
 
- // ------------------------------------------------
- // REQUIRED DATA
- // ------------------------------------------------
  if (
- !Number.isFinite(
- roof.wallTopY
- ) ||
- !Number.isFinite(
- roof.height
- ) ||
- !Number.isFinite(
- roof.halfWidth
- ) ||
- !Number.isFinite(
- roof.halfDepth
- )
+  !Number.isFinite(
+   roof.wallTopY
+  ) ||
+  !Number.isFinite(
+   roof.height
+  ) ||
+  !Number.isFinite(
+   roof.halfWidth
+  ) ||
+  !Number.isFinite(
+   roof.halfDepth
+  )
  ) {
- return null;
+  return null;
  }
 
- // ------------------------------------------------
- // LOCAL POSITION
- // ------------------------------------------------
  const local =
- getRoofLocalPosition(
- roof,
- worldX,
- worldZ
- );
+  getRoofLocalPosition(
+   roof,
+   worldX,
+   worldZ
+  );
 
- // ------------------------------------------------
- // DEPTH
- // ------------------------------------------------
  if (
- Math.abs(
- local.z
- ) >
- roof.halfDepth +
- padding
+  Math.abs(
+   local.z
+  ) >
+  roof.halfDepth +
+   padding
  ) {
- return null;
+  return null;
  }
 
- // ------------------------------------------------
- // WIDTH
- // ------------------------------------------------
  if (
- Math.abs(
- local.x
- ) >
- roof.halfWidth +
- padding
+  Math.abs(
+   local.x
+  ) >
+  roof.halfWidth +
+   padding
  ) {
- return null;
+  return null;
  }
 
- // ------------------------------------------------
- // CLAMP TO ACTUAL ROOF
- // ------------------------------------------------
- /*
-  * PLAYER_RADIUS分だけ外側でも
-  * 足場候補にはするが、
-  * 高さ計算自体は軒位置へClampする。
-  */
  const surfaceX =
- THREE.MathUtils.clamp(
- local.x,
- -roof.halfWidth,
- roof.halfWidth
- );
+  THREE.MathUtils.clamp(
+   local.x,
+   -roof.halfWidth,
+   roof.halfWidth
+  );
 
- // ------------------------------------------------
- // GABLE SLOPE
- // ------------------------------------------------
- /*
-  *
-  * localX = 0
-  *
-  *          ▲
-  *          │ roof.height
-  *          │
-  *         / \
-  *        /   \
-  *       /     \
-  * -----         -----
-  *
-  * localX = ±halfWidth
-  *
-  * → wallTopY
-  */
  const normalized =
- 1 -
- Math.abs(
- surfaceX
- ) /
- roof.halfWidth;
+  1 -
+  Math.abs(
+   surfaceX
+  ) /
+  roof.halfWidth;
 
- const roofY =
- roof.wallTopY +
- roof.height *
- THREE.MathUtils.clamp(
- normalized,
- 0,
- 1
+ return (
+  roof.wallTopY +
+  roof.height *
+   THREE.MathUtils.clamp(
+    normalized,
+    0,
+    1
+   )
  );
-
- return roofY;
 }
 
 // --------------------------------------------------
@@ -12313,36 +11654,29 @@ function getRoofBottomHeight(
  worldZ
 ) {
  const top =
- getRoofSurfaceHeight(
- roof,
- worldX,
- worldZ,
- 0
- );
+  getRoofSurfaceHeight(
+   roof,
+   worldX,
+   worldZ,
+   0
+  );
 
  if (
- top ===
- null
+  top === null
  ) {
- return null;
+  return null;
  }
 
  const thickness =
- Number.isFinite(
- roof.thickness
- )
- ? roof.thickness
- : 0;
+  Number.isFinite(
+   roof.thickness
+  )
+   ? roof.thickness
+   : 0;
 
- /*
-  * Collision上では若干単純化して
-  * 厚みをY方向へ取る。
-  *
-  * 上面Collisionは正確な斜面。
-  */
  return (
- top -
- thickness
+  top -
+  thickness
  );
 }
 
@@ -12352,35 +11686,34 @@ function getRoofBottomHeight(
 function isPlayerStandingOnRoof(
  roof,
  position =
- camera.position,
+  camera.position,
  tolerance =
- 0.4
+  0.4
 ) {
  const roofY =
- getRoofSurfaceHeight(
- roof,
- position.x,
- position.z,
- 0
- );
+  getRoofSurfaceHeight(
+   roof,
+   position.x,
+   position.z,
+   0
+  );
 
  if (
- roofY ===
- null
+  roofY === null
  ) {
- return false;
+  return false;
  }
 
  const feetY =
- position.y -
- PLAYER_HEIGHT;
+  position.y -
+  PLAYER_HEIGHT;
 
  return (
- Math.abs(
- feetY -
- roofY
- ) <=
- tolerance
+  Math.abs(
+   feetY -
+   roofY
+  ) <=
+  tolerance
  );
 }
 
@@ -12391,418 +11724,528 @@ function findRoofBelowPlayer(
  worldX,
  worldZ,
  feetY,
- tolerance =
- 1
+ tolerance = 1
 ) {
  const searchPosition =
- new THREE.Vector3(
- worldX,
- feetY +
- PLAYER_HEIGHT,
- worldZ
- );
+  new THREE.Vector3(
+   worldX,
+   feetY +
+    PLAYER_HEIGHT,
+   worldZ
+  );
 
  const roofs =
- getNearbyRoofColliders(
- searchPosition
- );
+  getNearbyRoofColliders(
+   searchPosition
+  );
 
  let bestRoof =
- null;
+  null;
 
  let bestHeight =
- -Infinity;
+  -Infinity;
 
  for (
- const roof
- of roofs
+  const roof
+  of roofs
  ) {
- const roofY =
- getRoofSurfaceHeight(
- roof,
- worldX,
- worldZ
- );
+  const roofY =
+   getRoofSurfaceHeight(
+    roof,
+    worldX,
+    worldZ
+   );
 
- if (
- roofY ===
- null
- ) {
- continue;
- }
+  if (
+   roofY === null
+  ) {
+   continue;
+  }
 
- // ------------------------------------------------
- // ABOVE PLAYER
- // ------------------------------------------------
- if (
- roofY >
- feetY +
- tolerance
- ) {
- continue;
- }
+  if (
+   roofY >
+   feetY +
+    tolerance
+  ) {
+   continue;
+  }
 
- // ------------------------------------------------
- // HIGHEST VALID ROOF
- // ------------------------------------------------
- if (
- roofY >
- bestHeight
- ) {
- bestHeight =
- roofY;
+  if (
+   roofY >
+   bestHeight
+  ) {
+   bestHeight =
+    roofY;
 
- bestRoof =
- roof;
- }
+   bestRoof =
+    roof;
+  }
  }
 
  if (
- !bestRoof
+  !bestRoof
  ) {
- return null;
+  return null;
  }
 
  return {
- roof:
- bestRoof,
-
- height:
- bestHeight
+  roof: bestRoof,
+  height: bestHeight
  };
+}
+
+// --------------------------------------------------
+// FIND ROOF CROSSING
+// --------------------------------------------------
+/*
+ * moveVertical() が使用する
+ * 屋根への高速着地判定。
+ */
+function findRoofCrossing(
+ oldPosition,
+ nextPosition
+) {
+ const roofs =
+  getNearbyRoofColliders(
+   oldPosition
+  );
+
+ const oldFeet =
+  oldPosition.y -
+  PLAYER_HEIGHT;
+
+ const nextFeet =
+  nextPosition.y -
+  PLAYER_HEIGHT;
+
+ // 上昇中は着地しない
+ if (
+  nextFeet >
+  oldFeet
+ ) {
+  return null;
+ }
+
+ let best =
+  null;
+
+ for (
+  const roof
+  of roofs
+ ) {
+  const distance =
+   oldPosition.distanceTo(
+    nextPosition
+   );
+
+  const steps =
+   THREE.MathUtils.clamp(
+    Math.ceil(
+     distance /
+     0.15
+    ),
+    2,
+    256
+   );
+
+  let previousDifference =
+   null;
+
+  let previousT =
+   0;
+
+  for (
+   let i = 0;
+   i <= steps;
+   i++
+  ) {
+   const t =
+    i / steps;
+
+   const x =
+    THREE.MathUtils.lerp(
+     oldPosition.x,
+     nextPosition.x,
+     t
+    );
+
+   const z =
+    THREE.MathUtils.lerp(
+     oldPosition.z,
+     nextPosition.z,
+     t
+    );
+
+   const feet =
+    THREE.MathUtils.lerp(
+     oldFeet,
+     nextFeet,
+     t
+    );
+
+   const roofY =
+    getRoofSurfaceHeight(
+     roof,
+     x,
+     z,
+     0
+    );
+
+   if (
+    roofY === null
+   ) {
+    previousDifference =
+     null;
+
+    previousT =
+     t;
+
+    continue;
+   }
+
+   const difference =
+    feet -
+    roofY;
+
+   if (
+    previousDifference !==
+     null &&
+    previousDifference >=
+     0 &&
+    difference <=
+     0
+   ) {
+    const denominator =
+     previousDifference -
+     difference;
+
+    const fraction =
+     denominator >
+      0.000001
+      ? previousDifference /
+        denominator
+      : 0;
+
+    const hitT =
+     THREE.MathUtils.lerp(
+      previousT,
+      t,
+      fraction
+     );
+
+    const hitX =
+     THREE.MathUtils.lerp(
+      oldPosition.x,
+      nextPosition.x,
+      hitT
+     );
+
+    const hitZ =
+     THREE.MathUtils.lerp(
+      oldPosition.z,
+      nextPosition.z,
+      hitT
+     );
+
+    const hitY =
+     getRoofSurfaceHeight(
+      roof,
+      hitX,
+      hitZ,
+      0
+     );
+
+    if (
+     hitY !== null &&
+     (
+      !best ||
+      hitT <
+       best.t
+     )
+    ) {
+     best = {
+      roof,
+      t: hitT,
+      x: hitX,
+      z: hitZ,
+      y: hitY
+     };
+    }
+
+    break;
+   }
+
+   previousDifference =
+    difference;
+
+   previousT =
+    t;
+  }
+ }
+
+ return best;
 }
 
 // --------------------------------------------------
 // SWEPT ROOF COLLISION
 // --------------------------------------------------
-/*
- * 高速落下対策。
- *
- * oldPosition
- *
- *      ●
- *      │
- *      │
- *      │
- *      ▼
- *     / \
- *    /   \
- *
- * newPosition
- *
- *      ●
- *
- *
- * フレーム間で屋根を飛び越えていても、
- * 移動線分途中の屋根との交差を探す。
- */
 function findSweptRoofCollision(
  oldPosition,
  newPosition
 ) {
  const roofs =
- getNearbyRoofColliders(
- newPosition
- );
+  getNearbyRoofColliders(
+   newPosition
+  );
 
  if (
- roofs.length ===
- 0
+  roofs.length === 0
  ) {
- return null;
+  return null;
  }
 
- // ------------------------------------------------
- // PLAYER FEET
- // ------------------------------------------------
  const oldFeetY =
- oldPosition.y -
- PLAYER_HEIGHT;
+  oldPosition.y -
+  PLAYER_HEIGHT;
 
  const newFeetY =
- newPosition.y -
- PLAYER_HEIGHT;
+  newPosition.y -
+  PLAYER_HEIGHT;
 
- /*
-  * 上昇中は屋根上面への
-  * 着地判定を行わない。
-  */
  if (
- newFeetY >
- oldFeetY
+  newFeetY >
+  oldFeetY
  ) {
- return null;
+  return null;
  }
 
  let bestHit =
- null;
-
- // ------------------------------------------------
- // ROOFS
- // ------------------------------------------------
- for (
- const roof
- of roofs
- ) {
- /*
-  * まず新旧XZを含む大まかな範囲を確認。
-  */
- const oldInside =
- isInsideRoofHorizontal(
- roof,
- oldPosition.x,
- oldPosition.z,
- PLAYER_RADIUS
- );
-
- const newInside =
- isInsideRoofHorizontal(
- roof,
- newPosition.x,
- newPosition.z,
- PLAYER_RADIUS
- );
-
- /*
-  * 両端とも遠い場合でも、
-  * 高速水平移動で途中を横切る可能性がある。
-  *
-  * そのため後続のsamplingを行うが、
-  * 明らかに遠い場合だけ除外する。
-  */
- if (
- !oldInside &&
- !newInside
- ) {
- const centerDistance =
- Math.hypot(
- (
- oldPosition.x +
- newPosition.x
- ) *
- 0.5 -
- roof.x,
-
- (
- oldPosition.z +
- newPosition.z
- ) *
- 0.5 -
- roof.z
- );
-
- const movementLength =
- Math.hypot(
- newPosition.x -
- oldPosition.x,
- newPosition.z -
- oldPosition.z
- );
-
- const roofRadius =
- Math.hypot(
- roof.halfWidth,
- roof.halfDepth
- );
-
- if (
- centerDistance >
- roofRadius +
- movementLength *
- 0.5 +
- PLAYER_RADIUS
- ) {
- continue;
- }
- }
-
- // ------------------------------------------------
- // SAMPLING
- // ------------------------------------------------
- /*
-  * 屋根は平面2枚なので解析的にも解けるが、
-  * 現在のPlayer物理との互換性を優先し
-  * Swept線分を細かくSamplingする。
-  *
-  * 高速時ほど自動的に回数を増やす。
-  */
- const travelDistance =
- oldPosition.distanceTo(
- newPosition
- );
-
- const sampleStep =
- Math.max(
- 0.15,
- PLAYER_RADIUS *
- 0.5
- );
-
- const samples =
- THREE.MathUtils.clamp(
- Math.ceil(
- travelDistance /
- sampleStep
- ),
- 2,
- 128
- );
-
- let previousT =
- 0;
-
- let previousDifference =
- null;
+  null;
 
  for (
- let i = 0;
- i <=
- samples;
- i++
+  const roof
+  of roofs
  ) {
- const t =
- i /
- samples;
+  const oldInside =
+   isInsideRoofHorizontal(
+    roof,
+    oldPosition.x,
+    oldPosition.z,
+    PLAYER_RADIUS
+   );
 
- const x =
- THREE.MathUtils.lerp(
- oldPosition.x,
- newPosition.x,
- t
- );
+  const newInside =
+   isInsideRoofHorizontal(
+    roof,
+    newPosition.x,
+    newPosition.z,
+    PLAYER_RADIUS
+   );
 
- const z =
- THREE.MathUtils.lerp(
- oldPosition.z,
- newPosition.z,
- t
- );
+  if (
+   !oldInside &&
+   !newInside
+  ) {
+   const centerDistance =
+    Math.hypot(
+     (
+      oldPosition.x +
+      newPosition.x
+     ) *
+      0.5 -
+      roof.x,
 
- const feetY =
- THREE.MathUtils.lerp(
- oldFeetY,
- newFeetY,
- t
- );
+     (
+      oldPosition.z +
+      newPosition.z
+     ) *
+      0.5 -
+      roof.z
+    );
 
- const roofY =
- getRoofSurfaceHeight(
- roof,
- x,
- z,
- PLAYER_RADIUS
- );
+   const movementLength =
+    Math.hypot(
+     newPosition.x -
+      oldPosition.x,
+     newPosition.z -
+      oldPosition.z
+    );
 
- if (
- roofY ===
- null
- ) {
- previousDifference =
- null;
+   const roofRadius =
+    Math.hypot(
+     roof.halfWidth,
+     roof.halfDepth
+    );
 
- previousT =
- t;
+   if (
+    centerDistance >
+    roofRadius +
+     movementLength *
+      0.5 +
+     PLAYER_RADIUS
+   ) {
+    continue;
+   }
+  }
 
- continue;
- }
+  const travelDistance =
+   oldPosition.distanceTo(
+    newPosition
+   );
 
- const difference =
- feetY -
- roofY;
+  const sampleStep =
+   Math.max(
+    0.15,
+    PLAYER_RADIUS *
+     0.5
+   );
 
- // ------------------------------------------------
- // CROSSING
- // ------------------------------------------------
- if (
- previousDifference !==
- null &&
- previousDifference >=
- 0 &&
- difference <=
- 0
- ) {
- /*
-  * 前サンプルと現サンプルの間で
-  * 正確な交差時刻を補間。
-  */
- const denominator =
- previousDifference -
- difference;
+  const samples =
+   THREE.MathUtils.clamp(
+    Math.ceil(
+     travelDistance /
+     sampleStep
+    ),
+    2,
+    128
+   );
 
- const localT =
- denominator >
- 0.000001
- ? previousDifference /
- denominator
- : 0;
+  let previousT =
+   0;
 
- const hitT =
- THREE.MathUtils.lerp(
- previousT,
- t,
- localT
- );
+  let previousDifference =
+   null;
 
- const hitX =
- THREE.MathUtils.lerp(
- oldPosition.x,
- newPosition.x,
- hitT
- );
+  for (
+   let i = 0;
+   i <= samples;
+   i++
+  ) {
+   const t =
+    i / samples;
 
- const hitZ =
- THREE.MathUtils.lerp(
- oldPosition.z,
- newPosition.z,
- hitT
- );
+   const x =
+    THREE.MathUtils.lerp(
+     oldPosition.x,
+     newPosition.x,
+     t
+    );
 
- const hitY =
- getRoofSurfaceHeight(
- roof,
- hitX,
- hitZ,
- 0
- );
+   const z =
+    THREE.MathUtils.lerp(
+     oldPosition.z,
+     newPosition.z,
+     t
+    );
 
- if (
- hitY ===
- null
- ) {
- break;
- }
+   const feetY =
+    THREE.MathUtils.lerp(
+     oldFeetY,
+     newFeetY,
+     t
+    );
 
- if (
- !bestHit ||
- hitT <
- bestHit.t
- ) {
- bestHit = {
- roof,
+   const roofY =
+    getRoofSurfaceHeight(
+     roof,
+     x,
+     z,
+     PLAYER_RADIUS
+    );
 
- t:
- hitT,
+   if (
+    roofY === null
+   ) {
+    previousDifference =
+     null;
 
- x:
- hitX,
+    previousT =
+     t;
 
- z:
- hitZ,
+    continue;
+   }
 
- y:
- hitY
- };
- }
+   const difference =
+    feetY -
+    roofY;
 
- break;
- }
+   if (
+    previousDifference !==
+     null &&
+    previousDifference >=
+     0 &&
+    difference <=
+     0
+   ) {
+    const denominator =
+     previousDifference -
+     difference;
 
- previousDifference =
- difference;
+    const localT =
+     denominator >
+      0.000001
+      ? previousDifference /
+        denominator
+      : 0;
 
- previousT =
- t;
- }
+    const hitT =
+     THREE.MathUtils.lerp(
+      previousT,
+      t,
+      localT
+     );
+
+    const hitX =
+     THREE.MathUtils.lerp(
+      oldPosition.x,
+      newPosition.x,
+      hitT
+     );
+
+    const hitZ =
+     THREE.MathUtils.lerp(
+      oldPosition.z,
+      newPosition.z,
+      hitT
+     );
+
+    const hitY =
+     getRoofSurfaceHeight(
+      roof,
+      hitX,
+      hitZ,
+      0
+     );
+
+    if (
+     hitY === null
+    ) {
+     break;
+    }
+
+    if (
+     !bestHit ||
+     hitT <
+      bestHit.t
+    ) {
+     bestHit = {
+      roof,
+      t: hitT,
+      x: hitX,
+      z: hitZ,
+      y: hitY
+     };
+    }
+
+    break;
+   }
+
+   previousDifference =
+    difference;
+
+   previousT =
+    t;
+  }
  }
 
  return bestHit;
