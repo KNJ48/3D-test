@@ -13789,77 +13789,231 @@ function updateGround(
 // DEATH
 // ==================================================
 function die() {
-  if (dead) {
-    return;
-  }
+ if (
+  dead
+ ) {
+  return;
+ }
 
-  dead = true;
+ dead =
+  true;
 
-  velocity.set(
-    0,
-    0,
-    0
-  );
+ velocity.set(
+  0,
+  0,
+  0
+ );
 
-  releaseAnchor(
-    leftAnchor
-  );
+ releaseAnchor(
+  leftAnchor
+ );
 
-  releaseAnchor(
-    rightAnchor
-  );
+ releaseAnchor(
+  rightAnchor
+ );
 
-  deathScreen.style.display =
-    "flex";
+ deathScreen.style.display =
+  "flex";
 
-  setTimeout(
-    respawn,
-    2000
-  );
+ // =================================================
+ // RESPAWN
+ // =================================================
+ setTimeout(
+  () => {
+   respawn();
+  },
+  2000
+ );
 }
 
+// ==================================================
+// RESPAWN
+// ==================================================
 function respawn() {
-  camera.position.copy(
-    SPAWN
-  );
+ // ------------------------------------------------
+ // ANCHORS
+ // ------------------------------------------------
+ releaseAnchor(
+  leftAnchor
+ );
 
-  velocity.set(
-    0,
-    0,
+ releaseAnchor(
+  rightAnchor
+ );
+
+ // ------------------------------------------------
+ // PHYSICS
+ // ------------------------------------------------
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ health =
+  MAX_HEALTH;
+
+ gas =
+  MAX_GAS;
+
+ grounded =
+  true;
+
+ groundedRoof =
+  null;
+
+ dead =
+  false;
+
+ wallStunTimer =
+  0;
+
+ gasBurstCooldown =
+  0;
+
+ lastSpaceTapTime =
+  -Infinity;
+
+ // =================================================
+ // TUTORIAL RESPAWN
+ // =================================================
+ if (
+  currentGameMode ===
+   GAME_MODES.TUTORIAL
+ ) {
+  const spawn =
+   tutorialWorldData?.spawn ??
+   {};
+
+  const spawnX =
+   metersToUnits(
+    Number(
+     spawn.xMeters
+    ) ||
     0
+   );
+
+  const spawnZ =
+   metersToUnits(
+    Number(
+     spawn.zMeters
+    ) ||
+    0
+   );
+
+  /*
+   * Tutorial Groundは
+   * 標高0m。
+   */
+  camera.position.set(
+   spawnX,
+   PLAYER_HEIGHT,
+   spawnZ
   );
 
-  health =
-    MAX_HEALTH;
+  yaw =
+   Number.isFinite(
+    spawn.yaw
+   )
+    ? spawn.yaw
+    : Math.PI;
 
-  gas =
-    MAX_GAS;
+  pitch =
+   Number.isFinite(
+    spawn.pitch
+   )
+    ? spawn.pitch
+    : 0;
 
-  grounded = true;
+  camera.rotation.y =
+   yaw;
 
-  dead = false;
+  camera.rotation.x =
+   pitch;
 
-  wallStunTimer = 0;
-
-  gasBurstCooldown =
-    0;
-
-  lastSpaceTapTime =
-    -Infinity;
-
-  yaw = 0;
-  pitch = 0;
-
-  releaseAnchor(
-    leftAnchor
-  );
-
-  releaseAnchor(
-    rightAnchor
-  );
+  // ------------------------------------------------
+  // RESET TUTORIAL STEP POSITION
+  // ------------------------------------------------
+  /*
+   * 死亡しただけでTutorial全体を
+   * 最初からやり直しにはしない。
+   *
+   * 現在のStepを
+   * 新しいSpawn位置基準で再開する。
+   */
+  if (
+   tutorialGuideActive &&
+   !tutorialGuideCompleted
+  ) {
+   beginTutorialStep(
+    tutorialStepIndex
+   );
+  }
 
   deathScreen.style.display =
-    "none";
+   "none";
+
+  showMessage(
+   "TRAINING RESPAWN"
+  );
+
+  return;
+ }
+
+ // =================================================
+ // OPEN WORLD RESPAWN
+ // =================================================
+ camera.position.copy(
+  SPAWN
+ );
+
+ yaw =
+  0;
+
+ pitch =
+  0;
+
+ camera.rotation.y =
+  yaw;
+
+ camera.rotation.x =
+  pitch;
+
+ // ------------------------------------------------
+ // STREAMING
+ // ------------------------------------------------
+ /*
+  * 遠方で死亡した場合、
+  * Spawn地点を即ロードする。
+  */
+ if (
+  currentGameMode ===
+   GAME_MODES.OPEN_WORLD
+ ) {
+  chunkGenerationQueue.length =
+   0;
+
+  queuedChunks.clear();
+
+  chunkRequestTimer =
+   0;
+
+  forceLoadCurrentChunk();
+
+  requestWorldChunks();
+
+  previousAreaChunkX =
+   null;
+
+  previousAreaChunkZ =
+   null;
+
+  areaSystemInitialized =
+   false;
+ }
+
+ deathScreen.style.display =
+  "none";
 }
 
 // ==================================================
