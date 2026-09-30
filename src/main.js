@@ -12065,9 +12065,26 @@ function applyWallStun(
 // COLLISION
 // ==================================================
 
-// --------------------------------------------------
+/*
+ * COLLISION POLICY
+ *
+ * NORMAL BOX:
+ *   家本体・塔・木など。
+ *
+ * ROOF TOP:
+ *   壁ではない。
+ *   「傾いた地面」として扱う。
+ *
+ * ROOF SOLID:
+ *   妻壁・屋根下面など。
+ *
+ * RING WALL:
+ *   通常の壁。
+ */
+
+// ==================================================
 // BOX COLLISION
-// --------------------------------------------------
+// ==================================================
 function intersects(
  position,
  box
@@ -12099,7 +12116,7 @@ function intersects(
 }
 
 // ==================================================
-// ROOF COLLISION
+// ROOF COORDINATES
 // ==================================================
 
 // --------------------------------------------------
@@ -12143,9 +12160,18 @@ function getRoofLocalPosition(
  };
 }
 
-// --------------------------------------------------
-// ROOF SURFACE FROM LOCAL X
-// --------------------------------------------------
+// ==================================================
+// WALKABLE ROOF SURFACE
+// ==================================================
+
+/*
+ * 指定したLocal Xでの
+ * 切妻屋根上面Y。
+ *
+ * 屋根上面を
+ * 「傾いた地面」として扱うための
+ * 基本関数。
+ */
 function getRoofSurfaceHeightFromLocalX(
  roof,
  localX
@@ -12177,32 +12203,31 @@ function getRoofSurfaceHeightFromLocalX(
  }
 
  const normalized =
-  1 -
-  Math.abs(
-   localX
-  ) /
-  roof.halfWidth;
+  THREE.MathUtils.clamp(
+   1 -
+   Math.abs(
+    localX
+   ) /
+   roof.halfWidth,
+   0,
+   1
+  );
 
  return (
   roof.wallTopY +
   roof.height *
-   THREE.MathUtils.clamp(
-    normalized,
-    0,
-    1
-   )
+   normalized
  );
 }
 
 // --------------------------------------------------
-// ROOF SURFACE
+// ROOF SURFACE AT WORLD XZ
 // --------------------------------------------------
 function getRoofSurfaceHeight(
  roof,
  worldX,
  worldZ,
- padding =
-  PLAYER_RADIUS
+ padding = 0
 ) {
  if (
   !roof
@@ -12219,16 +12244,6 @@ function getRoofSurfaceHeight(
 
  if (
   Math.abs(
-   local.z
-  ) >
-  roof.halfDepth +
-   padding
- ) {
-  return null;
- }
-
- if (
-  Math.abs(
    local.x
   ) >
   roof.halfWidth +
@@ -12237,7 +12252,17 @@ function getRoofSurfaceHeight(
   return null;
  }
 
- const localX =
+ if (
+  Math.abs(
+   local.z
+  ) >
+  roof.halfDepth +
+   padding
+ ) {
+  return null;
+ }
+
+ const surfaceX =
   THREE.MathUtils.clamp(
    local.x,
    -roof.halfWidth,
@@ -12247,14 +12272,95 @@ function getRoofSurfaceHeight(
  return (
   getRoofSurfaceHeightFromLocalX(
    roof,
-   localX
+   surfaceX
   )
  );
 }
 
-// --------------------------------------------------
+// ==================================================
+// FIND WALKABLE ROOF AT XZ
+// ==================================================
+/*
+ * 指定位置に存在する屋根の中から、
+ * feetY以下で最も高い屋根面を探す。
+ *
+ * Terrainの
+ * getTerrainHeightMeters()
+ *
+ * に近い役割。
+ */
+function findWalkableRoofAt(
+ worldX,
+ worldZ,
+ feetY,
+ maxStepUp = 0.65
+) {
+ const searchPosition =
+  new THREE.Vector3(
+   worldX,
+   feetY +
+    PLAYER_HEIGHT,
+   worldZ
+  );
+
+ const roofs =
+  getNearbyRoofColliders(
+   searchPosition
+  );
+
+ let best =
+  null;
+
+ for (
+  const roof
+  of roofs
+ ) {
+  const roofY =
+   getRoofSurfaceHeight(
+    roof,
+    worldX,
+    worldZ,
+    0
+   );
+
+  if (
+   roofY ===
+    null
+  ) {
+   continue;
+  }
+
+  /*
+   * 足元より大幅に上の斜面へ
+   * 瞬間的にワープして登らない。
+   */
+  if (
+   roofY >
+   feetY +
+    maxStepUp
+  ) {
+   continue;
+  }
+
+  if (
+   !best ||
+   roofY >
+    best.height
+  ) {
+   best = {
+    roof,
+    height:
+     roofY
+   };
+  }
+ }
+
+ return best;
+}
+
+// ==================================================
 // ROOF BOTTOM
-// --------------------------------------------------
+// ==================================================
 function getRoofBottomHeight(
  roof,
  worldX,
@@ -12288,139 +12394,16 @@ function getRoofBottomHeight(
  );
 }
 
-// --------------------------------------------------
-// INSIDE ROOF HORIZONTAL
-// --------------------------------------------------
-function isInsideRoofHorizontal(
- roof,
- worldX,
- worldZ,
- padding = 0
-) {
- if (
-  !roof
- ) {
-  return false;
- }
-
- const local =
-  getRoofLocalPosition(
-   roof,
-   worldX,
-   worldZ
-  );
-
- return (
-  Math.abs(
-   local.x
-  ) <=
-   roof.halfWidth +
-   padding &&
-
-  Math.abs(
-   local.z
-  ) <=
-   roof.halfDepth +
-   padding
- );
-}
-
 // ==================================================
-// ROOF SOLID
+// GABLE WALL COLLISION
 // ==================================================
-function intersectsRoofSolid(
- position,
- roof
-) {
- if (
-  !roof
- ) {
-  return false;
- }
-
- const local =
-  getRoofLocalPosition(
-   roof,
-   position.x,
-   position.z
-  );
-
- if (
-  Math.abs(
-   local.x
-  ) >
-  roof.halfWidth +
-   PLAYER_RADIUS
- ) {
-  return false;
- }
-
- if (
-  Math.abs(
-   local.z
-  ) >
-  roof.halfDepth +
-   PLAYER_RADIUS
- ) {
-  return false;
- }
-
- const closestX =
-  THREE.MathUtils.clamp(
-   local.x,
-   -roof.halfWidth,
-   roof.halfWidth
-  );
-
- const roofTop =
-  getRoofSurfaceHeightFromLocalX(
-   roof,
-   closestX
-  );
-
- if (
-  roofTop ===
-   null
- ) {
-  return false;
- }
-
- const thickness =
-  Number.isFinite(
-   roof.thickness
-  )
-   ? Math.max(
-      roof.thickness,
-      0.08
-     )
-   : 0.08;
-
- const collisionThickness =
-  thickness +
-  0.08;
-
- const roofBottom =
-  roofTop -
-  collisionThickness;
-
- const playerTop =
-  position.y;
-
- const playerBottom =
-  position.y -
-  PLAYER_HEIGHT;
-
- return (
-  playerTop >
-   roofBottom &&
-  playerBottom <
-   roofTop
- );
-}
-
-// ==================================================
-// GABLE WALL
-// ==================================================
+/*
+ * 家の前後にある
+ * 三角形の妻壁。
+ *
+ * これはWalkable Surfaceではなく
+ * 普通の壁。
+ */
 function intersectsGableWall(
  position,
  roof
@@ -12441,13 +12424,13 @@ function intersectsGableWall(
  const frontDistance =
   Math.abs(
    local.z +
-   roof.halfDepth
+    roof.halfDepth
   );
 
  const backDistance =
   Math.abs(
    local.z -
-   roof.halfDepth
+    roof.halfDepth
   );
 
  if (
@@ -12469,21 +12452,21 @@ function intersectsGableWall(
   return false;
  }
 
- const closestX =
+ const surfaceX =
   THREE.MathUtils.clamp(
    local.x,
    -roof.halfWidth,
    roof.halfWidth
   );
 
- const triangleTop =
+ const top =
   getRoofSurfaceHeightFromLocalX(
    roof,
-   closestX
+   surfaceX
   );
 
  if (
-  triangleTop ===
+  top ===
    null
  ) {
   return false;
@@ -12494,20 +12477,113 @@ function intersectsGableWall(
 
  const playerBottom =
   position.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
  return (
   playerTop >
    roof.wallTopY &&
   playerBottom <
-   triangleTop
+   top
  );
 }
 
 // ==================================================
-// COLLIDES ROOF SOLID
+// ROOF UNDERSIDE COLLISION
 // ==================================================
-function collidesRoofSolid(
+/*
+ * 下から屋根へ突入する場合だけ
+ * 屋根材を天井として扱う。
+ *
+ * 上面はここでは判定しない。
+ */
+function intersectsRoofUnderside(
+ position,
+ roof
+) {
+ if (
+  !roof
+ ) {
+  return false;
+ }
+
+ const local =
+  getRoofLocalPosition(
+   roof,
+   position.x,
+   position.z
+  );
+
+ if (
+  Math.abs(
+   local.x
+  ) >
+   roof.halfWidth -
+   0.02 ||
+  Math.abs(
+   local.z
+  ) >
+   roof.halfDepth -
+   0.02
+ ) {
+  return false;
+ }
+
+ const top =
+  getRoofSurfaceHeightFromLocalX(
+   roof,
+   local.x
+  );
+
+ if (
+  top ===
+   null
+ ) {
+  return false;
+ }
+
+ const thickness =
+  Number.isFinite(
+   roof.thickness
+  )
+   ? Math.max(
+      roof.thickness,
+      0.08
+     )
+   : 0.08;
+
+ const bottom =
+  top -
+  thickness;
+
+ const playerHead =
+  position.y;
+
+ /*
+  * 頭が屋根材の下面から
+  * 内部へ入っている。
+  *
+  * 足元着地には使用しない。
+  */
+ return (
+  playerHead >=
+   bottom &&
+  playerHead <
+   top
+ );
+}
+
+// ==================================================
+// ROOF HARD COLLISION
+// ==================================================
+/*
+ * 上面は含まない。
+ *
+ * ・妻壁
+ * ・屋根下面
+ *
+ * だけを処理する。
+ */
+function collidesRoofHardSurface(
  position
 ) {
  const roofs =
@@ -12520,7 +12596,7 @@ function collidesRoofSolid(
   of roofs
  ) {
   if (
-   intersectsRoofSolid(
+   intersectsGableWall(
     position,
     roof
    )
@@ -12528,8 +12604,14 @@ function collidesRoofSolid(
    return true;
   }
 
+  /*
+   * 下から上昇している時だけ
+   * 屋根裏判定を有効化。
+   */
   if (
-   intersectsGableWall(
+   velocity.y >
+    0 &&
+   intersectsRoofUnderside(
     position,
     roof
    )
@@ -12549,7 +12631,7 @@ function isPlayerStandingOnRoof(
  position =
   camera.position,
  tolerance =
-  0.4
+  0.45
 ) {
  const roofY =
   getRoofSurfaceHeight(
@@ -12568,12 +12650,12 @@ function isPlayerStandingOnRoof(
 
  const feetY =
   position.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
  return (
   Math.abs(
    feetY -
-   roofY
+    roofY
   ) <=
    tolerance
  );
@@ -12587,84 +12669,26 @@ function findRoofBelowPlayer(
  worldZ,
  feetY,
  tolerance =
-  1
+ 1
 ) {
- const searchPosition =
-  new THREE.Vector3(
-   worldX,
-   feetY +
-    PLAYER_HEIGHT,
-   worldZ
-  );
-
- const roofs =
-  getNearbyRoofColliders(
-   searchPosition
-  );
-
- let bestRoof =
-  null;
-
- let bestHeight =
-  -Infinity;
-
- for (
-  const roof
-  of roofs
- ) {
-  const roofY =
-   getRoofSurfaceHeight(
-    roof,
-    worldX,
-    worldZ,
-    0
-   );
-
-  if (
-   roofY ===
-    null
-  ) {
-   continue;
-  }
-
-  if (
-   roofY >
-   feetY +
-    tolerance
-  ) {
-   continue;
-  }
-
-  if (
-   roofY >
-   bestHeight
-  ) {
-   bestHeight =
-    roofY;
-
-   bestRoof =
-    roof;
-  }
- }
-
- if (
-  !bestRoof
- ) {
-  return null;
- }
-
- return {
-  roof:
-   bestRoof,
-
-  height:
-   bestHeight
- };
+ return findWalkableRoofAt(
+  worldX,
+  worldZ,
+  feetY,
+  tolerance
+ );
 }
 
 // ==================================================
 // FIND ROOF CROSSING
 // ==================================================
+/*
+ * 空中から落下して、
+ * フレーム間で屋根を通り越す場合の判定。
+ *
+ * 屋根上面を
+ * 「地面」として着地させる。
+ */
 function findRoofCrossing(
  oldPosition,
  nextPosition
@@ -12676,15 +12700,19 @@ function findRoofCrossing(
 
  const oldFeet =
   oldPosition.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
  const nextFeet =
   nextPosition.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
+ /*
+  * 上昇中は
+  * 上面へ着地しない。
+  */
  if (
   nextFeet >
-  oldFeet
+   oldFeet
  ) {
   return null;
  }
@@ -12705,10 +12733,10 @@ function findRoofCrossing(
    THREE.MathUtils.clamp(
     Math.ceil(
      distance /
-     0.12
+      0.10
     ),
     2,
-    256
+    320
    );
 
   let previousDifference =
@@ -12720,7 +12748,7 @@ function findRoofCrossing(
   for (
    let i = 0;
    i <=
-   steps;
+    steps;
    i++
   ) {
    const t =
@@ -12771,7 +12799,7 @@ function findRoofCrossing(
 
    const difference =
     feet -
-    roofY;
+     roofY;
 
    if (
     previousDifference !==
@@ -12783,7 +12811,7 @@ function findRoofCrossing(
    ) {
     const denominator =
      previousDifference -
-     difference;
+      difference;
 
     const fraction =
      denominator >
@@ -12832,16 +12860,12 @@ function findRoofCrossing(
     ) {
      best = {
       roof,
-
       t:
        hitT,
-
       x:
        hitX,
-
       z:
        hitZ,
-
       y:
        hitY
      };
@@ -12862,7 +12886,7 @@ function findRoofCrossing(
 }
 
 // ==================================================
-// SWEPT ROOF COLLISION
+// SWEPT ROOF COMPATIBILITY
 // ==================================================
 function findSweptRoofCollision(
  oldPosition,
@@ -12880,10 +12904,6 @@ function findSweptRoofCollision(
 function collidesRingWall(
  position
 ) {
- /*
-  * Tutorialには本島の
-  * Wall Ringを適用しない。
-  */
  if (
   typeof currentGameMode !==
    "undefined" &&
@@ -12895,7 +12915,7 @@ function collidesRingWall(
 
  const feet =
   position.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
  const radialDistance =
   Math.hypot(
@@ -12909,25 +12929,25 @@ function collidesRingWall(
  ) {
   if (
    feet >=
-   ring.height
+    ring.height
   ) {
    continue;
   }
 
   const collisionThickness =
    ring.thickness /
-   2 +
+    2 +
    PLAYER_RADIUS;
 
   const difference =
    Math.abs(
     radialDistance -
-    ring.radius
+     ring.radius
    );
 
   if (
    difference <=
-   collisionThickness
+    collisionThickness
   ) {
    return true;
   }
@@ -12937,8 +12957,20 @@ function collidesRingWall(
 }
 
 // ==================================================
-// COLLIDES
+// NORMAL COLLIDES
 // ==================================================
+/*
+ * 重要:
+ *
+ * 屋根上面はここへ入れない。
+ *
+ * これにより屋根上を歩いても
+ *
+ * wallJump
+ * wallStun
+ *
+ * の対象にならない。
+ */
 function collides(
  position
 ) {
@@ -12965,10 +12997,10 @@ function collides(
  }
 
  // ------------------------------------------------
- // ROOF
+ // ROOF HARD PARTS
  // ------------------------------------------------
  if (
-  collidesRoofSolid(
+  collidesRoofHardSurface(
    position
   )
  ) {
@@ -12995,226 +13027,276 @@ function collides(
 function moveHorizontalStep(
  delta
 ) {
- // --------------------------------------------------
+ // =================================================
+ // STORE CURRENT ROOF
+ // =================================================
+ const roofBeforeMove =
+  groundedRoof;
+
+ // =================================================
  // X
- // --------------------------------------------------
+ // =================================================
  const nextX =
- camera.position.clone();
+  camera.position.clone();
 
  nextX.x +=
- velocity.x *
- delta;
+  velocity.x *
+   delta;
 
  if (
- !collides(
- nextX
- )
+  !collides(
+   nextX
+  )
  ) {
- camera.position.x =
- nextX.x;
+  camera.position.x =
+   nextX.x;
  } else {
- if (
- grounded
- ) {
- velocity.x =
- 0;
- } else {
- const impact =
- velocity.x;
+  if (
+   grounded
+  ) {
+   velocity.x =
+    0;
+  } else {
+   const impact =
+    velocity.x;
 
- const kmh =
- speedToKmh(
- impact
- );
+   const kmh =
+    speedToKmh(
+     impact
+    );
 
- const normalX =
- impact >
- 0
- ? -1
- : 1;
+   const normalX =
+    impact >
+     0
+     ? -1
+     : 1;
 
- const angleWallJump =
- canWallJumpByAngle(
- velocity.x,
- velocity.z,
- normalX,
- 0
- );
+   const angleWallJump =
+    canWallJumpByAngle(
+     velocity.x,
+     velocity.z,
+     normalX,
+     0
+    );
 
- if (
- wallStunTimer >
- 0
- ) {
- velocity.x =
- 0;
- } else if (
- angleWallJump ||
- kmh <
- WALL_JUMP_SAFE_KMH
- ) {
- wallJump(
- normalX,
- 0
- );
+   if (
+    wallStunTimer >
+     0
+   ) {
+    velocity.x =
+     0;
+   } else if (
+    angleWallJump ||
+    kmh <
+     WALL_JUMP_SAFE_KMH
+   ) {
+    wallJump(
+     normalX,
+     0
+    );
 
- groundedRoof =
- null;
+    groundedRoof =
+     null;
 
- return true;
- } else {
- damageFromImpact(
- impact
- );
+    return true;
+   } else {
+    damageFromImpact(
+     impact
+    );
 
- if (
- !dead
- ) {
- applyWallStun(
- kmh
- );
+    if (
+     !dead
+    ) {
+     applyWallStun(
+      kmh
+     );
+    }
+
+    velocity.x =
+     0;
+
+    groundedRoof =
+     null;
+
+    return true;
+   }
+  }
  }
 
- velocity.x =
- 0;
-
- groundedRoof =
- null;
-
- return true;
- }
- }
- }
-
- // --------------------------------------------------
+ // =================================================
  // Z
- // --------------------------------------------------
+ // =================================================
  const nextZ =
- camera.position.clone();
+  camera.position.clone();
 
  nextZ.z +=
- velocity.z *
- delta;
+  velocity.z *
+   delta;
 
  if (
- !collides(
- nextZ
- )
+  !collides(
+   nextZ
+  )
  ) {
- camera.position.z =
- nextZ.z;
+  camera.position.z =
+   nextZ.z;
  } else {
+  if (
+   grounded
+  ) {
+   velocity.z =
+    0;
+  } else {
+   const impact =
+    velocity.z;
+
+   const kmh =
+    speedToKmh(
+     impact
+    );
+
+   const normalZ =
+    impact >
+     0
+     ? -1
+     : 1;
+
+   const angleWallJump =
+    canWallJumpByAngle(
+     velocity.x,
+     velocity.z,
+     0,
+     normalZ
+    );
+
+   if (
+    wallStunTimer >
+     0
+   ) {
+    velocity.z =
+     0;
+   } else if (
+    angleWallJump ||
+    kmh <
+     WALL_JUMP_SAFE_KMH
+   ) {
+    wallJump(
+     0,
+     normalZ
+    );
+
+    groundedRoof =
+     null;
+
+    return true;
+   } else {
+    damageFromImpact(
+     impact
+    );
+
+    if (
+     !dead
+    ) {
+     applyWallStun(
+      kmh
+     );
+    }
+
+    velocity.z =
+     0;
+
+    groundedRoof =
+     null;
+
+    return true;
+   }
+  }
+ }
+
+ // =================================================
+ // WALKABLE ROOF FOLLOW
+ // =================================================
+ /*
+  * 屋根上面は
+  * 「傾いた地面」。
+  *
+  * X/Z移動後に
+  * 新しい地点のSurface Yへ追従する。
+  */
  if (
- grounded
+  grounded &&
+  roofBeforeMove
  ) {
- velocity.z =
- 0;
- } else {
- const impact =
- velocity.z;
+  const roofY =
+   getRoofSurfaceHeight(
+    roofBeforeMove,
+    camera.position.x,
+    camera.position.z,
+    0
+   );
 
- const kmh =
- speedToKmh(
- impact
- );
+  // ------------------------------------------------
+  // STILL ON SAME ROOF
+  // ------------------------------------------------
+  if (
+   roofY !==
+    null
+  ) {
+   camera.position.y =
+    roofY +
+    PLAYER_HEIGHT;
 
- const normalZ =
- impact >
- 0
- ? -1
- : 1;
+   velocity.y =
+    0;
 
- const angleWallJump =
- canWallJumpByAngle(
- velocity.x,
- velocity.z,
- 0,
- normalZ
- );
+   groundedRoof =
+    roofBeforeMove;
 
- if (
- wallStunTimer >
- 0
- ) {
- velocity.z =
- 0;
- } else if (
- angleWallJump ||
- kmh <
- WALL_JUMP_SAFE_KMH
- ) {
- wallJump(
- 0,
- normalZ
- );
+   return false;
+  }
 
- groundedRoof =
- null;
+  // ------------------------------------------------
+  // POSSIBLE ADJACENT ROOF
+  // ------------------------------------------------
+  const currentFeet =
+   camera.position.y -
+    PLAYER_HEIGHT;
 
- return true;
- } else {
- damageFromImpact(
- impact
- );
+  const nearbyRoof =
+   findWalkableRoofAt(
+    camera.position.x,
+    camera.position.z,
+    currentFeet,
+    0.65
+   );
 
- if (
- !dead
- ) {
- applyWallStun(
- kmh
- );
- }
+  if (
+   nearbyRoof
+  ) {
+   camera.position.y =
+    nearbyRoof.height +
+    PLAYER_HEIGHT;
 
- velocity.z =
- 0;
+   velocity.y =
+    0;
 
- groundedRoof =
- null;
+   grounded =
+    true;
 
- return true;
- }
- }
- }
+   groundedRoof =
+    nearbyRoof.roof;
 
- // --------------------------------------------------
- // FOLLOW ROOF
- // --------------------------------------------------
- if (
- grounded &&
- groundedRoof
- ) {
- const roofY =
- getRoofSurfaceHeight(
- groundedRoof,
- camera.position.x,
- camera.position.z,
- 0
- );
+   return false;
+  }
 
- // ------------------------------------------------
- // STILL ON ROOF
- // ------------------------------------------------
- if (
- roofY !==
- null
- ) {
- camera.position.y =
- roofY +
- PLAYER_HEIGHT;
+  // ------------------------------------------------
+  // LEFT ROOF
+  // ------------------------------------------------
+  grounded =
+   false;
 
- velocity.y =
- 0;
- }
-
- // ------------------------------------------------
- // LEFT ROOF
- // ------------------------------------------------
- else {
- groundedRoof =
- null;
-
- grounded =
- false;
- }
+  groundedRoof =
+   null;
  }
 
  return false;
@@ -13279,25 +13361,25 @@ function moveVertical(
 
  next.y +=
   velocity.y *
-  delta;
+   delta;
 
  const oldFeet =
   oldPosition.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
  const nextFeet =
   next.y -
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
  // =================================================
- // STANDING ON ROOF
+ // ALREADY STANDING ON ROOF
  // =================================================
  if (
   groundedRoof &&
   velocity.y <=
-  0
+   0
  ) {
-  const currentRoofY =
+  const roofY =
    getRoofSurfaceHeight(
     groundedRoof,
     camera.position.x,
@@ -13305,15 +13387,12 @@ function moveVertical(
     0
    );
 
-  // ------------------------------------------------
-  // STILL ON ROOF
-  // ------------------------------------------------
   if (
-   currentRoofY !==
-   null
+   roofY !==
+    null
   ) {
    camera.position.y =
-    currentRoofY +
+    roofY +
     PLAYER_HEIGHT;
 
    velocity.y =
@@ -13325,9 +13404,6 @@ function moveVertical(
    return;
   }
 
-  // ------------------------------------------------
-  // LEFT ROOF
-  // ------------------------------------------------
   groundedRoof =
    null;
 
@@ -13336,21 +13412,24 @@ function moveVertical(
  }
 
  // =================================================
- // ROOF CCD
+ // FALLING ONTO WALKABLE ROOF
  // =================================================
  if (
   velocity.y <=
-  0
+   0
  ) {
-  const hit =
+  const roofHit =
    findRoofCrossing(
     oldPosition,
     next
    );
 
   if (
-   hit
+   roofHit
   ) {
+   /*
+    * 屋根上面は地面として扱う。
+    */
    damageFromImpact(
     velocity.y,
     "building"
@@ -13363,13 +13442,13 @@ function moveVertical(
    }
 
    camera.position.x =
-    hit.x;
+    roofHit.x;
 
    camera.position.z =
-    hit.z;
+    roofHit.z;
 
    camera.position.y =
-    hit.y +
+    roofHit.y +
     PLAYER_HEIGHT;
 
    velocity.y =
@@ -13379,31 +13458,22 @@ function moveVertical(
     true;
 
    groundedRoof =
-    hit.roof;
+    roofHit.roof;
 
    return;
   }
  }
 
  // =================================================
- // ACTIVE GROUND
+ // TERRAIN GROUND
  // =================================================
- /*
-  * OPEN WORLD:
-  *
-  * terrainGenerator.js の地形。
-  *
-  * TUTORIAL:
-  *
-  * 標高0mの平面。
-  */
  const worldXMeters =
   camera.position.x *
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  const worldZMeters =
   camera.position.z *
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  const groundHeightMeters =
   getActiveGroundHeightMeters(
@@ -13413,22 +13483,19 @@ function moveVertical(
 
  const groundHeight =
   groundHeightMeters /
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  const playerGroundY =
   groundHeight +
-  PLAYER_HEIGHT;
+   PLAYER_HEIGHT;
 
- // =================================================
- // GROUND COLLISION
- // =================================================
  if (
   next.y <=
-  playerGroundY
+   playerGroundY
  ) {
   if (
    velocity.y <
-   0
+    0
   ) {
    damageFromImpact(
     velocity.y,
@@ -13460,11 +13527,6 @@ function moveVertical(
  // =================================================
  // RING WALL TOP
  // =================================================
- /*
-  * Tutorialには城壁が存在しない。
-  *
-  * OPEN WORLD時だけ判定する。
-  */
  if (
   currentGameMode ===
    GAME_MODES.OPEN_WORLD &&
@@ -13484,10 +13546,10 @@ function moveVertical(
    const insideWall =
     radialDistance >=
      ring.innerRadius -
-     PLAYER_RADIUS &&
+      PLAYER_RADIUS &&
     radialDistance <=
      ring.outerRadius +
-     PLAYER_RADIUS;
+      PLAYER_RADIUS;
 
    if (
     !insideWall
@@ -13534,21 +13596,13 @@ function moveVertical(
  }
 
  // =================================================
- // BUILDING COLLIDERS
+ // NORMAL BUILDINGS
  // =================================================
- /*
-  * Tutorialの塔も
-  * registerCollider()されているので
-  * この既存処理をそのまま利用できる。
-  */
  const nearby =
   getNearbyColliders(
    camera.position
   );
 
- // =================================================
- // NO VERTICAL COLLISION
- // =================================================
  if (
   !collides(
    next
@@ -13571,7 +13625,7 @@ function moveVertical(
  // =================================================
  if (
   velocity.y <=
-  0
+   0
  ) {
   for (
    const box
@@ -13639,12 +13693,18 @@ function moveVertical(
  // CEILING
  // =================================================
  /*
-  * 上昇して建物下面へぶつかった場合。
+  * 建物下面または
+  * 屋根裏へ上昇衝突。
   */
- damageFromImpact(
-  velocity.y,
-  "building"
- );
+ if (
+  velocity.y >
+   0
+ ) {
+  damageFromImpact(
+   velocity.y,
+   "building"
+  );
+ }
 
  if (
   dead
