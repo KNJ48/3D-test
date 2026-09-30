@@ -3806,149 +3806,277 @@ function updateRoadStreaming() {
 // HOUSE
 // ==================================================
 /*
- * HOUSE TEMPLATE 01
+ * MULTI HOUSE TEMPLATE SYSTEM
  *
- * ・3階建て
- * ・木骨壁
- * ・窓
- * ・切妻屋根
- * ・厚みのある屋根
- * ・InstancedMesh
- * ・専用 Roof Collider
+ * template 未指定:
+ * Template 01
+ *
+ * descriptor:
+ *
+ * {
+ *   type: "house",
+ *   template: 1,
+ *   xMeters: 0,
+ *   zMeters: 0,
+ *   rotation: 0
+ * }
+ *
+ * Template追加時は
+ * HOUSE_TEMPLATES に追加する。
  */
+
 // ==================================================
-// TEMPLATE 01
+// TEMPLATE DEFINITIONS
 // ==================================================
-const HOUSE_TEMPLATE_01 = {
- widthMeters: 9,
- depthMeters: 11,
- floorCount: 3,
- floorHeightMeters: 3,
- roofHeightMeters: 4,
- roofOverhangMeters: 0.6,
- roofThicknessMeters: 0.28,
- frontWindowsPerFloor: 3,
- sideWindowsPerFloor: 2,
- windowWidthMeters: 1.35,
- windowHeightMeters: 1.75,
- windowSurfaceOffsetMeters: 0.03
+const HOUSE_TEMPLATES = {
+ // --------------------------------------------------
+ // TEMPLATE 01
+ // --------------------------------------------------
+ 1: {
+  id: 1,
+  name: "STANDARD_3F",
+
+  widthMeters: 9,
+  depthMeters: 11,
+
+  floorCount: 3,
+  floorHeightMeters: 3,
+
+  roofHeightMeters: 4,
+  roofOverhangMeters: 0.6,
+  roofThicknessMeters: 0.28,
+
+  frontWindowsPerFloor: 3,
+  sideWindowsPerFloor: 2,
+
+  windowWidthMeters: 1.35,
+  windowHeightMeters: 1.75,
+  windowSurfaceOffsetMeters: 0.03
+ },
+
+ // --------------------------------------------------
+ // TEMPLATE 02
+ // --------------------------------------------------
+ /*
+  * 横長の2階住宅。
+  *
+  * Template 01より
+  *
+  * ・広い
+  * ・奥行きがある
+  * ・低い
+  * ・屋根勾配が緩い
+  * ・窓が多い
+  */
+ 2: {
+  id: 2,
+  name: "WIDE_2F",
+
+  widthMeters: 13,
+  depthMeters: 16,
+
+  floorCount: 2,
+  floorHeightMeters: 3.2,
+
+  roofHeightMeters: 3.1,
+  roofOverhangMeters: 0.8,
+  roofThicknessMeters: 0.32,
+
+  frontWindowsPerFloor: 4,
+  sideWindowsPerFloor: 3,
+
+  windowWidthMeters: 1.45,
+  windowHeightMeters: 1.7,
+  windowSurfaceOffsetMeters: 0.03
+ }
 };
 
 // ==================================================
-// DIMENSIONS
+// TEMPLATE CACHE
 // ==================================================
-const HOUSE_01_WIDTH =
- metersToUnits(
-  HOUSE_TEMPLATE_01.widthMeters
- );
-
-const HOUSE_01_DEPTH =
- metersToUnits(
-  HOUSE_TEMPLATE_01.depthMeters
- );
-
-const HOUSE_01_FLOOR_HEIGHT =
- metersToUnits(
-  HOUSE_TEMPLATE_01.floorHeightMeters
- );
-
-const HOUSE_01_HEIGHT =
- HOUSE_01_FLOOR_HEIGHT *
- HOUSE_TEMPLATE_01.floorCount;
-
-const HOUSE_01_ROOF_HEIGHT =
- metersToUnits(
-  HOUSE_TEMPLATE_01.roofHeightMeters
- );
-
-const HOUSE_01_OVERHANG =
- metersToUnits(
-  HOUSE_TEMPLATE_01.roofOverhangMeters
- );
-
-const HOUSE_01_ROOF_THICKNESS =
- metersToUnits(
-  HOUSE_TEMPLATE_01.roofThicknessMeters
- );
-
-const HOUSE_01_HALF_WIDTH =
- HOUSE_01_WIDTH / 2;
-
-const HOUSE_01_HALF_DEPTH =
- HOUSE_01_DEPTH / 2;
-
-const HOUSE_01_ROOF_HALF_WIDTH =
- HOUSE_01_HALF_WIDTH +
- HOUSE_01_OVERHANG;
-
-const HOUSE_01_ROOF_HALF_DEPTH =
- HOUSE_01_HALF_DEPTH +
- HOUSE_01_OVERHANG;
+const houseTemplateRuntimeCache =
+ new Map();
 
 // ==================================================
 // MATERIALS
 // ==================================================
 const houseInstanceWallMaterial =
  new THREE.MeshStandardMaterial({
-  map: houseWallTexture,
-  color: 0xffffff,
-  roughness: 0.9,
-  side: THREE.DoubleSide
+  map:
+   houseWallTexture,
+
+  color:
+   0xffffff,
+
+  roughness:
+   0.9,
+
+  side:
+   THREE.DoubleSide
  });
 
 const houseInstanceRoofMaterial =
  new THREE.MeshStandardMaterial({
-  map: houseRoofTexture,
-  color: 0xffffff,
-  roughness: 0.85,
-  side: THREE.DoubleSide
+  map:
+   houseRoofTexture,
+
+  color:
+   0xffffff,
+
+  roughness:
+   0.85,
+
+  side:
+   THREE.DoubleSide
  });
 
 const houseInstanceWindowMaterial =
  new THREE.MeshStandardMaterial({
-  map: houseWindowTexture,
-  color: 0xffffff,
-  roughness: 0.55,
-  side: THREE.DoubleSide
+  map:
+   houseWindowTexture,
+
+  color:
+   0xffffff,
+
+  roughness:
+   0.55,
+
+  side:
+   THREE.DoubleSide
  });
 
 // ==================================================
-// FLOOR GEOMETRY
+// GET TEMPLATE ID
 // ==================================================
-const houseInstanceFloorGeometry =
- new THREE.BoxGeometry(
-  HOUSE_01_WIDTH,
-  HOUSE_01_FLOOR_HEIGHT,
-  HOUSE_01_DEPTH
- );
+function getHouseTemplateId(
+ descriptor
+) {
+ const requested =
+  Number(
+   descriptor?.template ??
+   descriptor?.templateId ??
+   1
+  );
+
+ if (
+  HOUSE_TEMPLATES[
+   requested
+  ]
+ ) {
+  return requested;
+ }
+
+ return 1;
+}
 
 // ==================================================
-// WINDOW GEOMETRY
+// GET TEMPLATE
 // ==================================================
-const houseInstanceWindowGeometry =
- new THREE.PlaneGeometry(
-  metersToUnits(
-   HOUSE_TEMPLATE_01.windowWidthMeters
-  ),
-  metersToUnits(
-   HOUSE_TEMPLATE_01.windowHeightMeters
-  )
+function getHouseTemplate(
+ descriptor
+) {
+ return (
+  HOUSE_TEMPLATES[
+   getHouseTemplateId(
+    descriptor
+   )
+  ] ||
+  HOUSE_TEMPLATES[1]
  );
+}
+
+// ==================================================
+// BUILD DIMENSIONS
+// ==================================================
+function buildHouseTemplateDimensions(
+ template
+) {
+ const width =
+  metersToUnits(
+   template.widthMeters
+  );
+
+ const depth =
+  metersToUnits(
+   template.depthMeters
+  );
+
+ const floorHeight =
+  metersToUnits(
+   template.floorHeightMeters
+  );
+
+ const height =
+  floorHeight *
+  template.floorCount;
+
+ const roofHeight =
+  metersToUnits(
+   template.roofHeightMeters
+  );
+
+ const overhang =
+  metersToUnits(
+   template.roofOverhangMeters
+  );
+
+ const roofThickness =
+  metersToUnits(
+   template.roofThicknessMeters
+  );
+
+ const halfWidth =
+  width /
+  2;
+
+ const halfDepth =
+  depth /
+  2;
+
+ const roofHalfWidth =
+  halfWidth +
+  overhang;
+
+ const roofHalfDepth =
+  halfDepth +
+  overhang;
+
+ return {
+  width,
+  depth,
+
+  floorHeight,
+  height,
+
+  roofHeight,
+  overhang,
+  roofThickness,
+
+  halfWidth,
+  halfDepth,
+
+  roofHalfWidth,
+  roofHalfDepth
+ };
+}
 
 // ==================================================
 // SOLID ROOF GEOMETRY
 // ==================================================
-function createSolidHouseRoofGeometry(
+function createHouseTemplateRoofGeometry(
+ dimensions,
  side
 ) {
  const geometry =
   new THREE.BufferGeometry();
 
  const run =
-  HOUSE_01_ROOF_HALF_WIDTH;
+  dimensions
+   .roofHalfWidth;
 
  const rise =
-  HOUSE_01_ROOF_HEIGHT;
+  dimensions
+   .roofHeight;
 
  const slopeLength =
   Math.hypot(
@@ -3957,32 +4085,44 @@ function createSolidHouseRoofGeometry(
   );
 
  const inwardNormalX =
-  side < 0
-   ? rise / slopeLength
-   : -rise / slopeLength;
+  side <
+  0
+   ? rise /
+     slopeLength
+   : -rise /
+     slopeLength;
 
  const inwardNormalY =
-  -run / slopeLength;
+  -run /
+  slopeLength;
 
  const thicknessX =
   inwardNormalX *
-  HOUSE_01_ROOF_THICKNESS;
+  dimensions
+   .roofThickness;
 
  const thicknessY =
   inwardNormalY *
-  HOUSE_01_ROOF_THICKNESS;
+  dimensions
+   .roofThickness;
 
  const outerTopX =
-  side < 0
-   ? -HOUSE_01_ROOF_HALF_WIDTH
-   : HOUSE_01_ROOF_HALF_WIDTH;
+  side <
+  0
+   ? -dimensions
+      .roofHalfWidth
+   : dimensions
+      .roofHalfWidth;
 
- const outerTopY = 0;
+ const outerTopY =
+  0;
 
- const ridgeTopX = 0;
+ const ridgeTopX =
+  0;
 
  const ridgeTopY =
-  HOUSE_01_ROOF_HEIGHT;
+  dimensions
+   .roofHeight;
 
  const outerBottomX =
   outerTopX +
@@ -4001,10 +4141,12 @@ function createSolidHouseRoofGeometry(
   thicknessY;
 
  const frontZ =
-  -HOUSE_01_ROOF_HALF_DEPTH;
+  -dimensions
+   .roofHalfDepth;
 
  const backZ =
-  HOUSE_01_ROOF_HALF_DEPTH;
+  dimensions
+   .roofHalfDepth;
 
  const OT_F = [
   outerTopX,
@@ -4054,8 +4196,11 @@ function createSolidHouseRoofGeometry(
   backZ
  ];
 
- const positions = [];
- const uvs = [];
+ const positions =
+  [];
+
+ const uvs =
+  [];
 
  function triangle(
   a,
@@ -4105,7 +4250,8 @@ function createSolidHouseRoofGeometry(
 
  // TOP
  if (
-  side < 0
+  side <
+  0
  ) {
   quad(
    OT_F,
@@ -4124,7 +4270,8 @@ function createSolidHouseRoofGeometry(
 
  // BOTTOM
  if (
-  side < 0
+  side <
+  0
  ) {
   quad(
    RB_F,
@@ -4143,7 +4290,8 @@ function createSolidHouseRoofGeometry(
 
  // OUTER EDGE
  if (
-  side < 0
+  side <
+  0
  ) {
   quad(
    OB_F,
@@ -4162,7 +4310,8 @@ function createSolidHouseRoofGeometry(
 
  // RIDGE EDGE
  if (
-  side < 0
+  side <
+  0
  ) {
   quad(
    RT_F,
@@ -4181,7 +4330,8 @@ function createSolidHouseRoofGeometry(
 
  // FRONT
  if (
-  side < 0
+  side <
+  0
  ) {
   quad(
    OT_F,
@@ -4200,7 +4350,8 @@ function createSolidHouseRoofGeometry(
 
  // BACK
  if (
-  side < 0
+  side <
+  0
  ) {
   quad(
    RT_B,
@@ -4219,59 +4370,59 @@ function createSolidHouseRoofGeometry(
 
  geometry.setAttribute(
   "position",
-  new THREE.Float32BufferAttribute(
-   positions,
-   3
-  )
+  new THREE
+   .Float32BufferAttribute(
+    positions,
+    3
+   )
  );
 
  geometry.setAttribute(
   "uv",
-  new THREE.Float32BufferAttribute(
-   uvs,
-   2
-  )
+  new THREE
+   .Float32BufferAttribute(
+    uvs,
+    2
+   )
  );
 
- geometry.computeVertexNormals();
- geometry.computeBoundingBox();
- geometry.computeBoundingSphere();
+ geometry
+  .computeVertexNormals();
+
+ geometry
+  .computeBoundingBox();
+
+ geometry
+  .computeBoundingSphere();
 
  return geometry;
 }
 
 // ==================================================
-// ROOF GEOMETRIES
-// ==================================================
-const houseInstanceLeftRoofGeometry =
- createSolidHouseRoofGeometry(
-  -1
- );
-
-const houseInstanceRightRoofGeometry =
- createSolidHouseRoofGeometry(
-  1
- );
-
-// ==================================================
 // GABLE GEOMETRY
 // ==================================================
-function createHouse01GableGeometry() {
+function createHouseTemplateGableGeometry(
+ dimensions
+) {
  const geometry =
-  new THREE.BufferGeometry();
+  new THREE
+   .BufferGeometry();
 
  const positions =
   new Float32Array([
-   -HOUSE_01_HALF_WIDTH,
+   -dimensions
+    .halfWidth,
    0,
    0,
 
-   HOUSE_01_HALF_WIDTH,
+   dimensions
+    .halfWidth,
    0,
    0,
 
    0,
-   HOUSE_01_ROOF_HEIGHT,
+   dimensions
+    .roofHeight,
    0
   ]);
 
@@ -4289,38 +4440,145 @@ function createHouse01GableGeometry() {
 
  geometry.setAttribute(
   "position",
-  new THREE.BufferAttribute(
-   positions,
-   3
-  )
+  new THREE
+   .BufferAttribute(
+    positions,
+    3
+   )
  );
 
  geometry.setAttribute(
   "uv",
-  new THREE.BufferAttribute(
-   uvs,
-   2
-  )
+  new THREE
+   .BufferAttribute(
+    uvs,
+    2
+   )
  );
 
- geometry.computeVertexNormals();
+ geometry
+  .computeVertexNormals();
 
  return geometry;
 }
 
-const houseInstanceGableGeometry =
- createHouse01GableGeometry();
-
 // ==================================================
-// COLLIDERS
+// CREATE TEMPLATE RUNTIME
 // ==================================================
-
-// --------------------------------------------------
-// BODY
-// --------------------------------------------------
-function createHouseTemplate01Collider(
- descriptor
+function createHouseTemplateRuntime(
+ template
 ) {
+ const dimensions =
+  buildHouseTemplateDimensions(
+   template
+  );
+
+ const floorGeometry =
+  new THREE
+   .BoxGeometry(
+    dimensions.width,
+    dimensions.floorHeight,
+    dimensions.depth
+   );
+
+ const windowGeometry =
+  new THREE
+   .PlaneGeometry(
+    metersToUnits(
+     template
+      .windowWidthMeters
+    ),
+
+    metersToUnits(
+     template
+      .windowHeightMeters
+    )
+   );
+
+ const leftRoofGeometry =
+  createHouseTemplateRoofGeometry(
+   dimensions,
+   -1
+  );
+
+ const rightRoofGeometry =
+  createHouseTemplateRoofGeometry(
+   dimensions,
+   1
+  );
+
+ const gableGeometry =
+  createHouseTemplateGableGeometry(
+   dimensions
+  );
+
+ return {
+  template,
+  dimensions,
+
+  floorGeometry,
+  windowGeometry,
+
+  leftRoofGeometry,
+  rightRoofGeometry,
+  gableGeometry
+ };
+}
+
+// ==================================================
+// GET TEMPLATE RUNTIME
+// ==================================================
+function getHouseTemplateRuntime(
+ templateId
+) {
+ const id =
+  HOUSE_TEMPLATES[
+   templateId
+  ]
+   ? templateId
+   : 1;
+
+ if (
+  houseTemplateRuntimeCache
+   .has(
+    id
+   )
+ ) {
+  return (
+   houseTemplateRuntimeCache
+    .get(
+     id
+    )
+  );
+ }
+
+ const runtime =
+  createHouseTemplateRuntime(
+   HOUSE_TEMPLATES[
+    id
+   ]
+  );
+
+ houseTemplateRuntimeCache
+  .set(
+   id,
+   runtime
+  );
+
+ return runtime;
+}
+
+// ==================================================
+// BODY COLLIDER
+// ==================================================
+function createHouseCollider(
+ descriptor,
+ runtime
+) {
+ const dimensions =
+  runtime
+   .dimensions;
+
  const terrainY =
   metersToUnits(
    getTerrainHeightMeters(
@@ -4336,15 +4594,19 @@ function createHouseTemplate01Collider(
   metersToUnits(
    descriptor.xMeters
   ),
+
   terrainY +
-   HOUSE_01_HEIGHT / 2,
+  dimensions.height /
+  2,
+
   metersToUnits(
    descriptor.zMeters
   )
  );
 
  object.rotation.y =
-  descriptor.rotation ?? 0;
+  descriptor.rotation ??
+  0;
 
  object.updateMatrixWorld(
   true
@@ -4353,14 +4615,27 @@ function createHouseTemplate01Collider(
  const box =
   new THREE.Box3(
    new THREE.Vector3(
-    -HOUSE_01_HALF_WIDTH,
-    -HOUSE_01_HEIGHT / 2,
-    -HOUSE_01_HALF_DEPTH
+    -dimensions
+     .halfWidth,
+
+    -dimensions
+     .height /
+     2,
+
+    -dimensions
+     .halfDepth
    ),
+
    new THREE.Vector3(
-    HOUSE_01_HALF_WIDTH,
-    HOUSE_01_HEIGHT / 2,
-    HOUSE_01_HALF_DEPTH
+    dimensions
+     .halfWidth,
+
+    dimensions
+     .height /
+     2,
+
+    dimensions
+     .halfDepth
    )
   );
 
@@ -4371,12 +4646,17 @@ function createHouseTemplate01Collider(
  return box;
 }
 
-// --------------------------------------------------
-// ROOF
-// --------------------------------------------------
-function createHouseTemplate01RoofCollider(
- descriptor
+// ==================================================
+// ROOF COLLIDER
+// ==================================================
+function createHouseRoofCollider(
+ descriptor,
+ runtime
 ) {
+ const dimensions =
+  runtime
+   .dimensions;
+
  const terrainY =
   metersToUnits(
    getTerrainHeightMeters(
@@ -4386,7 +4666,13 @@ function createHouseTemplate01RoofCollider(
   );
 
  return {
-  type: "gable-roof",
+  type:
+   "gable-roof",
+
+  templateId:
+   runtime
+    .template
+    .id,
 
   x:
    metersToUnits(
@@ -4399,39 +4685,44 @@ function createHouseTemplate01RoofCollider(
    ),
 
   rotation:
-   descriptor.rotation ?? 0,
+   descriptor.rotation ??
+   0,
 
   halfWidth:
-   HOUSE_01_ROOF_HALF_WIDTH,
+   dimensions
+    .roofHalfWidth,
 
   halfDepth:
-   HOUSE_01_ROOF_HALF_DEPTH,
+   dimensions
+    .roofHalfDepth,
 
   baseY:
    terrainY,
 
   wallTopY:
    terrainY +
-   HOUSE_01_HEIGHT,
+   dimensions.height,
 
   height:
-   HOUSE_01_ROOF_HEIGHT,
+   dimensions
+    .roofHeight,
 
   thickness:
-   HOUSE_01_ROOF_THICKNESS
+   dimensions
+    .roofThickness
  };
 }
 
 // ==================================================
-// TEMP
+// TEMP OBJECT
 // ==================================================
 const houseInstanceDummy =
  new THREE.Object3D();
 
 // ==================================================
-// WINDOWS
+// WINDOW MATRIX
 // ==================================================
-function addHouse01WindowMatrix(
+function addHouseWindowMatrix(
  matrices,
  houseX,
  terrainY,
@@ -4454,44 +4745,70 @@ function addHouse01WindowMatrix(
 
  const worldX =
   houseX +
-  localX * cos +
-  localZ * sin;
+  localX *
+  cos +
+  localZ *
+  sin;
 
  const worldZ =
   houseZ -
-  localX * sin +
-  localZ * cos;
+  localX *
+  sin +
+  localZ *
+  cos;
 
- houseInstanceDummy.position.set(
-  worldX,
-  terrainY + localY,
-  worldZ
- );
+ houseInstanceDummy
+  .position
+  .set(
+   worldX,
+   terrainY +
+   localY,
+   worldZ
+  );
 
- houseInstanceDummy.rotation.set(
-  0,
-  houseRotation +
+ houseInstanceDummy
+  .rotation
+  .set(
+   0,
+   houseRotation +
    localRotationY,
-  0
- );
+   0
+  );
 
- houseInstanceDummy.scale.set(
-  1,
-  1,
-  1
- );
+ houseInstanceDummy
+  .scale
+  .set(
+   1,
+   1,
+   1
+  );
 
- houseInstanceDummy.updateMatrix();
+ houseInstanceDummy
+  .updateMatrix();
 
  matrices.push(
-  houseInstanceDummy.matrix.clone()
+  houseInstanceDummy
+   .matrix
+   .clone()
  );
 }
 
-function buildHouse01WindowMatrices(
+// ==================================================
+// BUILD WINDOW MATRICES
+// ==================================================
+function buildHouseWindowMatrices(
  descriptor,
+ runtime,
  output
 ) {
+ const template =
+  runtime
+   .template;
+
+ const dimensions =
+  runtime
+   .dimensions;
+
  const houseX =
   metersToUnits(
    descriptor.xMeters
@@ -4511,63 +4828,76 @@ function buildHouse01WindowMatrices(
   );
 
  const rotation =
-  descriptor.rotation ?? 0;
+  descriptor.rotation ??
+  0;
 
  const offset =
   metersToUnits(
-   HOUSE_TEMPLATE_01
+   template
     .windowSurfaceOffsetMeters
   );
 
  for (
   let floor = 0;
   floor <
-  HOUSE_TEMPLATE_01.floorCount;
+  template.floorCount;
   floor++
  ) {
   const y =
-   HOUSE_01_FLOOR_HEIGHT *
+   dimensions
+    .floorHeight *
    (
     floor +
     0.55
    );
 
+  // ------------------------------------------------
   // FRONT / BACK
+  // ------------------------------------------------
   const frontCount =
-   HOUSE_TEMPLATE_01
+   template
     .frontWindowsPerFloor;
 
   for (
    let i = 0;
-   i < frontCount;
+   i <
+   frontCount;
    i++
   ) {
    const localX =
-    THREE.MathUtils.lerp(
-     -HOUSE_01_HALF_WIDTH *
-      0.68,
-     HOUSE_01_HALF_WIDTH *
-      0.68,
-     frontCount === 1
-      ? 0.5
-      : i /
-        (
-         frontCount -
-         1
-        )
-    );
+    THREE.MathUtils
+     .lerp(
+      -dimensions
+       .halfWidth *
+       0.68,
+
+      dimensions
+       .halfWidth *
+       0.68,
+
+      frontCount ===
+      1
+       ? 0.5
+       : i /
+         (
+          frontCount -
+          1
+         )
+     );
 
    // FRONT
    if (
     !(
-     floor === 0 &&
+     floor ===
+     0 &&
      i ===
-      Math.floor(
-       frontCount / 2
-      )
+     Math.floor(
+      frontCount /
+      2
+     )
     )
    ) {
-    addHouse01WindowMatrix(
+    addHouseWindowMatrix(
      output,
      houseX,
      terrainY,
@@ -4575,14 +4905,15 @@ function buildHouse01WindowMatrices(
      rotation,
      localX,
      y,
-     HOUSE_01_HALF_DEPTH +
+     dimensions
+      .halfDepth +
       offset,
      0
     );
    }
 
    // BACK
-   addHouse01WindowMatrix(
+   addHouseWindowMatrix(
     output,
     houseX,
     terrainY,
@@ -4590,177 +4921,244 @@ function buildHouse01WindowMatrices(
     rotation,
     localX,
     y,
-    -HOUSE_01_HALF_DEPTH -
+    -dimensions
+      .halfDepth -
      offset,
     Math.PI
    );
   }
 
+  // ------------------------------------------------
   // SIDES
+  // ------------------------------------------------
   const sideCount =
-   HOUSE_TEMPLATE_01
+   template
     .sideWindowsPerFloor;
 
   for (
    let i = 0;
-   i < sideCount;
+   i <
+   sideCount;
    i++
   ) {
    const localZ =
-    THREE.MathUtils.lerp(
-     -HOUSE_01_HALF_DEPTH *
-      0.55,
-     HOUSE_01_HALF_DEPTH *
-      0.55,
-     sideCount === 1
-      ? 0.5
-      : i /
-        (
-         sideCount -
-         1
-        )
-    );
+    THREE.MathUtils
+     .lerp(
+      -dimensions
+       .halfDepth *
+       0.55,
+
+      dimensions
+       .halfDepth *
+       0.55,
+
+      sideCount ===
+      1
+       ? 0.5
+       : i /
+         (
+          sideCount -
+          1
+         )
+     );
 
    // LEFT
-   addHouse01WindowMatrix(
+   addHouseWindowMatrix(
     output,
     houseX,
     terrainY,
     houseZ,
     rotation,
-    -HOUSE_01_HALF_WIDTH -
+    -dimensions
+      .halfWidth -
      offset,
     y,
     localZ,
-    -Math.PI / 2
+    -Math.PI /
+    2
    );
 
    // RIGHT
-   addHouse01WindowMatrix(
+   addHouseWindowMatrix(
     output,
     houseX,
     terrainY,
     houseZ,
     rotation,
-    HOUSE_01_HALF_WIDTH +
+    dimensions
+     .halfWidth +
      offset,
     y,
     localZ,
-    Math.PI / 2
+    Math.PI /
+    2
    );
   }
  }
 }
 
 // ==================================================
-// CREATE CHUNK INSTANCES
+// CREATE INSTANCES FOR ONE TEMPLATE
 // ==================================================
-function createHouseTemplate01Instances(
+function createHouseTemplateInstances(
  descriptors,
+ templateId,
  chunkData
 ) {
  const houses =
   descriptors.filter(
    descriptor =>
     descriptor.type ===
-    "house"
+     "house" &&
+    getHouseTemplateId(
+     descriptor
+    ) ===
+     templateId
   );
 
  if (
-  houses.length === 0
+  houses.length ===
+  0
  ) {
   return;
  }
 
+ const runtime =
+  getHouseTemplateRuntime(
+   templateId
+  );
+
+ const template =
+  runtime.template;
+
+ const dimensions =
+  runtime.dimensions;
+
  const count =
   houses.length;
 
+ // =================================================
  // FLOORS
- const floor1 =
-  new THREE.InstancedMesh(
-   houseInstanceFloorGeometry,
-   houseInstanceWallMaterial,
-   count
-  );
+ // =================================================
+ const floors =
+  [];
 
- const floor2 =
-  new THREE.InstancedMesh(
-   houseInstanceFloorGeometry,
-   houseInstanceWallMaterial,
-   count
-  );
+ for (
+  let floor = 0;
+  floor <
+  template.floorCount;
+  floor++
+ ) {
+  floors.push(
+   new THREE
+    .InstancedMesh(
+     runtime
+      .floorGeometry,
 
- const floor3 =
-  new THREE.InstancedMesh(
-   houseInstanceFloorGeometry,
-   houseInstanceWallMaterial,
-   count
-  );
+     houseInstanceWallMaterial,
 
+     count
+    )
+  );
+ }
+
+ // =================================================
  // ROOFS
+ // =================================================
  const leftRoofs =
-  new THREE.InstancedMesh(
-   houseInstanceLeftRoofGeometry,
-   houseInstanceRoofMaterial,
-   count
-  );
+  new THREE
+   .InstancedMesh(
+    runtime
+     .leftRoofGeometry,
+
+    houseInstanceRoofMaterial,
+
+    count
+   );
 
  const rightRoofs =
-  new THREE.InstancedMesh(
-   houseInstanceRightRoofGeometry,
-   houseInstanceRoofMaterial,
-   count
-  );
+  new THREE
+   .InstancedMesh(
+    runtime
+     .rightRoofGeometry,
 
+    houseInstanceRoofMaterial,
+
+    count
+   );
+
+ // =================================================
  // GABLES
+ // =================================================
  const frontGables =
-  new THREE.InstancedMesh(
-   houseInstanceGableGeometry,
-   houseInstanceWallMaterial,
-   count
-  );
+  new THREE
+   .InstancedMesh(
+    runtime
+     .gableGeometry,
+
+    houseInstanceWallMaterial,
+
+    count
+   );
 
  const backGables =
-  new THREE.InstancedMesh(
-   houseInstanceGableGeometry,
-   houseInstanceWallMaterial,
-   count
-  );
+  new THREE
+   .InstancedMesh(
+    runtime
+     .gableGeometry,
 
+    houseInstanceWallMaterial,
+
+    count
+   );
+
+ // =================================================
  // WINDOWS
- const windowMatrices = [];
+ // =================================================
+ const windowMatrices =
+  [];
 
  for (
   const descriptor
   of houses
  ) {
-  buildHouse01WindowMatrices(
+  buildHouseWindowMatrices(
    descriptor,
+   runtime,
    windowMatrices
   );
  }
 
  const windows =
-  new THREE.InstancedMesh(
-   houseInstanceWindowGeometry,
-   houseInstanceWindowMaterial,
-   Math.max(
-    1,
-    windowMatrices.length
-   )
-  );
+  new THREE
+   .InstancedMesh(
+    runtime
+     .windowGeometry,
+
+    houseInstanceWindowMaterial,
+
+    Math.max(
+     1,
+     windowMatrices.length
+    )
+   );
 
  windows.count =
   windowMatrices.length;
 
+ // =================================================
  // HOUSES
+ // =================================================
  for (
-  let i = 0;
-  i < count;
-  i++
+  let index = 0;
+  index <
+  count;
+  index++
  ) {
   const descriptor =
-   houses[i];
+   houses[
+    index
+   ];
 
   const x =
    metersToUnits(
@@ -4781,192 +5179,260 @@ function createHouseTemplate01Instances(
    );
 
   const rotation =
-   descriptor.rotation ?? 0;
+   descriptor.rotation ??
+   0;
 
-  // FLOOR 1
-  houseInstanceDummy.position.set(
-   x,
-   terrainY +
-    HOUSE_01_FLOOR_HEIGHT *
-    0.5,
-   z
-  );
+  // ------------------------------------------------
+  // COMMON
+  // ------------------------------------------------
+  houseInstanceDummy
+   .scale
+   .set(
+    1,
+    1,
+    1
+   );
 
-  houseInstanceDummy.rotation.set(
-   0,
-   rotation,
-   0
-  );
+  houseInstanceDummy
+   .rotation
+   .set(
+    0,
+    rotation,
+    0
+   );
 
-  houseInstanceDummy.scale.set(
-   1,
-   1,
-   1
-  );
+  // ------------------------------------------------
+  // FLOORS
+  // ------------------------------------------------
+  for (
+   let floor = 0;
+   floor <
+   template.floorCount;
+   floor++
+  ) {
+   houseInstanceDummy
+    .position
+    .set(
+     x,
 
-  houseInstanceDummy.updateMatrix();
+     terrainY +
+     dimensions
+      .floorHeight *
+      (
+       floor +
+       0.5
+      ),
 
-  floor1.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
+     z
+    );
 
-  // FLOOR 2
-  houseInstanceDummy.position.y =
-   terrainY +
-   HOUSE_01_FLOOR_HEIGHT *
-   1.5;
+   houseInstanceDummy
+    .rotation
+    .set(
+     0,
+     rotation,
+     0
+    );
 
-  houseInstanceDummy.updateMatrix();
+   houseInstanceDummy
+    .updateMatrix();
 
-  floor2.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
+   floors[
+    floor
+   ].setMatrixAt(
+    index,
+    houseInstanceDummy
+     .matrix
+   );
+  }
 
-  // FLOOR 3
-  houseInstanceDummy.position.y =
-   terrainY +
-   HOUSE_01_FLOOR_HEIGHT *
-   2.5;
-
-  houseInstanceDummy.updateMatrix();
-
-  floor3.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
-
+  // ------------------------------------------------
   // ROOF
-  houseInstanceDummy.position.set(
-   x,
-   terrainY +
-    HOUSE_01_HEIGHT,
-   z
-  );
+  // ------------------------------------------------
+  houseInstanceDummy
+   .position
+   .set(
+    x,
 
-  houseInstanceDummy.rotation.set(
-   0,
-   rotation,
-   0
-  );
+    terrainY +
+    dimensions.height,
 
-  houseInstanceDummy.updateMatrix();
+    z
+   );
 
-  leftRoofs.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
+  houseInstanceDummy
+   .rotation
+   .set(
+    0,
+    rotation,
+    0
+   );
 
-  rightRoofs.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
+  houseInstanceDummy
+   .updateMatrix();
 
+  leftRoofs
+   .setMatrixAt(
+    index,
+    houseInstanceDummy
+     .matrix
+   );
+
+  rightRoofs
+   .setMatrixAt(
+    index,
+    houseInstanceDummy
+     .matrix
+   );
+
+  // ------------------------------------------------
   // FRONT GABLE
-  houseInstanceDummy.position.set(
-   x,
-   terrainY +
-    HOUSE_01_HEIGHT,
-   z
-  );
+  // ------------------------------------------------
+  houseInstanceDummy
+   .position
+   .set(
+    x,
 
-  houseInstanceDummy.rotation.set(
-   0,
-   rotation,
-   0
-  );
+    terrainY +
+    dimensions.height,
 
-  houseInstanceDummy.translateZ(
-   HOUSE_01_HALF_DEPTH +
-   0.01
-  );
+    z
+   );
 
-  houseInstanceDummy.updateMatrix();
+  houseInstanceDummy
+   .rotation
+   .set(
+    0,
+    rotation,
+    0
+   );
 
-  frontGables.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
+  houseInstanceDummy
+   .translateZ(
+    dimensions
+     .halfDepth +
+    0.01
+   );
 
+  houseInstanceDummy
+   .updateMatrix();
+
+  frontGables
+   .setMatrixAt(
+    index,
+    houseInstanceDummy
+     .matrix
+   );
+
+  // ------------------------------------------------
   // BACK GABLE
-  houseInstanceDummy.position.set(
-   x,
-   terrainY +
-    HOUSE_01_HEIGHT,
-   z
-  );
+  // ------------------------------------------------
+  houseInstanceDummy
+   .position
+   .set(
+    x,
 
-  houseInstanceDummy.rotation.set(
-   0,
-   rotation +
+    terrainY +
+    dimensions.height,
+
+    z
+   );
+
+  houseInstanceDummy
+   .rotation
+   .set(
+    0,
+    rotation +
     Math.PI,
-   0
-  );
+    0
+   );
 
-  houseInstanceDummy.translateZ(
-   HOUSE_01_HALF_DEPTH +
-   0.01
-  );
+  houseInstanceDummy
+   .translateZ(
+    dimensions
+     .halfDepth +
+    0.01
+   );
 
-  houseInstanceDummy.updateMatrix();
+  houseInstanceDummy
+   .updateMatrix();
 
-  backGables.setMatrixAt(
-   i,
-   houseInstanceDummy.matrix
-  );
+  backGables
+   .setMatrixAt(
+    index,
+    houseInstanceDummy
+     .matrix
+   );
 
+  // ------------------------------------------------
   // BODY COLLIDER
+  // ------------------------------------------------
   const bodyCollider =
-   createHouseTemplate01Collider(
-    descriptor
+   createHouseCollider(
+    descriptor,
+    runtime
    );
 
   registerCollider(
    bodyCollider
   );
 
-  chunkData.colliders.push(
-   bodyCollider
-  );
+  chunkData
+   .colliders
+   .push(
+    bodyCollider
+   );
 
+  // ------------------------------------------------
   // ROOF COLLIDER
+  // ------------------------------------------------
   const roofCollider =
-   createHouseTemplate01RoofCollider(
-    descriptor
+   createHouseRoofCollider(
+    descriptor,
+    runtime
    );
 
   registerRoofCollider(
    roofCollider
   );
 
-  chunkData.roofColliders.push(
-   roofCollider
-  );
+  chunkData
+   .roofColliders
+   .push(
+    roofCollider
+   );
  }
 
- // WINDOW MATRICES
+ // =================================================
+ // WINDOW INSTANCES
+ // =================================================
  for (
   let i = 0;
   i <
   windowMatrices.length;
   i++
  ) {
-  windows.setMatrixAt(
-   i,
-   windowMatrices[i]
-  );
+  windows
+   .setMatrixAt(
+    i,
+    windowMatrices[
+     i
+    ]
+   );
  }
 
- // REGISTER
+ // =================================================
+ // RENDER MESHES
+ // =================================================
  const renderMeshes = [
-  floor1,
-  floor2,
-  floor3,
+  ...floors,
+
   leftRoofs,
   rightRoofs,
+
   frontGables,
   backGables,
+
   windows
  ];
 
@@ -4974,7 +5440,9 @@ function createHouseTemplate01Instances(
   const mesh
   of renderMeshes
  ) {
-  mesh.instanceMatrix.needsUpdate =
+  mesh
+   .instanceMatrix
+   .needsUpdate =
    true;
 
   mesh.castShadow =
@@ -4983,16 +5451,55 @@ function createHouseTemplate01Instances(
   mesh.receiveShadow =
    true;
 
-  chunkData.group.add(
-   mesh
-  );
+  chunkData
+   .group
+   .add(
+    mesh
+   );
 
-  anchorTargets.push(
-   mesh
-  );
+  anchorTargets
+   .push(
+    mesh
+   );
 
-  chunkData.anchorTargets.push(
-   mesh
+  chunkData
+   .anchorTargets
+   .push(
+    mesh
+   );
+ }
+}
+
+// ==================================================
+// CREATE ALL HOUSE TEMPLATES
+// ==================================================
+function createHouseTemplate01Instances(
+ descriptors,
+ chunkData
+) {
+ /*
+  * 関数名は既存の
+  * createChunkWorldContent()
+  * との互換性のため維持。
+  *
+  * 実際には全Templateを生成する。
+  */
+
+ for (
+  const templateIdText
+  of Object.keys(
+   HOUSE_TEMPLATES
+  )
+ ) {
+  const templateId =
+   Number(
+    templateIdText
+   );
+
+  createHouseTemplateInstances(
+   descriptors,
+   templateId,
+   chunkData
   );
  }
 }
