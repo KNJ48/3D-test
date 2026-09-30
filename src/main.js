@@ -14721,45 +14721,76 @@ document.body.appendChild(
 // ==================================================
 const settingsHUD =
  document.createElement(
- "div"
+  "div"
  );
 
 Object.assign(
  settingsHUD.style,
  {
- position: "fixed",
- inset: "0",
- display: "none",
- alignItems: "center",
- justifyContent: "center",
- background:
- "rgba(0,0,0,.78)",
- color: "white",
- fontFamily:
- "Arial",
- zIndex: "11000"
+  position:
+   "fixed",
+
+  inset:
+   "0",
+
+  display:
+   "none",
+
+  alignItems:
+   "center",
+
+  justifyContent:
+   "center",
+
+  background:
+   "rgba(0,0,0,.82)",
+
+  color:
+   "white",
+
+  fontFamily:
+   "Arial, sans-serif",
+
+  zIndex:
+   "70000"
  }
 );
 
-// --------------------------------------------------
-// PANEL
-// --------------------------------------------------
+document.body.appendChild(
+ settingsHUD
+);
+
+// ==================================================
+// SETTINGS PANEL
+// ==================================================
 const settingsPanel =
  document.createElement(
- "div"
+  "div"
  );
 
 Object.assign(
  settingsPanel.style,
  {
- width: "440px",
- padding: "32px",
- background:
- "rgba(25,30,28,.98)",
- border:
- "1px solid #777",
- borderRadius:
- "8px"
+  width:
+   "440px",
+
+  padding:
+   "32px",
+
+  boxSizing:
+   "border-box",
+
+  background:
+   "rgba(25,30,28,.98)",
+
+  border:
+   "1px solid #777",
+
+  borderRadius:
+   "8px",
+
+  boxShadow:
+   "0 10px 40px rgba(0,0,0,.55)"
  }
 );
 
@@ -14767,12 +14798,12 @@ settingsHUD.appendChild(
  settingsPanel
 );
 
-// --------------------------------------------------
-// TITLE
-// --------------------------------------------------
+// ==================================================
+// SETTINGS TITLE
+// ==================================================
 const settingsTitle =
  document.createElement(
- "div"
+  "div"
  );
 
 settingsTitle.textContent =
@@ -14781,9 +14812,14 @@ settingsTitle.textContent =
 Object.assign(
  settingsTitle.style,
  {
- fontSize: "32px",
- fontWeight: "bold",
- marginBottom: "32px"
+  fontSize:
+   "32px",
+
+  fontWeight:
+   "bold",
+
+  marginBottom:
+   "32px"
  }
 );
 
@@ -14791,12 +14827,12 @@ settingsPanel.appendChild(
  settingsTitle
 );
 
-// --------------------------------------------------
+// ==================================================
 // RENDER DISTANCE SECTION
-// --------------------------------------------------
+// ==================================================
 const renderDistanceSection =
  document.createElement(
- "div"
+  "div"
  );
 
 settingsPanel.appendChild(
@@ -14808,16 +14844,23 @@ settingsPanel.appendChild(
 // --------------------------------------------------
 const renderDistanceLabelRow =
  document.createElement(
- "div"
+  "div"
  );
 
 Object.assign(
  renderDistanceLabelRow.style,
  {
- display: "flex",
- justifyContent: "space-between",
- alignItems: "center",
- marginBottom: "12px"
+  display:
+   "flex",
+
+  justifyContent:
+   "space-between",
+
+  alignItems:
+   "center",
+
+  marginBottom:
+   "12px"
  }
 );
 
@@ -14825,9 +14868,12 @@ renderDistanceSection.appendChild(
  renderDistanceLabelRow
 );
 
+// --------------------------------------------------
+// LABEL
+// --------------------------------------------------
 const renderDistanceLabel =
  document.createElement(
- "div"
+  "div"
  );
 
 renderDistanceLabel.textContent =
@@ -14836,8 +14882,11 @@ renderDistanceLabel.textContent =
 Object.assign(
  renderDistanceLabel.style,
  {
- fontSize: "16px",
- fontWeight: "bold"
+  fontSize:
+   "16px",
+
+  fontWeight:
+   "bold"
  }
 );
 
@@ -14850,21 +14899,28 @@ renderDistanceLabelRow.appendChild(
 // --------------------------------------------------
 const renderDistanceValue =
  document.createElement(
- "div"
+  "div"
  );
 
 renderDistanceValue.textContent =
  `${renderDistanceKm.toFixed(
- 1
+  1
  )} km`;
 
 Object.assign(
  renderDistanceValue.style,
  {
- color: "#9fd3a5",
- fontFamily: "monospace",
- fontSize: "17px",
- fontWeight: "bold"
+  color:
+   "#9fd3a5",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "17px",
+
+  fontWeight:
+   "bold"
  }
 );
 
@@ -14872,12 +14928,12 @@ renderDistanceLabelRow.appendChild(
  renderDistanceValue
 );
 
-// --------------------------------------------------
-// SLIDER
-// --------------------------------------------------
+// ==================================================
+// RENDER DISTANCE INPUT
+// ==================================================
 const renderDistanceInput =
  document.createElement(
- "input"
+  "input"
  );
 
 renderDistanceInput.type =
@@ -14894,15 +14950,20 @@ renderDistanceInput.step =
 
 renderDistanceInput.value =
  String(
- renderDistanceKm
+  renderDistanceKm
  );
 
 Object.assign(
  renderDistanceInput.style,
  {
- width: "100%",
- cursor: "pointer",
- accentColor: "#6ca56c"
+  width:
+   "100%",
+
+  cursor:
+   "pointer",
+
+  accentColor:
+   "#6ca56c"
  }
 );
 
@@ -14910,25 +14971,34 @@ renderDistanceSection.appendChild(
  renderDistanceInput
 );
 
-// --------------------------------------------------
+// ==================================================
 // RANGE INFO
-// --------------------------------------------------
+// ==================================================
 const renderDistanceInfo =
  document.createElement(
- "div"
+  "div"
  );
 
 renderDistanceInfo.textContent =
- "0.5 km                       5.0 km";
+ "0.5 km                              5.0 km";
 
 Object.assign(
  renderDistanceInfo.style,
  {
- marginTop: "6px",
- color: "#777",
- fontFamily: "monospace",
- fontSize: "12px",
- whiteSpace: "pre"
+  marginTop:
+   "6px",
+
+  color:
+   "#777",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "12px",
+
+  whiteSpace:
+   "pre"
  }
 );
 
@@ -14936,12 +15006,12 @@ renderDistanceSection.appendChild(
  renderDistanceInfo
 );
 
-// --------------------------------------------------
+// ==================================================
 // PERFORMANCE INFO
-// --------------------------------------------------
+// ==================================================
 const renderDistancePerformance =
  document.createElement(
- "div"
+  "div"
  );
 
 renderDistancePerformance.textContent =
@@ -14950,14 +15020,23 @@ renderDistancePerformance.textContent =
 Object.assign(
  renderDistancePerformance.style,
  {
- marginTop: "16px",
- padding: "10px 12px",
- color: "#c9c9c9",
- background:
- "rgba(255,255,255,.04)",
- borderLeft:
- "3px solid #6ca56c",
- fontSize: "13px"
+  marginTop:
+   "16px",
+
+  padding:
+   "10px 12px",
+
+  color:
+   "#c9c9c9",
+
+  background:
+   "rgba(255,255,255,.04)",
+
+  borderLeft:
+   "3px solid #6ca56c",
+
+  fontSize:
+   "13px"
  }
 );
 
@@ -14965,12 +15044,65 @@ renderDistanceSection.appendChild(
  renderDistancePerformance
 );
 
-// --------------------------------------------------
+// ==================================================
+// CLOSE BUTTON
+// ==================================================
+const settingsCloseButton =
+ document.createElement(
+  "button"
+ );
+
+settingsCloseButton.textContent =
+ "BACK";
+
+Object.assign(
+ settingsCloseButton.style,
+ {
+  width:
+   "100%",
+
+  marginTop:
+   "28px",
+
+  padding:
+   "13px",
+
+  color:
+   "white",
+
+  background:
+   "rgba(255,255,255,.08)",
+
+  border:
+   "1px solid #777",
+
+  borderRadius:
+   "4px",
+
+  cursor:
+   "pointer",
+
+  fontSize:
+   "15px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "1px"
+ }
+);
+
+settingsPanel.appendChild(
+ settingsCloseButton
+);
+
+// ==================================================
 // HELP
-// --------------------------------------------------
+// ==================================================
 const settingsHelp =
  document.createElement(
- "div"
+  "div"
  );
 
 settingsHelp.textContent =
@@ -14979,20 +15111,25 @@ settingsHelp.textContent =
 Object.assign(
  settingsHelp.style,
  {
- marginTop: "30px",
- color: "#aaa",
- fontFamily:
- "monospace",
- fontSize: "14px"
+  marginTop:
+   "15px",
+
+  color:
+   "#888",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "12px",
+
+  textAlign:
+   "center"
  }
 );
 
 settingsPanel.appendChild(
  settingsHelp
-);
-
-document.body.appendChild(
- settingsHUD
 );
 
 // ==================================================
@@ -21171,13 +21308,6 @@ window.addEventListener(
 let settingsOpen =
  false;
 
-/*
- * Settingsを開いた場所。
- *
- * main-menu
- * game
- * tutorial
- */
 let settingsSource =
  "game";
 
@@ -21191,7 +21321,7 @@ const SETTINGS_RENDER_DISTANCE_KEY =
 // LOAD SETTINGS
 // ==================================================
 function loadGameSettings() {
- const savedRenderDistance =
+ const saved =
   Number(
    localStorage.getItem(
     SETTINGS_RENDER_DISTANCE_KEY
@@ -21200,40 +21330,30 @@ function loadGameSettings() {
 
  if (
   Number.isFinite(
-   savedRenderDistance
+   saved
   )
  ) {
   renderDistanceKm =
    THREE.MathUtils.clamp(
-    savedRenderDistance,
+    saved,
     0.5,
     5
    );
  }
 
- if (
-  typeof renderDistanceInput !==
-  "undefined"
- ) {
-  renderDistanceInput.value =
-   String(
-    renderDistanceKm
-   );
- }
+ renderDistanceInput.value =
+  String(
+   renderDistanceKm
+  );
 
- if (
-  typeof renderDistanceValue !==
-  "undefined"
- ) {
-  renderDistanceValue.textContent =
-   `${renderDistanceKm.toFixed(
-    1
-   )} km`;
- }
+ renderDistanceValue.textContent =
+  `${renderDistanceKm.toFixed(
+   1
+  )} km`;
 }
 
 // ==================================================
-// SAVE RENDER DISTANCE
+// SAVE SETTINGS
 // ==================================================
 function saveRenderDistance() {
  localStorage.setItem(
@@ -21271,9 +21391,6 @@ function applyRenderDistance(
    5
   );
 
- // ------------------------------------------------
- // UI
- // ------------------------------------------------
  renderDistanceInput.value =
   String(
    renderDistanceKm
@@ -21284,14 +21401,8 @@ function applyRenderDistance(
    1
   )} km`;
 
- // ------------------------------------------------
- // SAVE
- // ------------------------------------------------
  saveRenderDistance();
 
- // ------------------------------------------------
- // OPEN WORLD ONLY
- // ------------------------------------------------
  if (
   typeof currentGameMode !==
    "undefined" &&
@@ -21321,18 +21432,16 @@ renderDistanceInput.addEventListener(
 );
 
 // ==================================================
-// CLEAR GAME INPUT
+// CLEAR INPUT
 // ==================================================
-function clearGameInputForMenu() {
+function clearInputForUI() {
  for (
   const code
   of Object.keys(
    keys
   )
  ) {
-  keys[
-   code
-  ] =
+  keys[code] =
    false;
  }
 
@@ -21372,8 +21481,6 @@ function openSettings(
   settingsSource =
    "main-menu";
  } else if (
-  typeof currentGameMode !==
-   "undefined" &&
   currentGameMode ===
    GAME_MODES.TUTORIAL
  ) {
@@ -21387,13 +21494,8 @@ function openSettings(
  settingsOpen =
   true;
 
- console.log(
-  "OPEN SETTINGS",
-  settingsSource
- );
-
  // ------------------------------------------------
- // CLOSE MAP
+ // OTHER UI
  // ------------------------------------------------
  if (
   worldMapOpen
@@ -21401,9 +21503,6 @@ function openSettings(
   closeWorldMap();
  }
 
- // ------------------------------------------------
- // CLOSE TELEPORT
- // ------------------------------------------------
  if (
   teleportMenuOpen
  ) {
@@ -21419,13 +21518,10 @@ function openSettings(
   document.exitPointerLock();
  }
 
- // ------------------------------------------------
- // INPUT
- // ------------------------------------------------
- clearGameInputForMenu();
+ clearInputForUI();
 
  // ------------------------------------------------
- // UPDATE VALUE
+ // VALUES
  // ------------------------------------------------
  renderDistanceInput.value =
   String(
@@ -21442,20 +21538,14 @@ function openSettings(
  // ------------------------------------------------
  if (
   settingsSource ===
-  "main-menu"
+   "main-menu"
  ) {
-  /*
-   * mainMenuOpen自体はtrueのまま。
-   *
-   * 戻る場所を覚えるため
-   * displayだけ隠す。
-   */
   mainMenuHUD.style.display =
    "none";
  }
 
  // ------------------------------------------------
- // TUTORIAL GUIDE
+ // TUTORIAL HUD
  // ------------------------------------------------
  if (
   settingsSource ===
@@ -21468,10 +21558,15 @@ function openSettings(
  }
 
  // ------------------------------------------------
- // SHOW
+ // SHOW SETTINGS
  // ------------------------------------------------
  settingsHUD.style.display =
   "flex";
+
+ console.log(
+  "SETTINGS OPEN",
+  settingsSource
+ );
 }
 
 // ==================================================
@@ -21484,7 +21579,7 @@ function closeSettings() {
   return;
  }
 
- const previousSource =
+ const source =
   settingsSource;
 
  settingsOpen =
@@ -21493,56 +21588,31 @@ function closeSettings() {
  settingsHUD.style.display =
   "none";
 
- console.log(
-  "CLOSE SETTINGS",
-  previousSource
- );
-
- // =================================================
- // MAIN MENU
- // =================================================
+ // ------------------------------------------------
+ // RETURN TO MAIN MENU
+ // ------------------------------------------------
  if (
-  previousSource ===
-  "main-menu"
+  source ===
+   "main-menu"
  ) {
   mainMenuHUD.style.display =
    "flex";
 
-  /*
-   * Mini Game一覧からではなく
-   * MAIN MENUのSettingsから開いているので
-   * Main Panelを表示。
-   */
-  if (
-   typeof mainMenuPanel !==
-   "undefined"
-  ) {
-   mainMenuPanel.style.display =
-    "block";
-  }
+  mainMenuPanel.style.display =
+   "block";
 
-  if (
-   typeof miniGameMenuPanel !==
-   "undefined"
-  ) {
-   miniGameMenuPanel.style.display =
-    "none";
-  }
+  miniGameMenuPanel.style.display =
+   "none";
 
-  if (
-   typeof miniGameMenuOpen !==
-   "undefined"
-  ) {
-   miniGameMenuOpen =
-    false;
-  }
+  miniGameMenuOpen =
+   false;
  }
 
- // =================================================
- // TUTORIAL
- // =================================================
+ // ------------------------------------------------
+ // RETURN TO TUTORIAL
+ // ------------------------------------------------
  if (
-  previousSource ===
+  source ===
    "tutorial" &&
   typeof tutorialGuideHUD !==
    "undefined"
@@ -21554,6 +21624,16 @@ function closeSettings() {
  settingsSource =
   "game";
 }
+
+// ==================================================
+// CLOSE BUTTON
+// ==================================================
+settingsCloseButton.addEventListener(
+ "click",
+ () => {
+  closeSettings();
+ }
+);
 
 // ==================================================
 // INITIAL LOAD
