@@ -13276,343 +13276,388 @@ function moveVertical(
  delta
 ) {
  const oldPosition =
- camera.position.clone();
+  camera.position.clone();
 
  const next =
- camera.position.clone();
+  camera.position.clone();
 
  next.y +=
- velocity.y *
- delta;
+  velocity.y *
+  delta;
 
  const oldFeet =
- oldPosition.y -
- PLAYER_HEIGHT;
+  oldPosition.y -
+  PLAYER_HEIGHT;
 
  const nextFeet =
- next.y -
- PLAYER_HEIGHT;
+  next.y -
+  PLAYER_HEIGHT;
 
- // --------------------------------------------------
+ // =================================================
  // STANDING ON ROOF
- // --------------------------------------------------
+ // =================================================
  if (
- groundedRoof &&
- velocity.y <=
- 0
+  groundedRoof &&
+  velocity.y <=
+  0
  ) {
- const currentRoofY =
- getRoofSurfaceHeight(
- groundedRoof,
- camera.position.x,
- camera.position.z,
- 0
- );
+  const currentRoofY =
+   getRoofSurfaceHeight(
+    groundedRoof,
+    camera.position.x,
+    camera.position.z,
+    0
+   );
 
- if (
- currentRoofY !==
- null
- ) {
- camera.position.y =
- currentRoofY +
- PLAYER_HEIGHT;
+  // ------------------------------------------------
+  // STILL ON ROOF
+  // ------------------------------------------------
+  if (
+   currentRoofY !==
+   null
+  ) {
+   camera.position.y =
+    currentRoofY +
+    PLAYER_HEIGHT;
 
- velocity.y =
- 0;
+   velocity.y =
+    0;
 
- grounded =
- true;
+   grounded =
+    true;
 
- return;
+   return;
+  }
+
+  // ------------------------------------------------
+  // LEFT ROOF
+  // ------------------------------------------------
+  groundedRoof =
+   null;
+
+  grounded =
+   false;
  }
 
- /*
-  * 軒の外へ出た。
-  */
- groundedRoof =
- null;
-
- grounded =
- false;
- }
-
- // --------------------------------------------------
+ // =================================================
  // ROOF CCD
- // --------------------------------------------------
+ // =================================================
  if (
- velocity.y <=
- 0
+  velocity.y <=
+  0
  ) {
- const hit =
- findRoofCrossing(
- oldPosition,
- next
- );
+  const hit =
+   findRoofCrossing(
+    oldPosition,
+    next
+   );
 
- if (
- hit
- ) {
- damageFromImpact(
- velocity.y,
- "building"
- );
+  if (
+   hit
+  ) {
+   damageFromImpact(
+    velocity.y,
+    "building"
+   );
 
- if (
- dead
- ) {
- return;
+   if (
+    dead
+   ) {
+    return;
+   }
+
+   camera.position.x =
+    hit.x;
+
+   camera.position.z =
+    hit.z;
+
+   camera.position.y =
+    hit.y +
+    PLAYER_HEIGHT;
+
+   velocity.y =
+    0;
+
+   grounded =
+    true;
+
+   groundedRoof =
+    hit.roof;
+
+   return;
+  }
  }
 
- camera.position.x =
- hit.x;
+ // =================================================
+ // ACTIVE GROUND
+ // =================================================
+ /*
+  * OPEN WORLD:
+  *
+  * terrainGenerator.js の地形。
+  *
+  * TUTORIAL:
+  *
+  * 標高0mの平面。
+  */
+ const worldXMeters =
+  camera.position.x *
+  METERS_PER_UNIT;
 
- camera.position.z =
- hit.z;
+ const worldZMeters =
+  camera.position.z *
+  METERS_PER_UNIT;
 
- camera.position.y =
- hit.y +
- PLAYER_HEIGHT;
-
- velocity.y =
- 0;
-
- grounded =
- true;
-
- groundedRoof =
- hit.roof;
-
- return;
- }
- }
-
- // --------------------------------------------------
- // TERRAIN
- // --------------------------------------------------
  const groundHeightMeters =
- getTerrainHeightMeters(
- camera.position.x *
- METERS_PER_UNIT,
- camera.position.z *
- METERS_PER_UNIT
- );
+  getActiveGroundHeightMeters(
+   worldXMeters,
+   worldZMeters
+  );
 
  const groundHeight =
- groundHeightMeters /
- METERS_PER_UNIT;
+  groundHeightMeters /
+  METERS_PER_UNIT;
 
  const playerGroundY =
- groundHeight +
- PLAYER_HEIGHT;
+  groundHeight +
+  PLAYER_HEIGHT;
 
+ // =================================================
+ // GROUND COLLISION
+ // =================================================
  if (
- next.y <=
- playerGroundY
+  next.y <=
+  playerGroundY
  ) {
+  if (
+   velocity.y <
+   0
+  ) {
+   damageFromImpact(
+    velocity.y,
+    "ground"
+   );
+  }
+
+  if (
+   dead
+  ) {
+   return;
+  }
+
+  camera.position.y =
+   playerGroundY;
+
+  velocity.y =
+   0;
+
+  grounded =
+   true;
+
+  groundedRoof =
+   null;
+
+  return;
+ }
+
+ // =================================================
+ // RING WALL TOP
+ // =================================================
+ /*
+  * Tutorialには城壁が存在しない。
+  *
+  * OPEN WORLD時だけ判定する。
+  */
  if (
- velocity.y <
- 0
+  currentGameMode ===
+   GAME_MODES.OPEN_WORLD &&
+  velocity.y <=
+   0
  ) {
- damageFromImpact(
- velocity.y,
- "ground"
- );
+  const radialDistance =
+   Math.hypot(
+    camera.position.x,
+    camera.position.z
+   );
+
+  for (
+   const ring
+   of wallRings
+  ) {
+   const insideWall =
+    radialDistance >=
+     ring.innerRadius -
+     PLAYER_RADIUS &&
+    radialDistance <=
+     ring.outerRadius +
+     PLAYER_RADIUS;
+
+   if (
+    !insideWall
+   ) {
+    continue;
+   }
+
+   const wallTop =
+    ring.height;
+
+   if (
+    oldFeet >=
+     wallTop &&
+    nextFeet <=
+     wallTop
+   ) {
+    damageFromImpact(
+     velocity.y,
+     "stone"
+    );
+
+    if (
+     dead
+    ) {
+     return;
+    }
+
+    camera.position.y =
+     wallTop +
+     PLAYER_HEIGHT;
+
+    velocity.y =
+     0;
+
+    grounded =
+     true;
+
+    groundedRoof =
+     null;
+
+    return;
+   }
+  }
  }
 
- if (
- dead
- ) {
- return;
- }
-
- camera.position.y =
- playerGroundY;
-
- velocity.y =
- 0;
-
- grounded =
- true;
-
- groundedRoof =
- null;
-
- return;
- }
-
- // --------------------------------------------------
- // RING WALL
- // --------------------------------------------------
- if (
- velocity.y <=
- 0
- ) {
- const radialDistance =
- Math.hypot(
- camera.position.x,
- camera.position.z
- );
-
- for (
- const ring
- of wallRings
- ) {
- const insideWall =
- radialDistance >=
- ring.innerRadius -
- PLAYER_RADIUS &&
- radialDistance <=
- ring.outerRadius +
- PLAYER_RADIUS;
-
- if (
- !insideWall
- ) {
- continue;
- }
-
- const wallTop =
- ring.height;
-
- if (
- oldFeet >=
- wallTop &&
- nextFeet <=
- wallTop
- ) {
- damageFromImpact(
- velocity.y,
- "stone"
- );
-
- if (
- dead
- ) {
- return;
- }
-
- camera.position.y =
- wallTop +
- PLAYER_HEIGHT;
-
- velocity.y =
- 0;
-
- grounded =
- true;
-
- groundedRoof =
- null;
-
- return;
- }
- }
- }
-
- // --------------------------------------------------
- // BUILDINGS
- // --------------------------------------------------
+ // =================================================
+ // BUILDING COLLIDERS
+ // =================================================
+ /*
+  * Tutorialの塔も
+  * registerCollider()されているので
+  * この既存処理をそのまま利用できる。
+  */
  const nearby =
- getNearbyColliders(
- camera.position
- );
+  getNearbyColliders(
+   camera.position
+  );
 
+ // =================================================
+ // NO VERTICAL COLLISION
+ // =================================================
  if (
- !collides(
- next
- )
+  !collides(
+   next
+  )
  ) {
- camera.position.y =
- next.y;
+  camera.position.y =
+   next.y;
 
- grounded =
- false;
+  grounded =
+   false;
 
- groundedRoof =
- null;
+  groundedRoof =
+   null;
 
- return;
+  return;
  }
 
- // --------------------------------------------------
+ // =================================================
  // BOX TOP
- // --------------------------------------------------
+ // =================================================
  if (
- velocity.y <=
- 0
+  velocity.y <=
+  0
  ) {
- for (
- const box
- of nearby
- ) {
- const horizontal =
- camera.position.x +
- PLAYER_RADIUS >
- box.min.x &&
+  for (
+   const box
+   of nearby
+  ) {
+   const horizontal =
+    camera.position.x +
+     PLAYER_RADIUS >
+     box.min.x &&
 
- camera.position.x -
- PLAYER_RADIUS <
- box.max.x &&
+    camera.position.x -
+     PLAYER_RADIUS <
+     box.max.x &&
 
- camera.position.z +
- PLAYER_RADIUS >
- box.min.z &&
+    camera.position.z +
+     PLAYER_RADIUS >
+     box.min.z &&
 
- camera.position.z -
- PLAYER_RADIUS <
- box.max.z;
+    camera.position.z -
+     PLAYER_RADIUS <
+     box.max.z;
 
- if (
- !horizontal
- ) {
- continue;
+   if (
+    !horizontal
+   ) {
+    continue;
+   }
+
+   if (
+    oldFeet >=
+     box.max.y &&
+    nextFeet <=
+     box.max.y
+   ) {
+    damageFromImpact(
+     velocity.y,
+     "building"
+    );
+
+    if (
+     dead
+    ) {
+     return;
+    }
+
+    camera.position.y =
+     box.max.y +
+     PLAYER_HEIGHT;
+
+    velocity.y =
+     0;
+
+    grounded =
+     true;
+
+    groundedRoof =
+     null;
+
+    return;
+   }
+  }
  }
 
- if (
- oldFeet >=
- box.max.y &&
- nextFeet <=
- box.max.y
- ) {
- damageFromImpact(
- velocity.y,
- "building"
- );
-
- if (
- dead
- ) {
- return;
- }
-
- camera.position.y =
- box.max.y +
- PLAYER_HEIGHT;
-
- velocity.y =
- 0;
-
- grounded =
- true;
-
- groundedRoof =
- null;
-
- return;
- }
- }
- }
-
- // --------------------------------------------------
+ // =================================================
  // CEILING
- // --------------------------------------------------
+ // =================================================
+ /*
+  * 上昇して建物下面へぶつかった場合。
+  */
  damageFromImpact(
- velocity.y,
- "building"
+  velocity.y,
+  "building"
  );
 
+ if (
+  dead
+ ) {
+  return;
+ }
+
  velocity.y =
- 0;
+  0;
 }
 
 // ==================================================
@@ -14797,6 +14842,783 @@ document.body.appendChild(
 );
 
 // ==================================================
+// GAME MODE
+// ==================================================
+const GAME_MODES = {
+ MENU:
+  "menu",
+
+ OPEN_WORLD:
+  "open-world",
+
+ TUTORIAL:
+  "tutorial"
+};
+
+let currentGameMode =
+ GAME_MODES.MENU;
+
+// ==================================================
+// TUTORIAL WORLD SYSTEM
+// ==================================================
+let tutorialWorldData =
+ null;
+
+let tutorialWorldLoaded =
+ false;
+
+let tutorialWorldLoading =
+ false;
+
+const tutorialWorldGroup =
+ new THREE.Group();
+
+tutorialWorldGroup.name =
+ "tutorial-world";
+
+tutorialWorldGroup.visible =
+ false;
+
+scene.add(
+ tutorialWorldGroup
+);
+
+// --------------------------------------------------
+// TUTORIAL OBJECT STATE
+// --------------------------------------------------
+const tutorialColliders =
+ [];
+
+const tutorialAnchorTargets =
+ [];
+
+// ==================================================
+// TUTORIAL MATERIALS
+// ==================================================
+const tutorialGroundMaterial =
+ new THREE.MeshStandardMaterial({
+  color:
+   0x71845f,
+
+  roughness:
+   1
+ });
+
+const tutorialBuildingMaterial =
+ new THREE.MeshStandardMaterial({
+  map:
+   wallTexture,
+
+  color:
+   0x9b927d,
+
+  roughness:
+   0.92
+ });
+
+const tutorialMarkerMaterial =
+ new THREE.MeshStandardMaterial({
+  color:
+   0x667766,
+
+  roughness:
+   0.9
+ });
+
+// ==================================================
+// CLEAR TUTORIAL WORLD
+// ==================================================
+function clearTutorialWorld() {
+ // ------------------------------------------------
+ // COLLIDERS
+ // ------------------------------------------------
+ for (
+  const collider
+  of tutorialColliders
+ ) {
+  unregisterCollider(
+   collider
+  );
+ }
+
+ tutorialColliders.length =
+  0;
+
+ // ------------------------------------------------
+ // ANCHOR TARGETS
+ // ------------------------------------------------
+ for (
+  const target
+  of tutorialAnchorTargets
+ ) {
+  removeArrayItem(
+   anchorTargets,
+   target
+  );
+ }
+
+ tutorialAnchorTargets.length =
+  0;
+
+ // ------------------------------------------------
+ // MESHES
+ // ------------------------------------------------
+ const children =
+  [
+   ...tutorialWorldGroup
+    .children
+  ];
+
+ for (
+  const child
+  of children
+ ) {
+  tutorialWorldGroup.remove(
+   child
+  );
+
+  child.traverse(
+   object => {
+    if (
+     object.geometry
+    ) {
+     object.geometry.dispose();
+    }
+
+    /*
+     * TutorialではMaterialを
+     * 共有しているためdisposeしない。
+     */
+   }
+  );
+ }
+}
+
+// ==================================================
+// CREATE TUTORIAL GROUND
+// ==================================================
+function createTutorialGround(
+ world
+) {
+ const widthMeters =
+  Number(
+   world.widthMeters
+  ) ||
+  500;
+
+ const depthMeters =
+  Number(
+   world.depthMeters
+  ) ||
+  500;
+
+ const width =
+  metersToUnits(
+   widthMeters
+  );
+
+ const depth =
+  metersToUnits(
+   depthMeters
+  );
+
+ const ground =
+  new THREE.Mesh(
+   new THREE.PlaneGeometry(
+    width,
+    depth
+   ),
+
+   tutorialGroundMaterial
+  );
+
+ ground.rotation.x =
+  -Math.PI /
+  2;
+
+ ground.position.set(
+  0,
+  0,
+  0
+ );
+
+ ground.receiveShadow =
+  true;
+
+ ground.castShadow =
+  false;
+
+ ground.userData.tutorial =
+  true;
+
+ tutorialWorldGroup.add(
+  ground
+ );
+}
+
+// ==================================================
+// CREATE TUTORIAL BOX
+// ==================================================
+function createTutorialBox(
+ descriptor
+) {
+ const width =
+  metersToUnits(
+   Number(
+    descriptor.widthMeters
+   ) ||
+   10
+  );
+
+ const depth =
+  metersToUnits(
+   Number(
+    descriptor.depthMeters
+   ) ||
+   10
+  );
+
+ const height =
+  metersToUnits(
+   Number(
+    descriptor.heightMeters
+   ) ||
+   10
+  );
+
+ const x =
+  metersToUnits(
+   Number(
+    descriptor.xMeters
+   ) ||
+   0
+  );
+
+ const z =
+  metersToUnits(
+   Number(
+    descriptor.zMeters
+   ) ||
+   0
+  );
+
+ const rotation =
+  Number(
+   descriptor.rotation
+  ) ||
+  0;
+
+ // ------------------------------------------------
+ // MESH
+ // ------------------------------------------------
+ const mesh =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    width,
+    height,
+    depth
+   ),
+
+   descriptor.role ===
+   "marker"
+    ? tutorialMarkerMaterial
+    : tutorialBuildingMaterial
+  );
+
+ mesh.position.set(
+  x,
+  height /
+  2,
+  z
+ );
+
+ mesh.rotation.y =
+  rotation;
+
+ mesh.castShadow =
+  true;
+
+ mesh.receiveShadow =
+  true;
+
+ mesh.userData.tutorial =
+  true;
+
+ mesh.userData.role =
+  descriptor.role ??
+  "obstacle";
+
+ mesh.userData.worldObjectId =
+  descriptor.id;
+
+ tutorialWorldGroup.add(
+  mesh
+ );
+
+ /*
+  * Box3を作る前に
+  * transformを確定。
+  */
+ mesh.updateWorldMatrix(
+  true,
+  true
+ );
+
+ // ------------------------------------------------
+ // COLLIDER
+ // ------------------------------------------------
+ const collider =
+  new THREE.Box3()
+   .setFromObject(
+    mesh
+   );
+
+ registerCollider(
+  collider
+ );
+
+ tutorialColliders.push(
+  collider
+ );
+
+ // ------------------------------------------------
+ // ANCHOR
+ // ------------------------------------------------
+ if (
+  descriptor.anchorable !==
+  false
+ ) {
+  anchorTargets.push(
+   mesh
+  );
+
+  tutorialAnchorTargets.push(
+   mesh
+  );
+ }
+
+ return mesh;
+}
+
+// ==================================================
+// BUILD TUTORIAL WORLD
+// ==================================================
+function buildTutorialWorld(
+ world
+) {
+ clearTutorialWorld();
+
+ tutorialWorldData =
+  world;
+
+ // ------------------------------------------------
+ // GROUND
+ // ------------------------------------------------
+ createTutorialGround(
+  world
+ );
+
+ // ------------------------------------------------
+ // OBJECTS
+ // ------------------------------------------------
+ const objects =
+  Array.isArray(
+   world.objects
+  )
+   ? world.objects
+   : [];
+
+ for (
+  const descriptor
+  of objects
+ ) {
+  if (
+   descriptor.type ===
+   "tutorial-box"
+  ) {
+   createTutorialBox(
+    descriptor
+   );
+  }
+ }
+
+ tutorialWorldGroup.visible =
+  true;
+
+ tutorialWorldLoaded =
+  true;
+}
+
+// ==================================================
+// LOAD TUTORIAL WORLD
+// ==================================================
+async function loadTutorialWorld() {
+ if (
+  tutorialWorldLoaded &&
+  tutorialWorldData
+ ) {
+  return tutorialWorldData;
+ }
+
+ if (
+  tutorialWorldLoading
+ ) {
+  /*
+   * 同時ロードを避けるため
+   * 完了まで待つ。
+   */
+  while (
+   tutorialWorldLoading
+  ) {
+   await new Promise(
+    resolve =>
+     setTimeout(
+      resolve,
+      20
+     )
+   );
+  }
+
+  return tutorialWorldData;
+ }
+
+ tutorialWorldLoading =
+  true;
+
+ try {
+  const response =
+   await fetch(
+    "/world/tutorial-world.json",
+    {
+     cache:
+      "no-cache"
+    }
+   );
+
+  if (
+   !response.ok
+  ) {
+   throw new Error(
+    `Tutorial world load failed: HTTP ${response.status}`
+   );
+  }
+
+  const world =
+   await response.json();
+
+  if (
+   !world ||
+   !Array.isArray(
+    world.objects
+   )
+  ) {
+   throw new Error(
+    "Invalid tutorial-world.json"
+   );
+  }
+
+  buildTutorialWorld(
+   world
+  );
+
+  console.log(
+   "TUTORIAL WORLD READY",
+   world
+  );
+
+  return world;
+ } finally {
+  tutorialWorldLoading =
+   false;
+ }
+}
+
+// ==================================================
+// RESET PLAYER FOR TUTORIAL
+// ==================================================
+function resetPlayerForTutorial(
+ world
+) {
+ // ------------------------------------------------
+ // ANCHORS
+ // ------------------------------------------------
+ releaseAnchor(
+  leftAnchor
+ );
+
+ releaseAnchor(
+  rightAnchor
+ );
+
+ // ------------------------------------------------
+ // PLAYER STATE
+ // ------------------------------------------------
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ health =
+  MAX_HEALTH;
+
+ gas =
+  MAX_GAS;
+
+ dead =
+  false;
+
+ grounded =
+  true;
+
+ groundedRoof =
+  null;
+
+ wallStunTimer =
+  0;
+
+ gasBurstCooldown =
+  0;
+
+ lastSpaceTapTime =
+  -Infinity;
+
+ // ------------------------------------------------
+ // SPAWN
+ // ------------------------------------------------
+ const spawn =
+  world?.spawn ??
+  {};
+
+ const spawnX =
+  metersToUnits(
+   Number(
+    spawn.xMeters
+   ) ||
+   0
+  );
+
+ const spawnZ =
+  metersToUnits(
+   Number(
+    spawn.zMeters
+   ) ||
+   0
+  );
+
+ camera.position.set(
+  spawnX,
+  PLAYER_HEIGHT,
+  spawnZ
+ );
+
+ yaw =
+  Number.isFinite(
+   spawn.yaw
+  )
+   ? spawn.yaw
+   : Math.PI;
+
+ pitch =
+  Number.isFinite(
+   spawn.pitch
+  )
+   ? spawn.pitch
+   : 0;
+
+ camera.rotation.y =
+  yaw;
+
+ camera.rotation.x =
+  pitch;
+
+ // ------------------------------------------------
+ // UI
+ // ------------------------------------------------
+ deathScreen.style.display =
+  "none";
+}
+
+// ==================================================
+// ENTER TUTORIAL
+// ==================================================
+async function enterTutorialWorld() {
+ if (
+  tutorialWorldLoading
+ ) {
+  return;
+ }
+
+ try {
+  // ------------------------------------------------
+  // UI
+  // ------------------------------------------------
+  hideMainMenu();
+
+  worldLoadingHUD.style.display =
+   "flex";
+
+  setWorldLoadingStatus(
+   "LOADING TRAINING GROUNDS...",
+   0.15
+  );
+
+  worldLoadingDetails.textContent =
+   "Loading /world/tutorial-world.json";
+
+  // ------------------------------------------------
+  // LOAD
+  // ------------------------------------------------
+  const world =
+   await loadTutorialWorld();
+
+  setWorldLoadingStatus(
+   "BUILDING TRAINING GROUNDS...",
+   0.70
+  );
+
+  // ------------------------------------------------
+  // MODE
+  // ------------------------------------------------
+  currentGameMode =
+   GAME_MODES.TUTORIAL;
+
+  /*
+   * animate()は現在
+   * worldDatabaseReady=falseだと
+   *停止するため、Tutorialでも
+   *Player loopを動かせるようにする。
+   */
+  worldDatabaseReady =
+   true;
+
+  // ------------------------------------------------
+  // HIDE OPEN-WORLD OBJECTS
+  // ------------------------------------------------
+  /*
+   * 既にOpen Worldを遊んだ後に
+   * Tutorialへ移る場合を考え、
+   *ロード済み本島チャンクを消す。
+   */
+  clearAllGroundChunks();
+
+  for (
+   const [
+    key,
+    data
+   ]
+   of Array.from(
+    streamedWallSegments
+   )
+  ) {
+   destroyWallSegment(
+    key,
+    data
+   );
+  }
+
+  for (
+   const [
+    key,
+    mesh
+   ]
+   of Array.from(
+    streamedRoads
+   )
+  ) {
+   destroyStreamedRoad(
+    key,
+    mesh
+   );
+  }
+
+  // ------------------------------------------------
+  // PLAYER
+  // ------------------------------------------------
+  resetPlayerForTutorial(
+   world
+  );
+
+  // ------------------------------------------------
+  // READY
+  // ------------------------------------------------
+  setWorldLoadingStatus(
+   "TRAINING READY",
+   1
+  );
+
+  await new Promise(
+   resolve =>
+    setTimeout(
+     resolve,
+     200
+    )
+  );
+
+  worldLoadingHUD.style.display =
+   "none";
+
+  showMessage(
+   "TRAINING GROUNDS"
+  );
+
+  // ------------------------------------------------
+  // GAME LOOP
+  // ------------------------------------------------
+  startGameLoop();
+
+ } catch (
+  error
+ ) {
+  console.error(
+   "TUTORIAL LOAD FAILED",
+   error
+  );
+
+  currentGameMode =
+   GAME_MODES.MENU;
+
+  worldLoadingHUD.style.display =
+   "flex";
+
+  worldLoadingStatus.textContent =
+   "TUTORIAL LOAD FAILED";
+
+  worldLoadingDetails.textContent =
+   String(
+    error?.stack ||
+    error
+   );
+
+  mainMenuOpen =
+   true;
+ }
+}
+
+// ==================================================
+// TUTORIAL GROUND HEIGHT
+// ==================================================
+function getActiveGroundHeightMeters(
+ xMeters,
+ zMeters
+) {
+ /*
+  * Tutorialは完全な平地。
+  */
+ if (
+  currentGameMode ===
+  GAME_MODES.TUTORIAL
+ ) {
+  return 0;
+ }
+
+ return getTerrainHeightMeters(
+  xMeters,
+  zMeters
+ );
+}
+
+// ==================================================
 // MAIN MENU
 // ==================================================
 const mainMenuHUD =
@@ -14807,21 +15629,32 @@ const mainMenuHUD =
 Object.assign(
  mainMenuHUD.style,
  {
-  position: "fixed",
-  inset: "0",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  position:
+   "fixed",
+
+  inset:
+   "0",
+
+  display:
+   "flex",
+
+  alignItems:
+   "center",
+
+  justifyContent:
+   "center",
 
   background:
    "linear-gradient(180deg, #18251d 0%, #090d0a 100%)",
 
-  color: "white",
+  color:
+   "white",
 
   fontFamily:
    "Arial, sans-serif",
 
-  zIndex: "60000"
+  zIndex:
+   "60000"
  }
 );
 
@@ -14840,8 +15673,11 @@ const mainMenuPanel =
 Object.assign(
  mainMenuPanel.style,
  {
-  width: "520px",
-  textAlign: "center"
+  width:
+   "520px",
+
+  textAlign:
+   "center"
  }
 );
 
@@ -14863,10 +15699,17 @@ mainMenuTitle.textContent =
 Object.assign(
  mainMenuTitle.style,
  {
-  fontSize: "64px",
-  fontWeight: "bold",
-  letterSpacing: "8px",
-  marginBottom: "8px",
+  fontSize:
+   "64px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "8px",
+
+  marginBottom:
+   "8px",
 
   textShadow:
    "0 4px 14px rgba(0,0,0,.8)"
@@ -14891,14 +15734,20 @@ mainMenuSubtitle.textContent =
 Object.assign(
  mainMenuSubtitle.style,
  {
-  color: "#aeb9ae",
+  color:
+   "#aeb9ae",
 
   fontFamily:
    "monospace",
 
-  fontSize: "16px",
-  letterSpacing: "4px",
-  marginBottom: "55px"
+  fontSize:
+   "16px",
+
+  letterSpacing:
+   "4px",
+
+  marginBottom:
+   "55px"
  }
 );
 
@@ -14907,7 +15756,7 @@ mainMenuPanel.appendChild(
 );
 
 // ==================================================
-// BUTTON CONTAINER
+// MAIN BUTTONS
 // ==================================================
 const mainMenuButtons =
  document.createElement(
@@ -14917,9 +15766,14 @@ const mainMenuButtons =
 Object.assign(
  mainMenuButtons.style,
  {
-  display: "flex",
-  flexDirection: "column",
-  gap: "14px"
+  display:
+   "flex",
+
+  flexDirection:
+   "column",
+
+  gap:
+   "14px"
  }
 );
 
@@ -14928,7 +15782,7 @@ mainMenuPanel.appendChild(
 );
 
 // ==================================================
-// BUTTON FACTORY
+// MAIN MENU BUTTON FACTORY
 // ==================================================
 function createMainMenuButton(
  text,
@@ -14946,7 +15800,8 @@ function createMainMenuButton(
  Object.assign(
   button.style,
   {
-   width: "100%",
+   width:
+    "100%",
 
    padding:
     "17px 20px",
@@ -15030,7 +15885,7 @@ function createMainMenuButton(
 }
 
 // ==================================================
-// MENU STATE
+// MAIN MENU STATE
 // ==================================================
 let mainMenuOpen =
  true;
@@ -15041,8 +15896,11 @@ let openWorldStarting =
 let miniGameMenuOpen =
  false;
 
+let tutorialStarting =
+ false;
+
 // ==================================================
-// OPEN WORLD
+// OPEN WORLD BUTTON
 // ==================================================
 const openWorldButton =
  createMainMenuButton(
@@ -15050,7 +15908,8 @@ const openWorldButton =
 
   async () => {
    if (
-    openWorldStarting
+    openWorldStarting ||
+    tutorialStarting
    ) {
     return;
    }
@@ -15064,7 +15923,28 @@ const openWorldButton =
    openWorldButton.textContent =
     "STARTING...";
 
-   await startOpenWorld();
+   try {
+    await startOpenWorld();
+   } finally {
+    /*
+     * startOpenWorld() 側が
+     * エラー処理を持っているが、
+     * Menuへ戻った時に再利用できるよう
+     * 状態は復元可能にする。
+     */
+    if (
+     mainMenuOpen
+    ) {
+     openWorldStarting =
+      false;
+
+     openWorldButton.disabled =
+      false;
+
+     openWorldButton.textContent =
+      "OPEN WORLD";
+    }
+   }
   }
  );
 
@@ -15080,18 +15960,20 @@ createMainMenuButton(
 );
 
 // ==================================================
-// SETTINGS
+// SETTINGS BUTTON
 // ==================================================
 createMainMenuButton(
  "SETTINGS",
 
  () => {
-  openSettings();
+  openSettings(
+   "main-menu"
+  );
  }
 );
 
 // ==================================================
-// FOOTER
+// MAIN MENU FOOTER
 // ==================================================
 const mainMenuFooter =
  document.createElement(
@@ -15126,7 +16008,7 @@ mainMenuPanel.appendChild(
 );
 
 // ==================================================
-// MINI GAME MENU
+// MINI GAME MENU PANEL
 // ==================================================
 const miniGameMenuPanel =
  document.createElement(
@@ -15136,7 +16018,8 @@ const miniGameMenuPanel =
 Object.assign(
  miniGameMenuPanel.style,
  {
-  width: "620px",
+  width:
+   "620px",
 
   display:
    "none",
@@ -15150,9 +16033,9 @@ mainMenuHUD.appendChild(
  miniGameMenuPanel
 );
 
-// --------------------------------------------------
+// ==================================================
 // MINI GAME TITLE
-// --------------------------------------------------
+// ==================================================
 const miniGameTitle =
  document.createElement(
   "div"
@@ -15185,9 +16068,9 @@ miniGameMenuPanel.appendChild(
  miniGameTitle
 );
 
-// --------------------------------------------------
-// DESCRIPTION
-// --------------------------------------------------
+// ==================================================
+// MINI GAME SUBTITLE
+// ==================================================
 const miniGameDescription =
  document.createElement(
   "div"
@@ -15221,7 +16104,7 @@ miniGameMenuPanel.appendChild(
 );
 
 // ==================================================
-// MINI GAME BUTTON CONTAINER
+// MINI GAME BUTTONS
 // ==================================================
 const miniGameButtons =
  document.createElement(
@@ -15269,15 +16152,15 @@ function createMiniGameButton(
    padding:
     "18px 22px",
 
-   background:
-    options.disabled
-     ? "rgba(255,255,255,.03)"
-     : "rgba(255,255,255,.08)",
-
    color:
     options.disabled
      ? "#777"
      : "white",
+
+   background:
+    options.disabled
+     ? "rgba(255,255,255,.03)"
+     : "rgba(255,255,255,.08)",
 
    border:
     options.disabled
@@ -15399,17 +16282,46 @@ function createMiniGameButton(
 }
 
 // ==================================================
-// TUTORIAL
+// TUTORIAL BUTTON
 // ==================================================
-createMiniGameButton(
- "TUTORIAL",
+const tutorialButton =
+ createMiniGameButton(
+  "TUTORIAL",
 
- "基本操作と立体機動を練習する",
+  "基本操作と立体機動を練習する",
 
- () => {
-  startTutorial();
- }
-);
+  async () => {
+   if (
+    tutorialStarting ||
+    openWorldStarting
+   ) {
+    return;
+   }
+
+   tutorialStarting =
+    true;
+
+   tutorialButton.disabled =
+    true;
+
+   try {
+    await startTutorial();
+   } catch (
+    error
+   ) {
+    console.error(
+     "TUTORIAL START FAILED",
+     error
+    );
+
+    tutorialStarting =
+     false;
+
+    tutorialButton.disabled =
+     false;
+   }
+  }
+ );
 
 // ==================================================
 // TIME ATTACK
@@ -15444,7 +16356,7 @@ createMiniGameButton(
 );
 
 // ==================================================
-// BACK
+// BACK BUTTON
 // ==================================================
 createMiniGameButton(
  "BACK",
@@ -15460,6 +16372,13 @@ createMiniGameButton(
 // OPEN MINI GAME MENU
 // ==================================================
 function openMiniGameMenu() {
+ if (
+  openWorldStarting ||
+  tutorialStarting
+ ) {
+  return;
+ }
+
  miniGameMenuOpen =
   true;
 
@@ -15474,6 +16393,12 @@ function openMiniGameMenu() {
 // CLOSE MINI GAME MENU
 // ==================================================
 function closeMiniGameMenu() {
+ if (
+  tutorialStarting
+ ) {
+  return;
+ }
+
  miniGameMenuOpen =
   false;
 
@@ -15487,22 +16412,30 @@ function closeMiniGameMenu() {
 // ==================================================
 // START TUTORIAL
 // ==================================================
-function startTutorial() {
- /*
-  * 今回は入口だけ実装。
-  *
-  * 次の段階でここから
-  *
-  * ・FREE TRAINING FIELD
-  * ・チュートリアルHUD
-  * ・進行管理
-  *
-  * を開始する。
-  */
+async function startTutorial() {
+ try {
+  await enterTutorialWorld();
 
- showMessage(
-  "TUTORIAL - PREPARING"
- );
+  /*
+   * enterTutorialWorld() が成功すれば
+   * Tutorial Worldへ移行済み。
+   */
+  tutorialStarting =
+   false;
+
+  tutorialButton.disabled =
+   false;
+ } catch (
+  error
+ ) {
+  tutorialStarting =
+   false;
+
+  tutorialButton.disabled =
+   false;
+
+  throw error;
+ }
 }
 
 // ==================================================
@@ -15512,17 +16445,40 @@ function showMainMenu() {
  mainMenuOpen =
   true;
 
+ miniGameMenuOpen =
+  false;
+
+ openWorldStarting =
+  false;
+
+ tutorialStarting =
+  false;
+
  mainMenuHUD.style.display =
   "flex";
 
- miniGameMenuOpen =
-  false;
+ mainMenuPanel.style.display =
+  "block";
 
  miniGameMenuPanel.style.display =
   "none";
 
- mainMenuPanel.style.display =
-  "block";
+ openWorldButton.disabled =
+  false;
+
+ openWorldButton.textContent =
+  "OPEN WORLD";
+
+ tutorialButton.disabled =
+  false;
+
+ if (
+  typeof currentGameMode !==
+  "undefined"
+ ) {
+  currentGameMode =
+   GAME_MODES.MENU;
+ }
 
  if (
   document.pointerLockElement
@@ -19576,96 +20532,151 @@ let gameLoopStarted =
 // --------------------------------------------------
 function animate() {
  requestAnimationFrame(
- animate
+  animate
  );
 
+ // =================================================
+ // MENU
+ // =================================================
+ /*
+  * ワールドに入っていない場合は
+  * 3D更新を行わない。
+  */
  if (
- !worldDatabaseReady
+  currentGameMode ===
+  GAME_MODES.MENU
  ) {
- return;
+  return;
+ }
+
+ // =================================================
+ // READY
+ // =================================================
+ if (
+  !worldDatabaseReady
+ ) {
+  return;
  }
 
  const delta =
- Math.min(
- clock.getDelta(),
- 0.05
- );
+  Math.min(
+   clock.getDelta(),
+   0.05
+  );
 
- // ------------------------------------------------
+ // =================================================
  // PLAYER
- // ------------------------------------------------
+ // =================================================
  updatePlayer(
- delta
+  delta
  );
 
- // ------------------------------------------------
- // WORLD
- // ------------------------------------------------
- updateWorldStreaming(
- delta
- );
+ // =================================================
+ // OPEN WORLD
+ // =================================================
+ if (
+  currentGameMode ===
+  GAME_MODES.OPEN_WORLD
+ ) {
+  updateWorldStreaming(
+   delta
+  );
 
- updateWallStreaming();
+  updateWallStreaming();
 
- updateAreaSystem();
+  updateRoadStreaming();
 
- // ------------------------------------------------
+  updateAreaSystem();
+ }
+
+ // =================================================
+ // TUTORIAL
+ // =================================================
+ if (
+  currentGameMode ===
+  GAME_MODES.TUTORIAL
+ ) {
+  /*
+   * Tutorial Worldは小さいため
+   * Streaming不要。
+   *
+   * buildTutorialWorld()で
+   * 全オブジェクトをロード済み。
+   */
+
+  /*
+   * FREE TRAININGなので
+   * 当面Gasを自動回復する。
+   */
+  gas =
+   Math.min(
+    MAX_GAS,
+    gas +
+    8 *
+    delta
+   );
+ }
+
+ // =================================================
  // TITAN
- // ------------------------------------------------
- updateTitanParts(
- delta
- );
+ // =================================================
+ /*
+  * 現在のTitanはOpen Worldの
+  *既存TitanなのでTutorialでは
+  *まだ更新しない。
+  *
+  * 後でTraining Titanを追加する。
+  */
+ if (
+  currentGameMode ===
+  GAME_MODES.OPEN_WORLD
+ ) {
+  updateTitanParts(
+   delta
+  );
+ }
 
- // ------------------------------------------------
+ // =================================================
  // EQUIPMENT
- // ------------------------------------------------
+ // =================================================
  updateBladeAnimation(
- delta
+  delta
  );
 
  updateWireVisual(
- leftAnchor
+  leftAnchor
  );
 
  updateWireVisual(
- rightAnchor
+  rightAnchor
  );
 
- // ------------------------------------------------
+ // =================================================
  // HUD
- // ------------------------------------------------
+ // =================================================
  updateHUD();
 
- // ------------------------------------------------
- // MAP
- // ------------------------------------------------
- /*
- * Mマップは毎フレーム描画しない。
- *
- * OPEN / ZOOM / DRAG時だけ。
- */
-
- // ------------------------------------------------
+ // =================================================
  // RENDER
- // ------------------------------------------------
+ // =================================================
  renderer.render(
- scene,
- camera
+  scene,
+  camera
  );
 }
 
-// --------------------------------------------------
+// ==================================================
 // START GAME LOOP
-// --------------------------------------------------
+// ==================================================
 function startGameLoop() {
  if (
- gameLoopStarted
+  gameLoopStarted
  ) {
- return;
+  return;
  }
 
  gameLoopStarted =
- true;
+  true;
 
  clock.start();
 
@@ -19677,197 +20688,282 @@ function startGameLoop() {
 // ==================================================
 async function startOpenWorld() {
  try {
- // ------------------------------------------------
- // CLOSE MAIN MENU
- // ------------------------------------------------
- hideMainMenu();
+  // =================================================
+  // CLOSE MAIN MENU
+  // =================================================
+  hideMainMenu();
 
- // ------------------------------------------------
- // LOADING SCREEN
- // ------------------------------------------------
- worldLoadingHUD.style.display =
- "flex";
+  // =================================================
+  // HIDE TUTORIAL
+  // =================================================
+  tutorialWorldGroup.visible =
+   false;
 
- setWorldLoadingStatus(
- "LOADING PARADIS WORLD...",
- 0.05
- );
+  /*
+   * Tutorialで作ったColliderや
+   * Anchor Targetを残さない。
+   */
+  clearTutorialWorld();
 
- worldLoadingDetails.textContent =
- "Loading /world/paradis-world.json";
+  tutorialWorldLoaded =
+   false;
 
- // ------------------------------------------------
- // FIXED WORLD
- // ------------------------------------------------
- const fixedWorld =
- await loadFixedWorld();
+  tutorialWorldData =
+   null;
 
- if (
- !fixedWorld
- ) {
- throw new Error(
- "Fixed world data is empty."
- );
- }
+  // =================================================
+  // LOADING SCREEN
+  // =================================================
+  worldLoadingHUD.style.display =
+   "flex";
 
- // ------------------------------------------------
- // ACTIVE WORLD
- // ------------------------------------------------
- worldDatabase =
- fixedWorld;
+  setWorldLoadingStatus(
+   "LOADING PARADIS WORLD...",
+   0.05
+  );
 
- // ------------------------------------------------
- // STATISTICS
- // ------------------------------------------------
- const objects =
- Array.isArray(
- fixedWorld.objects
- )
- ? fixedWorld.objects
- : [];
+  worldLoadingDetails.textContent =
+   "Loading /world/paradis-world.json";
 
- const roads =
- Array.isArray(
- fixedWorld.roads
- )
- ? fixedWorld.roads
- : [];
+  // =================================================
+  // MODE PREPARATION
+  // =================================================
+  currentGameMode =
+   GAME_MODES.OPEN_WORLD;
 
- const districts =
- Array.isArray(
- fixedWorld.districts
- )
- ? fixedWorld.districts
- : [];
+  // =================================================
+  // FIXED WORLD
+  // =================================================
+  const fixedWorld =
+   await loadFixedWorld();
 
- const villages =
- Array.isArray(
- fixedWorld.villages
- )
- ? fixedWorld.villages
- : [];
+  if (
+   !fixedWorld
+  ) {
+   throw new Error(
+    "Fixed world data is empty."
+   );
+  }
 
- const forests =
- Array.isArray(
- fixedWorld.forests
- )
- ? fixedWorld.forests
- : [];
+  // =================================================
+  // ACTIVE WORLD
+  // =================================================
+  worldDatabase =
+   fixedWorld;
 
- const houseCount =
- objects.filter(
- object =>
- object.type ===
- "house"
- ).length;
+  // =================================================
+  // STATISTICS
+  // =================================================
+  const objects =
+   Array.isArray(
+    fixedWorld.objects
+   )
+    ? fixedWorld.objects
+    : [];
 
- const treeCount =
- objects.filter(
- object =>
- object.type ===
- "tree"
- ).length;
+  const roads =
+   Array.isArray(
+    fixedWorld.roads
+   )
+    ? fixedWorld.roads
+    : [];
 
- // ------------------------------------------------
- // LOADING DETAILS
- // ------------------------------------------------
- worldLoadingDetails.textContent =
- `WORLD: ${
- fixedWorld.name ??
- "Paradis Island"
- }\n` +
- `HOUSES: ${houseCount}\n` +
- `TREES: ${treeCount}\n` +
- `ROADS: ${roads.length}\n` +
- `DISTRICTS: ${districts.length}\n` +
- `VILLAGES: ${villages.length}\n` +
- `FORESTS: ${forests.length}`;
+  const districts =
+   Array.isArray(
+    fixedWorld.districts
+   )
+    ? fixedWorld.districts
+    : [];
 
- // ------------------------------------------------
- // WORLD SYSTEMS
- // ------------------------------------------------
- /*
-  * 壁情報は固定Worldをロードした後に
-  * 作り直す。
-  *
-  * 起動時にWORLD_MAP fallbackから
-  * 作られていた場合でも、
-  * ここで固定Worldを正本にする。
-  */
- createCityWall();
+  const villages =
+   Array.isArray(
+    fixedWorld.villages
+   )
+    ? fixedWorld.villages
+    : [];
 
- /*
-  * プレイヤー周辺の中心チャンクを
-  * ゲーム開始前に生成する。
-  */
- forceLoadCurrentChunk();
+  const forests =
+   Array.isArray(
+    fixedWorld.forests
+   )
+    ? fixedWorld.forests
+    : [];
 
- requestWorldChunks();
+  const houseCount =
+   objects.filter(
+    object =>
+     object.type ===
+     "house"
+   ).length;
 
- updateWallStreaming();
+  const treeCount =
+   objects.filter(
+    object =>
+     object.type ===
+     "tree"
+   ).length;
 
- // ------------------------------------------------
- // READY
- // ------------------------------------------------
- setWorldLoadingStatus(
- "WORLD READY",
- 1
- );
+  // =================================================
+  // LOADING DETAILS
+  // =================================================
+  worldLoadingDetails.textContent =
+   `WORLD: ${
+    fixedWorld.name ??
+    "Paradis Island"
+   }\n` +
+   `HOUSES: ${houseCount}\n` +
+   `TREES: ${treeCount}\n` +
+   `ROADS: ${roads.length}\n` +
+   `DISTRICTS: ${districts.length}\n` +
+   `VILLAGES: ${villages.length}\n` +
+   `FORESTS: ${forests.length}`;
 
- worldDatabaseReady =
- true;
+  // =================================================
+  // RESET PLAYER
+  // =================================================
+  releaseAnchor(
+   leftAnchor
+  );
 
- await new Promise(
- resolve => {
- setTimeout(
- resolve,
- 250
- );
- }
- );
+  releaseAnchor(
+   rightAnchor
+  );
 
- worldLoadingHUD.style.display =
- "none";
+  velocity.set(
+   0,
+   0,
+   0
+  );
 
- console.log(
- "PARADIS FIXED WORLD READY",
- fixedWorld
- );
+  health =
+   MAX_HEALTH;
 
- // ------------------------------------------------
- // START
- // ------------------------------------------------
- startGameLoop();
+  gas =
+   MAX_GAS;
+
+  dead =
+   false;
+
+  grounded =
+   true;
+
+  groundedRoof =
+   null;
+
+  wallStunTimer =
+   0;
+
+  gasBurstCooldown =
+   0;
+
+  camera.position.copy(
+   SPAWN
+  );
+
+  // =================================================
+  // WORLD SYSTEMS
+  // =================================================
+  /*
+   * 固定Worldから
+   * Wall Ringを再構築。
+   */
+  createCityWall();
+
+  /*
+   * Spawn地点を即時ロード。
+   */
+  forceLoadCurrentChunk();
+
+  requestWorldChunks();
+
+  updateWallStreaming();
+
+  updateRoadStreaming();
+
+  // =================================================
+  // AREA RESET
+  // =================================================
+  previousAreaChunkX =
+   null;
+
+  previousAreaChunkZ =
+   null;
+
+  areaSystemInitialized =
+   false;
+
+  // =================================================
+  // READY
+  // =================================================
+  currentGameMode =
+   GAME_MODES.OPEN_WORLD;
+
+  worldDatabaseReady =
+   true;
+
+  setWorldLoadingStatus(
+   "WORLD READY",
+   1
+  );
+
+  await new Promise(
+   resolve => {
+    setTimeout(
+     resolve,
+     250
+    );
+   }
+  );
+
+  worldLoadingHUD.style.display =
+   "none";
+
+  console.log(
+   "PARADIS FIXED WORLD READY",
+   fixedWorld
+  );
+
+  // =================================================
+  // START
+  // =================================================
+  startGameLoop();
+
+  openWorldStarting =
+   false;
+
  } catch (
- error
+  error
  ) {
- console.error(
- "GAME BOOT FAILED",
- error
- );
+  console.error(
+   "GAME BOOT FAILED",
+   error
+  );
 
- worldDatabaseReady =
- false;
+  worldDatabaseReady =
+   false;
 
- openWorldStarting =
- false;
+  currentGameMode =
+   GAME_MODES.MENU;
 
- openWorldButton.disabled =
- false;
+  openWorldStarting =
+   false;
 
- openWorldButton.textContent =
- "OPEN WORLD";
+  openWorldButton.disabled =
+   false;
 
- worldLoadingHUD.style.display =
- "flex";
+  openWorldButton.textContent =
+   "OPEN WORLD";
 
- worldLoadingStatus.textContent =
- "WORLD LOAD FAILED";
+  worldLoadingHUD.style.display =
+   "flex";
 
- worldLoadingDetails.textContent =
- String(
- error?.stack ||
- error
- );
+  worldLoadingStatus.textContent =
+   "WORLD LOAD FAILED";
+
+  worldLoadingDetails.textContent =
+   String(
+    error?.stack ||
+    error
+   );
  }
 }
