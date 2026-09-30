@@ -91,10 +91,42 @@ const MAX_MOVE_STEP = 0.22;
 // ==================================================
 // AIR
 // ==================================================
-const AIR_DRAG = 0.4;
 
-// 300km/h超の慣性にだけ追加される抵抗
-const HIGH_SPEED_DRAG = 0.32;
+/*
+ * 入力なし・ガスなし・ワイヤーなしの
+ * 通常空気抵抗。
+ */
+const AIR_DRAG =
+ 0.4;
+
+/*
+ * 空中でWASDを押しているだけの場合。
+ *
+ * 通常空気抵抗の50%。
+ */
+const AIR_INPUT_DRAG_MULTIPLIER =
+ 0.5;
+
+/*
+ * GAS使用中は推進力があるため、
+ * 通常Dragは適用しない。
+ */
+const AIR_GAS_DRAG_MULTIPLIER =
+ 0;
+
+/*
+ * WIRE牽引中も、
+ * 通常Dragは適用しない。
+ */
+const AIR_WIRE_DRAG_MULTIPLIER =
+ 0;
+
+/*
+ * 300km/hを超えた慣性へ
+ * 追加適用する高速空気抵抗。
+ */
+const HIGH_SPEED_DRAG =
+ 0.32;
 
 // ==================================================
 // PLAYER DAMAGE
@@ -11727,71 +11759,144 @@ function updateGasFlight(
 // AIR DRAG
 // ==================================================
 function updateAirDrag(
-  delta
+ delta
 ) {
-  if (grounded) {
-    return;
-  }
+ // =================================================
+ // GROUND
+ // =================================================
+ if (
+  grounded
+ ) {
+  return;
+ }
 
-  const movementInput =
-    keys["KeyW"] ||
-    keys["KeyA"] ||
-    keys["KeyS"] ||
-    keys["KeyD"];
+ // =================================================
+ // INPUT
+ // =================================================
+ const movementInput =
+  keys["KeyW"] ||
+  keys["KeyA"] ||
+  keys["KeyS"] ||
+  keys["KeyD"];
 
-  const gasActive =
-    keys["Space"] &&
-    gas > 0;
+ // =================================================
+ // GAS
+ // =================================================
+ const gasActive =
+  keys["Space"] &&
+  gas >
+  0;
 
-  const wireActive =
-    leftAnchor.pulling ||
-    rightAnchor.pulling;
+ // =================================================
+ // WIRE
+ // =================================================
+ const wireActive =
+  leftAnchor.pulling ||
+  rightAnchor.pulling;
 
-  if (
-    !movementInput &&
-    !gasActive &&
-    !wireActive
-  ) {
-    const drag =
-      Math.exp(
-        -AIR_DRAG *
-        delta
-      );
+ // =================================================
+ // SELECT DRAG
+ // =================================================
+ let dragMultiplier =
+  1;
 
-    velocity.x *= drag;
-    velocity.z *= drag;
-  }
+ // -------------------------------------------------
+ // WIRE
+ // -------------------------------------------------
+ if (
+  wireActive
+ ) {
+  dragMultiplier =
+   AIR_WIRE_DRAG_MULTIPLIER;
+ }
+
+ // -------------------------------------------------
+ // GAS
+ // -------------------------------------------------
+ else if (
+  gasActive
+ ) {
+  dragMultiplier =
+   AIR_GAS_DRAG_MULTIPLIER;
+ }
+
+ // -------------------------------------------------
+ // MOVEMENT INPUT ONLY
+ // -------------------------------------------------
+ else if (
+  movementInput
+ ) {
+  /*
+   * WASDを押しているだけでは
+   * 慣性を永久保存しない。
+   *
+   * 入力なし時の50%の抵抗。
+   */
+  dragMultiplier =
+   AIR_INPUT_DRAG_MULTIPLIER;
+ }
+
+ // =================================================
+ // NORMAL AIR DRAG
+ // =================================================
+ if (
+  dragMultiplier >
+  0
+ ) {
+  const drag =
+   Math.exp(
+    -AIR_DRAG *
+    dragMultiplier *
+    delta
+   );
 
   /*
-   * ワイヤー等で300km/hを
-   * 超えた速度は即切らない。
-   * 超過分だけ徐々に空気抵抗。
+   * 通常Dragは水平慣性へ適用。
+   *
+   * Y方向はGravityが担当する。
    */
-  const speed =
-    velocity.length();
+  velocity.x *=
+   drag;
 
-  if (
-    speed >
+  velocity.z *=
+   drag;
+ }
+
+ // =================================================
+ // HIGH SPEED DRAG
+ // =================================================
+ /*
+  * 300km/h超については、
+  * GAS/WIRE中でも完全には無制限にしない。
+  *
+  * 超過速度が大きいほど
+  * 徐々に抵抗が強くなる。
+  */
+ const speed =
+  velocity.length();
+
+ if (
+  speed >
+  NORMAL_MAX_SPEED
+ ) {
+  const excessRatio =
+   (
+    speed -
     NORMAL_MAX_SPEED
-  ) {
-    const excessRatio =
-      (
-        speed -
-        NORMAL_MAX_SPEED
-      ) /
-      NORMAL_MAX_SPEED;
+   ) /
+   NORMAL_MAX_SPEED;
 
-    const highDrag =
-      Math.exp(
-        -HIGH_SPEED_DRAG *
-        excessRatio *
-        delta
-      );
+  const highDrag =
+   Math.exp(
+    -HIGH_SPEED_DRAG *
+    excessRatio *
+    delta
+   );
 
-    velocity.multiplyScalar(
-      highDrag
-    );
-  }
+  velocity.multiplyScalar(
+   highDrag
+  );
+ }
 }
 
 // ==================================================
