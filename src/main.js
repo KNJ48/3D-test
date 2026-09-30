@@ -21172,115 +21172,117 @@ let settingsOpen =
  false;
 
 /*
- * 設定をどこから開いたか。
+ * Settingsを開いた場所。
  *
- * "main-menu"
- * "game"
+ * main-menu
+ * game
+ * tutorial
  */
 let settingsSource =
  "game";
 
-// --------------------------------------------------
+// ==================================================
 // STORAGE
-// --------------------------------------------------
+// ==================================================
 const SETTINGS_RENDER_DISTANCE_KEY =
  "paradis-render-distance-km";
 
-// --------------------------------------------------
+// ==================================================
 // LOAD SETTINGS
-// --------------------------------------------------
+// ==================================================
 function loadGameSettings() {
  const savedRenderDistance =
- Number(
- localStorage.getItem(
- SETTINGS_RENDER_DISTANCE_KEY
- )
- );
+  Number(
+   localStorage.getItem(
+    SETTINGS_RENDER_DISTANCE_KEY
+   )
+  );
 
  if (
- Number.isFinite(
- savedRenderDistance
- )
+  Number.isFinite(
+   savedRenderDistance
+  )
  ) {
- renderDistanceKm =
- THREE.MathUtils.clamp(
- savedRenderDistance,
- 0.5,
- 5
- );
+  renderDistanceKm =
+   THREE.MathUtils.clamp(
+    savedRenderDistance,
+    0.5,
+    5
+   );
  }
 
  if (
- typeof renderDistanceInput !==
- "undefined"
+  typeof renderDistanceInput !==
+  "undefined"
  ) {
- renderDistanceInput.value =
- String(
- renderDistanceKm
- );
+  renderDistanceInput.value =
+   String(
+    renderDistanceKm
+   );
  }
 
  if (
- typeof renderDistanceValue !==
- "undefined"
+  typeof renderDistanceValue !==
+  "undefined"
  ) {
- renderDistanceValue.textContent =
- `${renderDistanceKm.toFixed(
- 1
- )} km`;
+  renderDistanceValue.textContent =
+   `${renderDistanceKm.toFixed(
+    1
+   )} km`;
  }
 }
 
-// --------------------------------------------------
+// ==================================================
 // SAVE RENDER DISTANCE
-// --------------------------------------------------
+// ==================================================
 function saveRenderDistance() {
  localStorage.setItem(
- SETTINGS_RENDER_DISTANCE_KEY,
- String(
- renderDistanceKm
- )
+  SETTINGS_RENDER_DISTANCE_KEY,
+
+  String(
+   renderDistanceKm
+  )
  );
 }
 
-// --------------------------------------------------
+// ==================================================
 // APPLY RENDER DISTANCE
-// --------------------------------------------------
+// ==================================================
 function applyRenderDistance(
  value
 ) {
  const parsed =
- Number(
- value
- );
+  Number(
+   value
+  );
 
  if (
- !Number.isFinite(
- parsed
- )
+  !Number.isFinite(
+   parsed
+  )
  ) {
- return;
+  return;
  }
 
  renderDistanceKm =
- THREE.MathUtils.clamp(
- parsed,
- 0.5,
- 5
- );
+  THREE.MathUtils.clamp(
+   parsed,
+   0.5,
+   5
+  );
 
  // ------------------------------------------------
  // UI
  // ------------------------------------------------
  renderDistanceInput.value =
- String(
- renderDistanceKm
- );
+  String(
+   renderDistanceKm
+  );
 
  renderDistanceValue.textContent =
- `${renderDistanceKm.toFixed(
- 1
- )} km`;
+  `${renderDistanceKm.toFixed(
+   1
+  )} km`;
 
  // ------------------------------------------------
  // SAVE
@@ -21288,177 +21290,274 @@ function applyRenderDistance(
  saveRenderDistance();
 
  // ------------------------------------------------
- // ACTIVE WORLD
+ // OPEN WORLD ONLY
  // ------------------------------------------------
  if (
- worldDatabaseReady
+  typeof currentGameMode !==
+   "undefined" &&
+  currentGameMode ===
+   GAME_MODES.OPEN_WORLD &&
+  worldDatabaseReady
  ) {
- unloadFarChunks();
+  unloadFarChunks();
 
- requestWorldChunks();
+  requestWorldChunks();
 
- chunkRequestTimer =
- 0;
+  chunkRequestTimer =
+   0;
  }
 }
 
-// --------------------------------------------------
+// ==================================================
 // SLIDER
-// --------------------------------------------------
+// ==================================================
 renderDistanceInput.addEventListener(
  "input",
  () => {
- applyRenderDistance(
- renderDistanceInput.value
- );
+  applyRenderDistance(
+   renderDistanceInput.value
+  );
  }
 );
 
-// --------------------------------------------------
+// ==================================================
+// CLEAR GAME INPUT
+// ==================================================
+function clearGameInputForMenu() {
+ for (
+  const code
+  of Object.keys(
+   keys
+  )
+ ) {
+  keys[
+   code
+  ] =
+   false;
+ }
+
+ spacePressed =
+  false;
+
+ bladeAttackHeld =
+  false;
+
+ bladeAttackReleased =
+  false;
+}
+
+// ==================================================
 // OPEN SETTINGS
-// --------------------------------------------------
+// ==================================================
 function openSettings(
  source = null
 ) {
  if (
- settingsOpen
+  settingsOpen
  ) {
- return;
+  return;
  }
 
  // ------------------------------------------------
  // SOURCE
  // ------------------------------------------------
  if (
- source
+  source
  ) {
- settingsSource =
- source;
+  settingsSource =
+   source;
  } else if (
- mainMenuOpen
+  mainMenuOpen
  ) {
- settingsSource =
- "main-menu";
+  settingsSource =
+   "main-menu";
+ } else if (
+  typeof currentGameMode !==
+   "undefined" &&
+  currentGameMode ===
+   GAME_MODES.TUTORIAL
+ ) {
+  settingsSource =
+   "tutorial";
  } else {
- settingsSource =
- "game";
- }
-
- // ------------------------------------------------
- // CLOSE OTHER UI
- // ------------------------------------------------
- if (
- worldMapOpen
- ) {
- closeWorldMap();
- }
-
- if (
- teleportMenuOpen
- ) {
- closeTeleportMenu();
+  settingsSource =
+   "game";
  }
 
  settingsOpen =
- true;
+  true;
+
+ console.log(
+  "OPEN SETTINGS",
+  settingsSource
+ );
+
+ // ------------------------------------------------
+ // CLOSE MAP
+ // ------------------------------------------------
+ if (
+  worldMapOpen
+ ) {
+  closeWorldMap();
+ }
+
+ // ------------------------------------------------
+ // CLOSE TELEPORT
+ // ------------------------------------------------
+ if (
+  teleportMenuOpen
+ ) {
+  closeTeleportMenu();
+ }
 
  // ------------------------------------------------
  // POINTER LOCK
  // ------------------------------------------------
  if (
- document.pointerLockElement
+  document.pointerLockElement
  ) {
- document.exitPointerLock();
+  document.exitPointerLock();
  }
 
  // ------------------------------------------------
- // CLEAR INPUT
+ // INPUT
  // ------------------------------------------------
- for (
- const code
- of Object.keys(
- keys
- )
- ) {
- keys[code] =
- false;
- }
-
- spacePressed =
- false;
+ clearGameInputForMenu();
 
  // ------------------------------------------------
- // VALUE
+ // UPDATE VALUE
  // ------------------------------------------------
  renderDistanceInput.value =
- String(
- renderDistanceKm
- );
+  String(
+   renderDistanceKm
+  );
 
  renderDistanceValue.textContent =
- `${renderDistanceKm.toFixed(
- 1
- )} km`;
+  `${renderDistanceKm.toFixed(
+   1
+  )} km`;
 
  // ------------------------------------------------
  // MAIN MENU
  // ------------------------------------------------
- /*
-  * メインメニューから設定を開いた場合は
-  * メニューを一時的に隠す。
-  *
-  * hideMainMenu()は状態まで変えてしまうため
-  * ここではdisplayだけ変更する。
-  */
  if (
- settingsSource ===
- "main-menu"
+  settingsSource ===
+  "main-menu"
  ) {
- mainMenuHUD.style.display =
- "none";
+  /*
+   * mainMenuOpen自体はtrueのまま。
+   *
+   * 戻る場所を覚えるため
+   * displayだけ隠す。
+   */
+  mainMenuHUD.style.display =
+   "none";
+ }
+
+ // ------------------------------------------------
+ // TUTORIAL GUIDE
+ // ------------------------------------------------
+ if (
+  settingsSource ===
+   "tutorial" &&
+  typeof tutorialGuideHUD !==
+   "undefined"
+ ) {
+  tutorialGuideHUD.style.visibility =
+   "hidden";
  }
 
  // ------------------------------------------------
  // SHOW
  // ------------------------------------------------
  settingsHUD.style.display =
- "flex";
+  "flex";
 }
 
-// --------------------------------------------------
+// ==================================================
 // CLOSE SETTINGS
-// --------------------------------------------------
+// ==================================================
 function closeSettings() {
  if (
- !settingsOpen
+  !settingsOpen
  ) {
- return;
+  return;
  }
 
+ const previousSource =
+  settingsSource;
+
  settingsOpen =
- false;
+  false;
 
  settingsHUD.style.display =
- "none";
+  "none";
 
- // ------------------------------------------------
- // RETURN TO MAIN MENU
- // ------------------------------------------------
+ console.log(
+  "CLOSE SETTINGS",
+  previousSource
+ );
+
+ // =================================================
+ // MAIN MENU
+ // =================================================
  if (
- settingsSource ===
- "main-menu"
+  previousSource ===
+  "main-menu"
  ) {
- mainMenuHUD.style.display =
- "flex";
+  mainMenuHUD.style.display =
+   "flex";
+
+  /*
+   * Mini Game一覧からではなく
+   * MAIN MENUのSettingsから開いているので
+   * Main Panelを表示。
+   */
+  if (
+   typeof mainMenuPanel !==
+   "undefined"
+  ) {
+   mainMenuPanel.style.display =
+    "block";
+  }
+
+  if (
+   typeof miniGameMenuPanel !==
+   "undefined"
+  ) {
+   miniGameMenuPanel.style.display =
+    "none";
+  }
+
+  if (
+   typeof miniGameMenuOpen !==
+   "undefined"
+  ) {
+   miniGameMenuOpen =
+    false;
+  }
+ }
+
+ // =================================================
+ // TUTORIAL
+ // =================================================
+ if (
+  previousSource ===
+   "tutorial" &&
+  typeof tutorialGuideHUD !==
+   "undefined"
+ ) {
+  tutorialGuideHUD.style.visibility =
+   "visible";
  }
 
  settingsSource =
- "game";
+  "game";
 }
 
-// --------------------------------------------------
+// ==================================================
 // INITIAL LOAD
-// --------------------------------------------------
+// ==================================================
 loadGameSettings();
 
 // ==================================================
