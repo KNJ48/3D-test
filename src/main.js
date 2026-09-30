@@ -12061,10 +12061,933 @@ function applyWallStun(
     false;
 }
 
-COLLISION
-ROOF COLLISION
-RING WALL COLLISION
-COLLIDES
+// ==================================================
+// COLLISION
+// ==================================================
+
+// --------------------------------------------------
+// BOX COLLISION
+// --------------------------------------------------
+function intersects(
+ position,
+ box
+) {
+ return (
+  position.x +
+   PLAYER_RADIUS >
+   box.min.x &&
+
+  position.x -
+   PLAYER_RADIUS <
+   box.max.x &&
+
+  position.y >
+   box.min.y &&
+
+  position.y -
+   PLAYER_HEIGHT <
+   box.max.y &&
+
+  position.z +
+   PLAYER_RADIUS >
+   box.min.z &&
+
+  position.z -
+   PLAYER_RADIUS <
+   box.max.z
+ );
+}
+
+// ==================================================
+// ROOF COLLISION
+// ==================================================
+
+// --------------------------------------------------
+// WORLD -> ROOF LOCAL
+// --------------------------------------------------
+function getRoofLocalPosition(
+ roof,
+ worldX,
+ worldZ
+) {
+ const dx =
+  worldX -
+  roof.x;
+
+ const dz =
+  worldZ -
+  roof.z;
+
+ const cos =
+  Math.cos(
+   roof.rotation
+  );
+
+ const sin =
+  Math.sin(
+   roof.rotation
+  );
+
+ return {
+  x:
+   dx *
+   cos -
+   dz *
+   sin,
+
+  z:
+   dx *
+   sin +
+   dz *
+   cos
+ };
+}
+
+// --------------------------------------------------
+// ROOF SURFACE FROM LOCAL X
+// --------------------------------------------------
+function getRoofSurfaceHeightFromLocalX(
+ roof,
+ localX
+) {
+ if (
+  !roof ||
+  !Number.isFinite(
+   roof.wallTopY
+  ) ||
+  !Number.isFinite(
+   roof.height
+  ) ||
+  !Number.isFinite(
+   roof.halfWidth
+  ) ||
+  roof.halfWidth <=
+   0
+ ) {
+  return null;
+ }
+
+ if (
+  Math.abs(
+   localX
+  ) >
+  roof.halfWidth
+ ) {
+  return null;
+ }
+
+ const normalized =
+  1 -
+  Math.abs(
+   localX
+  ) /
+  roof.halfWidth;
+
+ return (
+  roof.wallTopY +
+  roof.height *
+   THREE.MathUtils.clamp(
+    normalized,
+    0,
+    1
+   )
+ );
+}
+
+// --------------------------------------------------
+// ROOF SURFACE
+// --------------------------------------------------
+function getRoofSurfaceHeight(
+ roof,
+ worldX,
+ worldZ,
+ padding =
+  PLAYER_RADIUS
+) {
+ if (
+  !roof
+ ) {
+  return null;
+ }
+
+ const local =
+  getRoofLocalPosition(
+   roof,
+   worldX,
+   worldZ
+  );
+
+ if (
+  Math.abs(
+   local.z
+  ) >
+  roof.halfDepth +
+   padding
+ ) {
+  return null;
+ }
+
+ if (
+  Math.abs(
+   local.x
+  ) >
+  roof.halfWidth +
+   padding
+ ) {
+  return null;
+ }
+
+ const localX =
+  THREE.MathUtils.clamp(
+   local.x,
+   -roof.halfWidth,
+   roof.halfWidth
+  );
+
+ return (
+  getRoofSurfaceHeightFromLocalX(
+   roof,
+   localX
+  )
+ );
+}
+
+// --------------------------------------------------
+// ROOF BOTTOM
+// --------------------------------------------------
+function getRoofBottomHeight(
+ roof,
+ worldX,
+ worldZ
+) {
+ const top =
+  getRoofSurfaceHeight(
+   roof,
+   worldX,
+   worldZ,
+   0
+  );
+
+ if (
+  top ===
+   null
+ ) {
+  return null;
+ }
+
+ const thickness =
+  Number.isFinite(
+   roof.thickness
+  )
+   ? roof.thickness
+   : 0;
+
+ return (
+  top -
+  thickness
+ );
+}
+
+// --------------------------------------------------
+// INSIDE ROOF HORIZONTAL
+// --------------------------------------------------
+function isInsideRoofHorizontal(
+ roof,
+ worldX,
+ worldZ,
+ padding = 0
+) {
+ if (
+  !roof
+ ) {
+  return false;
+ }
+
+ const local =
+  getRoofLocalPosition(
+   roof,
+   worldX,
+   worldZ
+  );
+
+ return (
+  Math.abs(
+   local.x
+  ) <=
+   roof.halfWidth +
+   padding &&
+
+  Math.abs(
+   local.z
+  ) <=
+   roof.halfDepth +
+   padding
+ );
+}
+
+// ==================================================
+// ROOF SOLID
+// ==================================================
+function intersectsRoofSolid(
+ position,
+ roof
+) {
+ if (
+  !roof
+ ) {
+  return false;
+ }
+
+ const local =
+  getRoofLocalPosition(
+   roof,
+   position.x,
+   position.z
+  );
+
+ if (
+  Math.abs(
+   local.x
+  ) >
+  roof.halfWidth +
+   PLAYER_RADIUS
+ ) {
+  return false;
+ }
+
+ if (
+  Math.abs(
+   local.z
+  ) >
+  roof.halfDepth +
+   PLAYER_RADIUS
+ ) {
+  return false;
+ }
+
+ const closestX =
+  THREE.MathUtils.clamp(
+   local.x,
+   -roof.halfWidth,
+   roof.halfWidth
+  );
+
+ const roofTop =
+  getRoofSurfaceHeightFromLocalX(
+   roof,
+   closestX
+  );
+
+ if (
+  roofTop ===
+   null
+ ) {
+  return false;
+ }
+
+ const thickness =
+  Number.isFinite(
+   roof.thickness
+  )
+   ? Math.max(
+      roof.thickness,
+      0.08
+     )
+   : 0.08;
+
+ const collisionThickness =
+  thickness +
+  0.08;
+
+ const roofBottom =
+  roofTop -
+  collisionThickness;
+
+ const playerTop =
+  position.y;
+
+ const playerBottom =
+  position.y -
+  PLAYER_HEIGHT;
+
+ return (
+  playerTop >
+   roofBottom &&
+  playerBottom <
+   roofTop
+ );
+}
+
+// ==================================================
+// GABLE WALL
+// ==================================================
+function intersectsGableWall(
+ position,
+ roof
+) {
+ if (
+  !roof
+ ) {
+  return false;
+ }
+
+ const local =
+  getRoofLocalPosition(
+   roof,
+   position.x,
+   position.z
+  );
+
+ const frontDistance =
+  Math.abs(
+   local.z +
+   roof.halfDepth
+  );
+
+ const backDistance =
+  Math.abs(
+   local.z -
+   roof.halfDepth
+  );
+
+ if (
+  frontDistance >
+   PLAYER_RADIUS &&
+  backDistance >
+   PLAYER_RADIUS
+ ) {
+  return false;
+ }
+
+ if (
+  Math.abs(
+   local.x
+  ) >
+  roof.halfWidth +
+   PLAYER_RADIUS
+ ) {
+  return false;
+ }
+
+ const closestX =
+  THREE.MathUtils.clamp(
+   local.x,
+   -roof.halfWidth,
+   roof.halfWidth
+  );
+
+ const triangleTop =
+  getRoofSurfaceHeightFromLocalX(
+   roof,
+   closestX
+  );
+
+ if (
+  triangleTop ===
+   null
+ ) {
+  return false;
+ }
+
+ const playerTop =
+  position.y;
+
+ const playerBottom =
+  position.y -
+  PLAYER_HEIGHT;
+
+ return (
+  playerTop >
+   roof.wallTopY &&
+  playerBottom <
+   triangleTop
+ );
+}
+
+// ==================================================
+// COLLIDES ROOF SOLID
+// ==================================================
+function collidesRoofSolid(
+ position
+) {
+ const roofs =
+  getNearbyRoofColliders(
+   position
+  );
+
+ for (
+  const roof
+  of roofs
+ ) {
+  if (
+   intersectsRoofSolid(
+    position,
+    roof
+   )
+  ) {
+   return true;
+  }
+
+  if (
+   intersectsGableWall(
+    position,
+    roof
+   )
+  ) {
+   return true;
+  }
+ }
+
+ return false;
+}
+
+// ==================================================
+// PLAYER STANDING ON ROOF
+// ==================================================
+function isPlayerStandingOnRoof(
+ roof,
+ position =
+  camera.position,
+ tolerance =
+  0.4
+) {
+ const roofY =
+  getRoofSurfaceHeight(
+   roof,
+   position.x,
+   position.z,
+   0
+  );
+
+ if (
+  roofY ===
+   null
+ ) {
+  return false;
+ }
+
+ const feetY =
+  position.y -
+  PLAYER_HEIGHT;
+
+ return (
+  Math.abs(
+   feetY -
+   roofY
+  ) <=
+   tolerance
+ );
+}
+
+// ==================================================
+// FIND ROOF BELOW PLAYER
+// ==================================================
+function findRoofBelowPlayer(
+ worldX,
+ worldZ,
+ feetY,
+ tolerance =
+  1
+) {
+ const searchPosition =
+  new THREE.Vector3(
+   worldX,
+   feetY +
+    PLAYER_HEIGHT,
+   worldZ
+  );
+
+ const roofs =
+  getNearbyRoofColliders(
+   searchPosition
+  );
+
+ let bestRoof =
+  null;
+
+ let bestHeight =
+  -Infinity;
+
+ for (
+  const roof
+  of roofs
+ ) {
+  const roofY =
+   getRoofSurfaceHeight(
+    roof,
+    worldX,
+    worldZ,
+    0
+   );
+
+  if (
+   roofY ===
+    null
+  ) {
+   continue;
+  }
+
+  if (
+   roofY >
+   feetY +
+    tolerance
+  ) {
+   continue;
+  }
+
+  if (
+   roofY >
+   bestHeight
+  ) {
+   bestHeight =
+    roofY;
+
+   bestRoof =
+    roof;
+  }
+ }
+
+ if (
+  !bestRoof
+ ) {
+  return null;
+ }
+
+ return {
+  roof:
+   bestRoof,
+
+  height:
+   bestHeight
+ };
+}
+
+// ==================================================
+// FIND ROOF CROSSING
+// ==================================================
+function findRoofCrossing(
+ oldPosition,
+ nextPosition
+) {
+ const roofs =
+  getNearbyRoofColliders(
+   oldPosition
+  );
+
+ const oldFeet =
+  oldPosition.y -
+  PLAYER_HEIGHT;
+
+ const nextFeet =
+  nextPosition.y -
+  PLAYER_HEIGHT;
+
+ if (
+  nextFeet >
+  oldFeet
+ ) {
+  return null;
+ }
+
+ let best =
+  null;
+
+ for (
+  const roof
+  of roofs
+ ) {
+  const distance =
+   oldPosition.distanceTo(
+    nextPosition
+   );
+
+  const steps =
+   THREE.MathUtils.clamp(
+    Math.ceil(
+     distance /
+     0.12
+    ),
+    2,
+    256
+   );
+
+  let previousDifference =
+   null;
+
+  let previousT =
+   0;
+
+  for (
+   let i = 0;
+   i <=
+   steps;
+   i++
+  ) {
+   const t =
+    i /
+    steps;
+
+   const x =
+    THREE.MathUtils.lerp(
+     oldPosition.x,
+     nextPosition.x,
+     t
+    );
+
+   const z =
+    THREE.MathUtils.lerp(
+     oldPosition.z,
+     nextPosition.z,
+     t
+    );
+
+   const feet =
+    THREE.MathUtils.lerp(
+     oldFeet,
+     nextFeet,
+     t
+    );
+
+   const roofY =
+    getRoofSurfaceHeight(
+     roof,
+     x,
+     z,
+     0
+    );
+
+   if (
+    roofY ===
+     null
+   ) {
+    previousDifference =
+     null;
+
+    previousT =
+     t;
+
+    continue;
+   }
+
+   const difference =
+    feet -
+    roofY;
+
+   if (
+    previousDifference !==
+     null &&
+    previousDifference >=
+     0 &&
+    difference <=
+     0
+   ) {
+    const denominator =
+     previousDifference -
+     difference;
+
+    const fraction =
+     denominator >
+      0.000001
+      ? previousDifference /
+        denominator
+      : 0;
+
+    const hitT =
+     THREE.MathUtils.lerp(
+      previousT,
+      t,
+      fraction
+     );
+
+    const hitX =
+     THREE.MathUtils.lerp(
+      oldPosition.x,
+      nextPosition.x,
+      hitT
+     );
+
+    const hitZ =
+     THREE.MathUtils.lerp(
+      oldPosition.z,
+      nextPosition.z,
+      hitT
+     );
+
+    const hitY =
+     getRoofSurfaceHeight(
+      roof,
+      hitX,
+      hitZ,
+      0
+     );
+
+    if (
+     hitY !==
+      null &&
+     (
+      !best ||
+      hitT <
+       best.t
+     )
+    ) {
+     best = {
+      roof,
+
+      t:
+       hitT,
+
+      x:
+       hitX,
+
+      z:
+       hitZ,
+
+      y:
+       hitY
+     };
+    }
+
+    break;
+   }
+
+   previousDifference =
+    difference;
+
+   previousT =
+    t;
+  }
+ }
+
+ return best;
+}
+
+// ==================================================
+// SWEPT ROOF COLLISION
+// ==================================================
+function findSweptRoofCollision(
+ oldPosition,
+ newPosition
+) {
+ return findRoofCrossing(
+  oldPosition,
+  newPosition
+ );
+}
+
+// ==================================================
+// RING WALL COLLISION
+// ==================================================
+function collidesRingWall(
+ position
+) {
+ /*
+  * Tutorialには本島の
+  * Wall Ringを適用しない。
+  */
+ if (
+  typeof currentGameMode !==
+   "undefined" &&
+  currentGameMode ===
+   GAME_MODES.TUTORIAL
+ ) {
+  return false;
+ }
+
+ const feet =
+  position.y -
+  PLAYER_HEIGHT;
+
+ const radialDistance =
+  Math.hypot(
+   position.x,
+   position.z
+  );
+
+ for (
+  const ring
+  of wallRings
+ ) {
+  if (
+   feet >=
+   ring.height
+  ) {
+   continue;
+  }
+
+  const collisionThickness =
+   ring.thickness /
+   2 +
+   PLAYER_RADIUS;
+
+  const difference =
+   Math.abs(
+    radialDistance -
+    ring.radius
+   );
+
+  if (
+   difference <=
+   collisionThickness
+  ) {
+   return true;
+  }
+ }
+
+ return false;
+}
+
+// ==================================================
+// COLLIDES
+// ==================================================
+function collides(
+ position
+) {
+ // ------------------------------------------------
+ // NORMAL BOXES
+ // ------------------------------------------------
+ const nearby =
+  getNearbyColliders(
+   position
+  );
+
+ for (
+  const box
+  of nearby
+ ) {
+  if (
+   intersects(
+    position,
+    box
+   )
+  ) {
+   return true;
+  }
+ }
+
+ // ------------------------------------------------
+ // ROOF
+ // ------------------------------------------------
+ if (
+  collidesRoofSolid(
+   position
+  )
+ ) {
+  return true;
+ }
+
+ // ------------------------------------------------
+ // RING WALL
+ // ------------------------------------------------
+ if (
+  collidesRingWall(
+   position
+  )
+ ) {
+  return true;
+ }
+
+ return false;
+}
 
 // ==================================================
 // HORIZONTAL MOVEMENT STEP
