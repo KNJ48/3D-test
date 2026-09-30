@@ -14801,23 +14801,27 @@ document.body.appendChild(
 // ==================================================
 const mainMenuHUD =
  document.createElement(
- "div"
+  "div"
  );
 
 Object.assign(
  mainMenuHUD.style,
  {
- position: "fixed",
- inset: "0",
- display: "flex",
- alignItems: "center",
- justifyContent: "center",
- background:
- "linear-gradient(180deg, #18251d 0%, #090d0a 100%)",
- color: "white",
- fontFamily:
- "Arial, sans-serif",
- zIndex: "60000"
+  position: "fixed",
+  inset: "0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+
+  background:
+   "linear-gradient(180deg, #18251d 0%, #090d0a 100%)",
+
+  color: "white",
+
+  fontFamily:
+   "Arial, sans-serif",
+
+  zIndex: "60000"
  }
 );
 
@@ -14825,19 +14829,19 @@ document.body.appendChild(
  mainMenuHUD
 );
 
-// --------------------------------------------------
-// PANEL
-// --------------------------------------------------
+// ==================================================
+// MAIN MENU PANEL
+// ==================================================
 const mainMenuPanel =
  document.createElement(
- "div"
+  "div"
  );
 
 Object.assign(
  mainMenuPanel.style,
  {
- width: "520px",
- textAlign: "center"
+  width: "520px",
+  textAlign: "center"
  }
 );
 
@@ -14845,12 +14849,12 @@ mainMenuHUD.appendChild(
  mainMenuPanel
 );
 
-// --------------------------------------------------
+// ==================================================
 // TITLE
-// --------------------------------------------------
+// ==================================================
 const mainMenuTitle =
  document.createElement(
- "div"
+  "div"
  );
 
 mainMenuTitle.textContent =
@@ -14859,12 +14863,13 @@ mainMenuTitle.textContent =
 Object.assign(
  mainMenuTitle.style,
  {
- fontSize: "64px",
- fontWeight: "bold",
- letterSpacing: "8px",
- marginBottom: "8px",
- textShadow:
- "0 4px 14px rgba(0,0,0,.8)"
+  fontSize: "64px",
+  fontWeight: "bold",
+  letterSpacing: "8px",
+  marginBottom: "8px",
+
+  textShadow:
+   "0 4px 14px rgba(0,0,0,.8)"
  }
 );
 
@@ -14872,12 +14877,12 @@ mainMenuPanel.appendChild(
  mainMenuTitle
 );
 
-// --------------------------------------------------
+// ==================================================
 // SUBTITLE
-// --------------------------------------------------
+// ==================================================
 const mainMenuSubtitle =
  document.createElement(
- "div"
+  "div"
  );
 
 mainMenuSubtitle.textContent =
@@ -14886,11 +14891,14 @@ mainMenuSubtitle.textContent =
 Object.assign(
  mainMenuSubtitle.style,
  {
- color: "#aeb9ae",
- fontFamily: "monospace",
- fontSize: "16px",
- letterSpacing: "4px",
- marginBottom: "55px"
+  color: "#aeb9ae",
+
+  fontFamily:
+   "monospace",
+
+  fontSize: "16px",
+  letterSpacing: "4px",
+  marginBottom: "55px"
  }
 );
 
@@ -14898,20 +14906,20 @@ mainMenuPanel.appendChild(
  mainMenuSubtitle
 );
 
-// --------------------------------------------------
+// ==================================================
 // BUTTON CONTAINER
-// --------------------------------------------------
+// ==================================================
 const mainMenuButtons =
  document.createElement(
- "div"
+  "div"
  );
 
 Object.assign(
  mainMenuButtons.style,
  {
- display: "flex",
- flexDirection: "column",
- gap: "14px"
+  display: "flex",
+  flexDirection: "column",
+  gap: "14px"
  }
 );
 
@@ -14919,154 +14927,175 @@ mainMenuPanel.appendChild(
  mainMenuButtons
 );
 
-// --------------------------------------------------
+// ==================================================
 // BUTTON FACTORY
-// --------------------------------------------------
+// ==================================================
 function createMainMenuButton(
  text,
  onClick,
  options = {}
 ) {
  const button =
- document.createElement(
- "button"
- );
+  document.createElement(
+   "button"
+  );
 
  button.textContent =
- text;
+  text;
 
  Object.assign(
- button.style,
- {
- width: "100%",
- padding: "17px 20px",
- color:
- options.disabled
- ? "#777"
- : "white",
- background:
- options.disabled
- ? "rgba(255,255,255,.035)"
- : "rgba(255,255,255,.08)",
- border:
- options.disabled
- ? "1px solid #444"
- : "1px solid #777",
- borderRadius: "4px",
- fontFamily: "Arial",
- fontSize: "19px",
- fontWeight: "bold",
- letterSpacing: "2px",
- cursor:
- options.disabled
- ? "default"
- : "pointer",
- transition:
- "background .15s, border-color .15s"
- }
+  button.style,
+  {
+   width: "100%",
+
+   padding:
+    "17px 20px",
+
+   color:
+    options.disabled
+     ? "#777"
+     : "white",
+
+   background:
+    options.disabled
+     ? "rgba(255,255,255,.035)"
+     : "rgba(255,255,255,.08)",
+
+   border:
+    options.disabled
+     ? "1px solid #444"
+     : "1px solid #777",
+
+   borderRadius:
+    "4px",
+
+   fontFamily:
+    "Arial",
+
+   fontSize:
+    "19px",
+
+   fontWeight:
+    "bold",
+
+   letterSpacing:
+    "2px",
+
+   cursor:
+    options.disabled
+     ? "default"
+     : "pointer",
+
+   transition:
+    "background .15s, border-color .15s"
+  }
  );
 
  if (
- !options.disabled
+  !options.disabled
  ) {
- button.addEventListener(
- "mouseenter",
- () => {
- button.style.background =
- "rgba(130,170,130,.25)";
- button.style.borderColor =
- "#9fbd9f";
- }
- );
+  button.addEventListener(
+   "mouseenter",
+   () => {
+    button.style.background =
+     "rgba(130,170,130,.25)";
 
- button.addEventListener(
- "mouseleave",
- () => {
- button.style.background =
- "rgba(255,255,255,.08)";
- button.style.borderColor =
- "#777";
- }
- );
+    button.style.borderColor =
+     "#9fbd9f";
+   }
+  );
 
- button.addEventListener(
- "click",
- onClick
- );
+  button.addEventListener(
+   "mouseleave",
+   () => {
+    button.style.background =
+     "rgba(255,255,255,.08)";
+
+    button.style.borderColor =
+     "#777";
+   }
+  );
+
+  button.addEventListener(
+   "click",
+   onClick
+  );
  }
 
  mainMenuButtons.appendChild(
- button
+  button
  );
 
  return button;
 }
 
-// --------------------------------------------------
-// STATE
-// --------------------------------------------------
+// ==================================================
+// MENU STATE
+// ==================================================
 let mainMenuOpen =
  true;
+
 let openWorldStarting =
  false;
 
-// --------------------------------------------------
+let miniGameMenuOpen =
+ false;
+
+// ==================================================
 // OPEN WORLD
-// --------------------------------------------------
+// ==================================================
 const openWorldButton =
  createMainMenuButton(
- "OPEN WORLD",
- async () => {
- if (
- openWorldStarting
- ) {
- return;
- }
+  "OPEN WORLD",
 
- openWorldStarting =
- true;
+  async () => {
+   if (
+    openWorldStarting
+   ) {
+    return;
+   }
 
- openWorldButton.disabled =
- true;
+   openWorldStarting =
+    true;
 
- openWorldButton.textContent =
- "STARTING...";
+   openWorldButton.disabled =
+    true;
 
- await startOpenWorld();
- }
-);
+   openWorldButton.textContent =
+    "STARTING...";
 
-// --------------------------------------------------
-// MINI GAMES
-// --------------------------------------------------
+   await startOpenWorld();
+  }
+ );
+
+// ==================================================
+// MINI GAMES BUTTON
+// ==================================================
 createMainMenuButton(
  "MINI GAMES",
+
  () => {
- showMessage(
- "MINI GAMES - COMING SOON"
- );
- },
- {
- disabled: true
+  openMiniGameMenu();
  }
 );
 
-// --------------------------------------------------
+// ==================================================
 // SETTINGS
-// --------------------------------------------------
+// ==================================================
 createMainMenuButton(
  "SETTINGS",
+
  () => {
- openSettings();
+  openSettings();
  }
 );
 
-// --------------------------------------------------
+// ==================================================
 // FOOTER
-// --------------------------------------------------
+// ==================================================
 const mainMenuFooter =
  document.createElement(
- "div"
+  "div"
  );
 
 mainMenuFooter.textContent =
@@ -15075,11 +15104,20 @@ mainMenuFooter.textContent =
 Object.assign(
  mainMenuFooter.style,
  {
- marginTop: "35px",
- color: "#697469",
- fontFamily: "monospace",
- fontSize: "12px",
- letterSpacing: "2px"
+  marginTop:
+   "35px",
+
+  color:
+   "#697469",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "12px",
+
+  letterSpacing:
+   "2px"
  }
 );
 
@@ -15087,32 +15125,430 @@ mainMenuPanel.appendChild(
  mainMenuFooter
 );
 
-// --------------------------------------------------
-// SHOW MENU
-// --------------------------------------------------
-function showMainMenu() {
- mainMenuOpen =
- true;
+// ==================================================
+// MINI GAME MENU
+// ==================================================
+const miniGameMenuPanel =
+ document.createElement(
+  "div"
+ );
 
- mainMenuHUD.style.display =
- "flex";
+Object.assign(
+ miniGameMenuPanel.style,
+ {
+  width: "620px",
+
+  display:
+   "none",
+
+  textAlign:
+   "center"
+ }
+);
+
+mainMenuHUD.appendChild(
+ miniGameMenuPanel
+);
+
+// --------------------------------------------------
+// MINI GAME TITLE
+// --------------------------------------------------
+const miniGameTitle =
+ document.createElement(
+  "div"
+ );
+
+miniGameTitle.textContent =
+ "MINI GAMES";
+
+Object.assign(
+ miniGameTitle.style,
+ {
+  fontSize:
+   "48px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "5px",
+
+  marginBottom:
+   "8px",
+
+  textShadow:
+   "0 4px 14px rgba(0,0,0,.8)"
+ }
+);
+
+miniGameMenuPanel.appendChild(
+ miniGameTitle
+);
+
+// --------------------------------------------------
+// DESCRIPTION
+// --------------------------------------------------
+const miniGameDescription =
+ document.createElement(
+  "div"
+ );
+
+miniGameDescription.textContent =
+ "SELECT MODE";
+
+Object.assign(
+ miniGameDescription.style,
+ {
+  color:
+   "#aeb9ae",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "14px",
+
+  letterSpacing:
+   "3px",
+
+  marginBottom:
+   "40px"
+ }
+);
+
+miniGameMenuPanel.appendChild(
+ miniGameDescription
+);
+
+// ==================================================
+// MINI GAME BUTTON CONTAINER
+// ==================================================
+const miniGameButtons =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ miniGameButtons.style,
+ {
+  display:
+   "flex",
+
+  flexDirection:
+   "column",
+
+  gap:
+   "14px"
+ }
+);
+
+miniGameMenuPanel.appendChild(
+ miniGameButtons
+);
+
+// ==================================================
+// MINI GAME BUTTON FACTORY
+// ==================================================
+function createMiniGameButton(
+ title,
+ description,
+ onClick,
+ options = {}
+) {
+ const button =
+  document.createElement(
+   "button"
+  );
+
+ Object.assign(
+  button.style,
+  {
+   width:
+    "100%",
+
+   padding:
+    "18px 22px",
+
+   background:
+    options.disabled
+     ? "rgba(255,255,255,.03)"
+     : "rgba(255,255,255,.08)",
+
+   color:
+    options.disabled
+     ? "#777"
+     : "white",
+
+   border:
+    options.disabled
+     ? "1px solid #3d443d"
+     : "1px solid #777",
+
+   borderRadius:
+    "5px",
+
+   cursor:
+    options.disabled
+     ? "default"
+     : "pointer",
+
+   textAlign:
+    "left",
+
+   transition:
+    "background .15s, border-color .15s"
+  }
+ );
+
+ const titleElement =
+  document.createElement(
+   "div"
+  );
+
+ titleElement.textContent =
+  title;
+
+ Object.assign(
+  titleElement.style,
+  {
+   fontSize:
+    "20px",
+
+   fontWeight:
+    "bold",
+
+   letterSpacing:
+    "2px"
+  }
+ );
+
+ button.appendChild(
+  titleElement
+ );
+
+ const descriptionElement =
+  document.createElement(
+   "div"
+  );
+
+ descriptionElement.textContent =
+  description;
+
+ Object.assign(
+  descriptionElement.style,
+  {
+   marginTop:
+    "6px",
+
+   color:
+    options.disabled
+     ? "#555"
+     : "#aeb9ae",
+
+   fontFamily:
+    "monospace",
+
+   fontSize:
+    "13px",
+
+   letterSpacing:
+    "1px"
+  }
+ );
+
+ button.appendChild(
+  descriptionElement
+ );
 
  if (
- document.pointerLockElement
+  !options.disabled
  ) {
- document.exitPointerLock();
+  button.addEventListener(
+   "mouseenter",
+   () => {
+    button.style.background =
+     "rgba(130,170,130,.25)";
+
+    button.style.borderColor =
+     "#9fbd9f";
+   }
+  );
+
+  button.addEventListener(
+   "mouseleave",
+   () => {
+    button.style.background =
+     "rgba(255,255,255,.08)";
+
+    button.style.borderColor =
+     "#777";
+   }
+  );
+
+  button.addEventListener(
+   "click",
+   onClick
+  );
+ }
+
+ miniGameButtons.appendChild(
+  button
+ );
+
+ return button;
+}
+
+// ==================================================
+// TUTORIAL
+// ==================================================
+createMiniGameButton(
+ "TUTORIAL",
+
+ "基本操作と立体機動を練習する",
+
+ () => {
+  startTutorial();
+ }
+);
+
+// ==================================================
+// TIME ATTACK
+// ==================================================
+createMiniGameButton(
+ "TIME ATTACK",
+
+ "最速でゴールを目指す - COMING SOON",
+
+ () => {},
+
+ {
+  disabled:
+   true
+ }
+);
+
+// ==================================================
+// TITAN HUNT
+// ==================================================
+createMiniGameButton(
+ "TITAN HUNT",
+
+ "巨人討伐チャレンジ - COMING SOON",
+
+ () => {},
+
+ {
+  disabled:
+   true
+ }
+);
+
+// ==================================================
+// BACK
+// ==================================================
+createMiniGameButton(
+ "BACK",
+
+ "メインメニューへ戻る",
+
+ () => {
+  closeMiniGameMenu();
+ }
+);
+
+// ==================================================
+// OPEN MINI GAME MENU
+// ==================================================
+function openMiniGameMenu() {
+ miniGameMenuOpen =
+  true;
+
+ mainMenuPanel.style.display =
+  "none";
+
+ miniGameMenuPanel.style.display =
+  "block";
+}
+
+// ==================================================
+// CLOSE MINI GAME MENU
+// ==================================================
+function closeMiniGameMenu() {
+ miniGameMenuOpen =
+  false;
+
+ miniGameMenuPanel.style.display =
+  "none";
+
+ mainMenuPanel.style.display =
+  "block";
+}
+
+// ==================================================
+// START TUTORIAL
+// ==================================================
+function startTutorial() {
+ /*
+  * 今回は入口だけ実装。
+  *
+  * 次の段階でここから
+  *
+  * ・FREE TRAINING FIELD
+  * ・チュートリアルHUD
+  * ・進行管理
+  *
+  * を開始する。
+  */
+
+ showMessage(
+  "TUTORIAL - PREPARING"
+ );
+}
+
+// ==================================================
+// SHOW MAIN MENU
+// ==================================================
+function showMainMenu() {
+ mainMenuOpen =
+  true;
+
+ mainMenuHUD.style.display =
+  "flex";
+
+ miniGameMenuOpen =
+  false;
+
+ miniGameMenuPanel.style.display =
+  "none";
+
+ mainMenuPanel.style.display =
+  "block";
+
+ if (
+  document.pointerLockElement
+ ) {
+  document.exitPointerLock();
  }
 }
 
-// --------------------------------------------------
-// HIDE MENU
-// --------------------------------------------------
+// ==================================================
+// HIDE MAIN MENU
+// ==================================================
 function hideMainMenu() {
  mainMenuOpen =
- false;
+  false;
+
+ miniGameMenuOpen =
+  false;
 
  mainMenuHUD.style.display =
- "none";
+  "none";
+
+ mainMenuPanel.style.display =
+  "block";
+
+ miniGameMenuPanel.style.display =
+  "none";
 }
 
 // ==================================================
