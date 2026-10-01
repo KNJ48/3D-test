@@ -17947,12 +17947,15 @@ const TIME_ATTACK_BEST_KEY =
 // ==================================================
 // BEACON SETTINGS
 // ==================================================
+
 /*
- * 光柱の見かけ上の長さ。
+ * 光柱はCamera Yを中心として
+ * 上下へ合計10km伸ばす。
  *
- * 毎フレーム光柱の中心Yを
- * Camera Yへ合わせるため、
- * 実質的に上下へ無限に続いて見える。
+ * X/ZはTarget位置に固定。
+ *
+ * プレイヤー高度に追従するため、
+ * 実質的に無限の高さに見える。
  */
 const TIME_ATTACK_BEAM_HEIGHT =
  metersToUnits(
@@ -17960,37 +17963,41 @@ const TIME_ATTACK_BEAM_HEIGHT =
  );
 
 /*
- * 外側の半透明光柱。
+ * 外側光柱。
+ *
+ * 半径4m
+ * = 直径8m。
  */
 const TIME_ATTACK_BEAM_RADIUS =
- metersToUnits(
-  1.2
- );
-
-/*
- * 中央の明るい芯。
- */
-const TIME_ATTACK_BEAM_CORE_RADIUS =
- metersToUnits(
-  0.18
- );
-
-/*
- * CPリング半径。
- */
-const TIME_ATTACK_RING_RADIUS =
  metersToUnits(
   4
  );
 
-// ==================================================
-// COLORS
-// ==================================================
+/*
+ * 中央の明るい芯。
+ *
+ * 半径0.6m
+ * = 直径1.2m。
+ */
+const TIME_ATTACK_BEAM_CORE_RADIUS =
+ metersToUnits(
+  0.6
+ );
+
+/*
+ * 実際のCheckpoint高度を示す
+ * メインリング。
+ */
+const TIME_ATTACK_RING_RADIUS =
+ metersToUnits(
+  6
+ );
+
 const TIME_ATTACK_CP_COLOR =
- 0xffd54f;
+ 0xffcf38;
 
 const TIME_ATTACK_GOAL_COLOR =
- 0x5cff8d;
+ 0x4dff88;
 
 const TIME_ATTACK_CORE_COLOR =
  0xffffff;
@@ -17998,6 +18005,7 @@ const TIME_ATTACK_CORE_COLOR =
 // ==================================================
 // STATE
 // ==================================================
+
 let timeAttackWorldData =
  null;
 
@@ -18040,6 +18048,7 @@ let timeAttackStartGas =
 // ==================================================
 // WORLD GROUP
 // ==================================================
+
 const timeAttackWorldGroup =
  new THREE.Group();
 
@@ -18056,6 +18065,7 @@ scene.add(
 // ==================================================
 // RUNTIME OBJECTS
 // ==================================================
+
 const timeAttackColliders =
  [];
 
@@ -18068,6 +18078,7 @@ const timeAttackRoadMeshes =
 // ==================================================
 // WORLD MATERIALS
 // ==================================================
+
 const timeAttackGroundMaterial =
  new THREE.MeshStandardMaterial({
   color:
@@ -18124,6 +18135,7 @@ const timeAttackRoadMaterial =
 // ==================================================
 // TEMPLATE DIMENSIONS
 // ==================================================
+
 function getTimeAttackHouseDimensions(
  templateId
 ) {
@@ -18164,8 +18176,9 @@ function getTimeAttackHouseDimensions(
 }
 
 // ==================================================
-// TIME ATTACK HUD
+// HUD
 // ==================================================
+
 const timeAttackHUD =
  document.createElement(
   "div"
@@ -18190,7 +18203,7 @@ Object.assign(
    "none",
 
   minWidth:
-   "350px",
+   "360px",
 
   padding:
    "14px 22px",
@@ -18231,9 +18244,10 @@ document.body.appendChild(
  timeAttackHUD
 );
 
-// --------------------------------------------------
-// TITLE
-// --------------------------------------------------
+// ==================================================
+// HUD TITLE
+// ==================================================
+
 const timeAttackHUDTitle =
  document.createElement(
   "div"
@@ -18263,9 +18277,10 @@ timeAttackHUD.appendChild(
  timeAttackHUDTitle
 );
 
-// --------------------------------------------------
-// TIME
-// --------------------------------------------------
+// ==================================================
+// HUD TIME
+// ==================================================
+
 const timeAttackHUDTime =
  document.createElement(
   "div"
@@ -18289,9 +18304,10 @@ timeAttackHUD.appendChild(
  timeAttackHUDTime
 );
 
-// --------------------------------------------------
-// CHECKPOINT
-// --------------------------------------------------
+// ==================================================
+// HUD CHECKPOINT
+// ==================================================
+
 const timeAttackHUDCheckpoint =
  document.createElement(
   "div"
@@ -18315,9 +18331,10 @@ timeAttackHUD.appendChild(
  timeAttackHUDCheckpoint
 );
 
-// --------------------------------------------------
-// ALTITUDE
-// --------------------------------------------------
+// ==================================================
+// HUD ALTITUDE
+// ==================================================
+
 const timeAttackHUDAltitude =
  document.createElement(
   "div"
@@ -18342,8 +18359,9 @@ timeAttackHUD.appendChild(
 );
 
 // ==================================================
-// COUNTDOWN HUD
+// COUNTDOWN
 // ==================================================
+
 const timeAttackCountdownHUD =
  document.createElement(
   "div"
@@ -18395,26 +18413,31 @@ document.body.appendChild(
 );
 
 // ==================================================
-// CHECKPOINT BEACON ROOT
+// CHECKPOINT BEACON
 // ==================================================
 /*
  *
- * ROOT
+ * 光柱は通常の3D Object。
  *
- * X/Z:
- * 現在のTarget位置
- *
- * Y:
- * Camera Y
+ * depthTest=trueなので、
+ * 建物・壁・屋根の後ろにある部分は
+ * 正しく隠れる。
  *
  *
- * ├ Beam
- * │  Camera中心で10km
- * │
- * └ Target Marker
- *    Target実高度へ相対配置
+ *      │
+ *      │
+ *      │
+ *   ███│███
+ *   ███│███
+ *   ███████
  *
+ * 建物より上に出た光だけ見える。
  */
+
+// ==================================================
+// BEACON ROOT
+// ==================================================
+
 const timeAttackBeacon =
  new THREE.Group();
 
@@ -18429,8 +18452,9 @@ scene.add(
 );
 
 // ==================================================
-// OUTER BEAM
+// OUTER BEAM MATERIAL
 // ==================================================
+
 const timeAttackBeamMaterial =
  new THREE.MeshBasicMaterial({
   color:
@@ -18440,15 +18464,18 @@ const timeAttackBeamMaterial =
    true,
 
   opacity:
-   0.20,
+   0.26,
 
   /*
-   * 建物の裏からも
-   * 目的方向を確認可能。
+   * 通常の3D遮蔽。
    */
   depthTest:
-   false,
+   true,
 
+  /*
+   * 半透明の柱自身は
+   * Depth Bufferを書き換えない。
+   */
   depthWrite:
    false,
 
@@ -18456,8 +18483,15 @@ const timeAttackBeamMaterial =
    false,
 
   blending:
-   THREE.AdditiveBlending
+   THREE.AdditiveBlending,
+
+  side:
+   THREE.DoubleSide
  });
+
+// ==================================================
+// OUTER BEAM
+// ==================================================
 
 const timeAttackBeam =
  new THREE.Mesh(
@@ -18465,7 +18499,7 @@ const timeAttackBeam =
    TIME_ATTACK_BEAM_RADIUS,
    TIME_ATTACK_BEAM_RADIUS,
    TIME_ATTACK_BEAM_HEIGHT,
-   12,
+   16,
    1,
    true
   ),
@@ -18473,16 +18507,14 @@ const timeAttackBeam =
   timeAttackBeamMaterial
  );
 
-timeAttackBeam.renderOrder =
- 9000;
-
 timeAttackBeacon.add(
  timeAttackBeam
 );
 
 // ==================================================
-// BEAM CORE
+// INNER BEAM MATERIAL
 // ==================================================
+
 const timeAttackBeamCoreMaterial =
  new THREE.MeshBasicMaterial({
   color:
@@ -18492,10 +18524,10 @@ const timeAttackBeamCoreMaterial =
    true,
 
   opacity:
-   0.68,
+   0.72,
 
   depthTest:
-   false,
+   true,
 
   depthWrite:
    false,
@@ -18507,28 +18539,30 @@ const timeAttackBeamCoreMaterial =
    THREE.AdditiveBlending
  });
 
+// ==================================================
+// INNER BEAM
+// ==================================================
+
 const timeAttackBeamCore =
  new THREE.Mesh(
   new THREE.CylinderGeometry(
    TIME_ATTACK_BEAM_CORE_RADIUS,
    TIME_ATTACK_BEAM_CORE_RADIUS,
    TIME_ATTACK_BEAM_HEIGHT,
-   8
+   10
   ),
 
   timeAttackBeamCoreMaterial
  );
-
-timeAttackBeamCore.renderOrder =
- 9001;
 
 timeAttackBeacon.add(
  timeAttackBeamCore
 );
 
 // ==================================================
-// TARGET MARKER GROUP
+// TARGET MARKER
 // ==================================================
+
 const timeAttackTargetMarker =
  new THREE.Group();
 
@@ -18537,8 +18571,9 @@ timeAttackBeacon.add(
 );
 
 // ==================================================
-// TARGET RING
+// RING MATERIAL
 // ==================================================
+
 const timeAttackRingMaterial =
  new THREE.MeshBasicMaterial({
   color:
@@ -18548,10 +18583,10 @@ const timeAttackRingMaterial =
    true,
 
   opacity:
-   1,
+   0.95,
 
   depthTest:
-   false,
+   true,
 
   depthWrite:
    false,
@@ -18560,25 +18595,31 @@ const timeAttackRingMaterial =
    false,
 
   blending:
-   THREE.AdditiveBlending
+   THREE.AdditiveBlending,
+
+  side:
+   THREE.DoubleSide
  });
+
+// ==================================================
+// MAIN RING
+// ==================================================
 
 const timeAttackBeaconRing =
  new THREE.Mesh(
   new THREE.TorusGeometry(
    TIME_ATTACK_RING_RADIUS,
+
    metersToUnits(
-    0.30
+    0.35
    ),
+
    10,
-   48
+   56
   ),
 
   timeAttackRingMaterial
  );
-
-timeAttackBeaconRing.renderOrder =
- 9010;
 
 timeAttackTargetMarker.add(
  timeAttackBeaconRing
@@ -18587,6 +18628,7 @@ timeAttackTargetMarker.add(
 // ==================================================
 // SECOND RING
 // ==================================================
+
 const timeAttackBeaconRing2 =
  new THREE.Mesh(
   new THREE.TorusGeometry(
@@ -18594,18 +18636,15 @@ const timeAttackBeaconRing2 =
    1.35,
 
    metersToUnits(
-    0.10
+    0.12
    ),
 
    8,
-   48
+   56
   ),
 
   timeAttackRingMaterial
  );
-
-timeAttackBeaconRing2.renderOrder =
- 9010;
 
 timeAttackTargetMarker.add(
  timeAttackBeaconRing2
@@ -18614,39 +18653,41 @@ timeAttackTargetMarker.add(
 // ==================================================
 // TARGET CORE
 // ==================================================
+
+const timeAttackTargetCoreMaterial =
+ new THREE.MeshBasicMaterial({
+  color:
+   TIME_ATTACK_CORE_COLOR,
+
+  transparent:
+   true,
+
+  opacity:
+   1,
+
+  depthTest:
+   true,
+
+  depthWrite:
+   false,
+
+  toneMapped:
+   false
+ });
+
 const timeAttackTargetCore =
  new THREE.Mesh(
   new THREE.SphereGeometry(
    metersToUnits(
-    0.7
+    0.8
    ),
+
    16,
    10
   ),
 
-  new THREE.MeshBasicMaterial({
-   color:
-    TIME_ATTACK_CORE_COLOR,
-
-   transparent:
-    true,
-
-   opacity:
-    1,
-
-   depthTest:
-    false,
-
-   depthWrite:
-    false,
-
-   toneMapped:
-    false
-  })
+  timeAttackTargetCoreMaterial
  );
-
-timeAttackTargetCore.renderOrder =
- 9011;
 
 timeAttackTargetMarker.add(
  timeAttackTargetCore
@@ -18655,6 +18696,7 @@ timeAttackTargetMarker.add(
 // ==================================================
 // RESULT HUD
 // ==================================================
+
 const timeAttackResultHUD =
  document.createElement(
   "div"
@@ -18818,6 +18860,7 @@ timeAttackResultPanel.appendChild(
 // ==================================================
 // RESULT BUTTON
 // ==================================================
+
 function createTimeAttackResultButton(
  text,
  onClick
@@ -18880,6 +18923,7 @@ function createTimeAttackResultButton(
 // ==================================================
 // FORMAT TIME
 // ==================================================
+
 function formatTimeAttackTime(
  seconds
 ) {
@@ -18944,6 +18988,7 @@ function formatTimeAttackTime(
 // ==================================================
 // CLEAR WORLD
 // ==================================================
+
 function clearTimeAttackWorld() {
  for (
   const collider
@@ -19005,8 +19050,9 @@ function clearTimeAttackWorld() {
 }
 
 // ==================================================
-// REGISTER WORLD MESH
+// REGISTER MESH
 // ==================================================
+
 function registerTimeAttackMesh(
  mesh,
  collision =
@@ -19057,6 +19103,7 @@ function registerTimeAttackMesh(
 // ==================================================
 // CREATE HOUSE
 // ==================================================
+
 function createTimeAttackHouse(
  descriptor,
  index
@@ -19102,6 +19149,7 @@ function createTimeAttackHouse(
     height,
     depth
    ),
+
    material
   );
 
@@ -19109,8 +19157,10 @@ function createTimeAttackHouse(
   metersToUnits(
    descriptor.xMeters
   ),
+
   height /
-  2,
+   2,
+
   metersToUnits(
    descriptor.zMeters
   )
@@ -19133,8 +19183,9 @@ function createTimeAttackHouse(
 }
 
 // ==================================================
-// SPECIAL BOX
+// CREATE SPECIAL BOX
 // ==================================================
+
 function createTimeAttackBox(
  descriptor
 ) {
@@ -19173,6 +19224,7 @@ function createTimeAttackBox(
     height,
     depth
    ),
+
    material
   );
 
@@ -19180,8 +19232,10 @@ function createTimeAttackBox(
   metersToUnits(
    descriptor.xMeters
   ),
+
   height /
-  2,
+   2,
+
   metersToUnits(
    descriptor.zMeters
   )
@@ -19197,6 +19251,7 @@ function createTimeAttackBox(
  registerTimeAttackMesh(
   mesh,
   true,
+
   descriptor.anchorable !==
    false
  );
@@ -19205,16 +19260,17 @@ function createTimeAttackBox(
 // ==================================================
 // CREATE ROAD
 // ==================================================
+
 function createTimeAttackRoad(
  road
 ) {
  const dx =
   road.x2 -
-  road.x1;
+   road.x1;
 
  const dz =
   road.z2 -
-  road.z1;
+   road.z1;
 
  const lengthMeters =
   Math.hypot(
@@ -19247,7 +19303,7 @@ function createTimeAttackRoad(
 
  mesh.rotation.x =
   -Math.PI /
-  2;
+   2;
 
  mesh.rotation.z =
   -Math.atan2(
@@ -19259,9 +19315,9 @@ function createTimeAttackRoad(
   metersToUnits(
    (
     road.x1 +
-    road.x2
+     road.x2
    ) /
-   2
+    2
   ),
 
   0.025,
@@ -19269,9 +19325,9 @@ function createTimeAttackRoad(
   metersToUnits(
    (
     road.z1 +
-    road.z2
+     road.z2
    ) /
-   2
+    2
   )
  );
 
@@ -19290,6 +19346,7 @@ function createTimeAttackRoad(
 // ==================================================
 // BUILD WORLD
 // ==================================================
+
 function buildTimeAttackWorld(
  world
 ) {
@@ -19301,6 +19358,7 @@ function buildTimeAttackWorld(
  // ------------------------------------------------
  // GROUND
  // ------------------------------------------------
+
  const ground =
   new THREE.Mesh(
    new THREE.PlaneGeometry(
@@ -19324,7 +19382,7 @@ function buildTimeAttackWorld(
 
  ground.rotation.x =
   -Math.PI /
-  2;
+   2;
 
  ground.receiveShadow =
   true;
@@ -19336,6 +19394,7 @@ function buildTimeAttackWorld(
  // ------------------------------------------------
  // ROADS
  // ------------------------------------------------
+
  const roads =
   Array.isArray(
    world.roads
@@ -19355,6 +19414,7 @@ function buildTimeAttackWorld(
  // ------------------------------------------------
  // OBJECTS
  // ------------------------------------------------
+
  const objects =
   Array.isArray(
    world.objects
@@ -19371,7 +19431,7 @@ function buildTimeAttackWorld(
  ) {
   if (
    descriptor.type ===
-   "house"
+    "house"
   ) {
    createTimeAttackHouse(
     descriptor,
@@ -19383,7 +19443,7 @@ function buildTimeAttackWorld(
 
   if (
    descriptor.type ===
-   "tutorial-box"
+    "tutorial-box"
   ) {
    createTimeAttackBox(
     descriptor
@@ -19401,6 +19461,7 @@ function buildTimeAttackWorld(
 // ==================================================
 // LOAD WORLD
 // ==================================================
+
 async function loadTimeAttackWorld() {
  if (
   timeAttackLoading
@@ -19458,8 +19519,9 @@ async function loadTimeAttackWorld() {
 }
 
 // ==================================================
-// CURRENT TARGET
+// GET TARGET
 // ==================================================
+
 function getTimeAttackTarget() {
  if (
   !timeAttackWorldData
@@ -19474,7 +19536,7 @@ function getTimeAttackTarget() {
 
  if (
   timeAttackCheckpointIndex <
-  checkpoints.length
+   checkpoints.length
  ) {
   return checkpoints[
    timeAttackCheckpointIndex
@@ -19485,8 +19547,9 @@ function getTimeAttackTarget() {
 }
 
 // ==================================================
-// TARGET IS GOAL
+// GOAL TARGET
 // ==================================================
+
 function isTimeAttackGoalTarget() {
  if (
   !timeAttackWorldData
@@ -19503,8 +19566,9 @@ function isTimeAttackGoalTarget() {
 }
 
 // ==================================================
-// UPDATE BEACON COLOR
+// BEACON COLOR
 // ==================================================
+
 function updateTimeAttackBeaconColor() {
  const goal =
   isTimeAttackGoalTarget();
@@ -19514,13 +19578,17 @@ function updateTimeAttackBeaconColor() {
    ? TIME_ATTACK_GOAL_COLOR
    : TIME_ATTACK_CP_COLOR;
 
- timeAttackBeamMaterial.color.setHex(
-  color
- );
+ timeAttackBeamMaterial
+  .color
+  .setHex(
+   color
+  );
 
- timeAttackRingMaterial.color.setHex(
-  color
- );
+ timeAttackRingMaterial
+  .color
+  .setHex(
+   color
+  );
 
  timeAttackHUDCheckpoint.style.color =
   goal
@@ -19529,8 +19597,9 @@ function updateTimeAttackBeaconColor() {
 }
 
 // ==================================================
-// UPDATE BEACON TARGET
+// UPDATE BEACON
 // ==================================================
+
 function updateTimeAttackBeacon() {
  const target =
   getTimeAttackTarget();
@@ -19563,13 +19632,14 @@ function updateTimeAttackBeacon() {
   );
 
  /*
-  * X/ZはCP固定。
+  * X/Z:
+  * Target固定。
   *
-  * YだけCameraに追従。
+  * Y:
+  * Cameraへ追従。
   *
-  * これにより光柱は
-  * プレイヤーを中心に上下5kmずつ伸び、
-  * 実質無限に見える。
+  * Beamが常にプレイヤーを中心として
+  * 上下5kmずつ存在する。
   */
  timeAttackBeacon.position.set(
   targetX,
@@ -19578,13 +19648,15 @@ function updateTimeAttackBeacon() {
  );
 
  /*
-  * リングだけは
-  * 実際のCP高度へ配置する。
+  * 実際のCheckpoint Ringは
+  * 正しいTarget高度へ置く。
   */
  timeAttackTargetMarker.position.set(
   0,
+
   targetY -
    camera.position.y,
+
   0
  );
 
@@ -19595,8 +19667,9 @@ function updateTimeAttackBeacon() {
 }
 
 // ==================================================
-// TARGET DISTANCE
+// 3D DISTANCE
 // ==================================================
+
 function getTimeAttackTargetDistanceMeters(
  target
 ) {
@@ -19608,15 +19681,15 @@ function getTimeAttackTargetDistanceMeters(
 
  const playerX =
   camera.position.x *
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  const playerY =
   camera.position.y *
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  const playerZ =
   camera.position.z *
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  return Math.hypot(
   playerX -
@@ -19636,12 +19709,15 @@ function getTimeAttackTargetDistanceMeters(
 }
 
 // ==================================================
-// HORIZONTAL TARGET DISTANCE
+// HORIZONTAL DISTANCE
 // ==================================================
+
 function getTimeAttackHorizontalDistanceMeters(
  target
 ) {
- if (!target) {
+ if (
+  !target
+ ) {
   return Infinity;
  }
 
@@ -19659,6 +19735,7 @@ function getTimeAttackHorizontalDistanceMeters(
 // ==================================================
 // RESET PLAYER
 // ==================================================
+
 function resetPlayerForTimeAttack() {
  const start =
   timeAttackWorldData.start;
@@ -19702,7 +19779,9 @@ function resetPlayerForTimeAttack() {
   metersToUnits(
    start.xMeters
   ),
+
   PLAYER_HEIGHT,
+
   metersToUnits(
    start.zMeters
   )
@@ -19732,6 +19811,7 @@ function resetPlayerForTimeAttack() {
 // ==================================================
 // LOAD BEST
 // ==================================================
+
 function loadTimeAttackBest() {
  const value =
   Number(
@@ -19751,8 +19831,9 @@ function loadTimeAttackBest() {
 }
 
 // ==================================================
-// START TIME ATTACK
+// START
 // ==================================================
+
 async function startTimeAttack01() {
  hideMainMenu();
 
@@ -19770,6 +19851,7 @@ async function startTimeAttack01() {
  // ------------------------------------------------
  // CLEAR TUTORIAL
  // ------------------------------------------------
+
  if (
   typeof clearTutorialWorld ===
    "function"
@@ -19783,6 +19865,7 @@ async function startTimeAttack01() {
  // ------------------------------------------------
  // CLEAR OPEN WORLD
  // ------------------------------------------------
+
  clearAllGroundChunks();
 
  for (
@@ -19818,6 +19901,7 @@ async function startTimeAttack01() {
  // ------------------------------------------------
  // LOAD
  // ------------------------------------------------
+
  const world =
   await loadTimeAttackWorld();
 
@@ -19844,9 +19928,6 @@ async function startTimeAttack01() {
 
  resetPlayerForTimeAttack();
 
- // ------------------------------------------------
- // RACE STATE
- // ------------------------------------------------
  timeAttackState =
   "countdown";
 
@@ -19895,6 +19976,7 @@ async function startTimeAttack01() {
 // ==================================================
 // BEGIN RACE
 // ==================================================
+
 function beginTimeAttackRace() {
  timeAttackState =
   "racing";
@@ -19925,6 +20007,7 @@ function beginTimeAttackRace() {
 // ==================================================
 // FINISH
 // ==================================================
+
 function finishTimeAttack() {
  if (
   timeAttackState !==
@@ -19977,6 +20060,7 @@ function finishTimeAttack() {
 
   localStorage.setItem(
    TIME_ATTACK_BEST_KEY,
+
    String(
     timeAttackElapsed
    )
@@ -20029,6 +20113,7 @@ function finishTimeAttack() {
 // ==================================================
 // RETRY
 // ==================================================
+
 function retryTimeAttack() {
  timeAttackResultHUD.style.display =
   "none";
@@ -20059,6 +20144,7 @@ function retryTimeAttack() {
 // ==================================================
 // EXIT
 // ==================================================
+
 function exitTimeAttackToMenu() {
  timeAttackState =
   "idle";
@@ -20086,8 +20172,10 @@ function exitTimeAttackToMenu() {
 // ==================================================
 // RESULT BUTTONS
 // ==================================================
+
 createTimeAttackResultButton(
  "RETRY",
+
  () => {
   retryTimeAttack();
  }
@@ -20095,6 +20183,7 @@ createTimeAttackResultButton(
 
 createTimeAttackResultButton(
  "MAIN MENU",
+
  () => {
   exitTimeAttackToMenu();
  }
@@ -20103,6 +20192,7 @@ createTimeAttackResultButton(
 // ==================================================
 // UPDATE
 // ==================================================
+
 function updateTimeAttack(
  delta
 ) {
@@ -20115,7 +20205,8 @@ function updateTimeAttack(
 
  // =================================================
  // COUNTDOWN
- // =================================================
+ // ==================================================
+
  if (
   timeAttackState ===
    "countdown"
@@ -20134,7 +20225,7 @@ function updateTimeAttack(
 
   if (
    timeAttackCountdown >
-   0
+    0
   ) {
    timeAttackCountdownHUD.textContent =
     String(
@@ -20157,7 +20248,7 @@ function updateTimeAttack(
    }`;
 
   timeAttackHUDAltitude.textContent =
-   "FOLLOW THE YELLOW BEAM";
+   "FOLLOW THE LIGHT COLUMN";
 
   updateTimeAttackBeacon();
 
@@ -20166,7 +20257,8 @@ function updateTimeAttack(
 
  // =================================================
  // NOT RACING
- // =================================================
+ // ==================================================
+
  if (
   timeAttackState !==
    "racing"
@@ -20176,7 +20268,8 @@ function updateTimeAttack(
 
  // =================================================
  // TIMER
- // =================================================
+ // ==================================================
+
  timeAttackElapsed =
   (
    performance.now() -
@@ -20186,11 +20279,12 @@ function updateTimeAttack(
 
  // =================================================
  // SPEED
- // =================================================
+ // ==================================================
+
  const speedKmh =
   velocity.length() *
-  METERS_PER_UNIT *
-  3.6;
+   METERS_PER_UNIT *
+   3.6;
 
  timeAttackMaxSpeedKmh =
   Math.max(
@@ -20200,7 +20294,8 @@ function updateTimeAttack(
 
  // =================================================
  // TARGET
- // =================================================
+ // ==================================================
+
  const target =
   getTimeAttackTarget();
 
@@ -20211,9 +20306,7 @@ function updateTimeAttack(
  }
 
  /*
-  * Cameraが上下しても
-  * 光柱を実質無限に維持するため
-  * 毎フレーム更新。
+  * Player高度へBeam中心を追従させる。
   */
  updateTimeAttackBeacon();
 
@@ -20233,7 +20326,8 @@ function updateTimeAttack(
 
  // =================================================
  // HUD
- // =================================================
+ // ==================================================
+
  timeAttackHUDTime.textContent =
   formatTimeAttackTime(
    timeAttackElapsed
@@ -20246,7 +20340,7 @@ function updateTimeAttack(
   timeAttackHUDCheckpoint.textContent =
    `CP ${
     timeAttackCheckpointIndex +
-    1
+     1
    } / ${
     checkpoints.length
    }   ${
@@ -20263,9 +20357,13 @@ function updateTimeAttack(
    } m`;
  }
 
+ // =================================================
+ // ALTITUDE INFO
+ // ==================================================
+
  const playerHeightMeters =
   camera.position.y *
-  METERS_PER_UNIT;
+   METERS_PER_UNIT;
 
  const targetHeightMeters =
   Number(
@@ -20275,19 +20373,19 @@ function updateTimeAttack(
 
  const heightDifference =
   targetHeightMeters -
-  playerHeightMeters;
+   playerHeightMeters;
 
  if (
   Math.abs(
    heightDifference
   ) <
-  2
+   2
  ) {
   timeAttackHUDAltitude.textContent =
    "ALTITUDE OK";
  } else if (
   heightDifference >
-  0
+   0
  ) {
   timeAttackHUDAltitude.textContent =
    `TARGET ${
@@ -20308,26 +20406,27 @@ function updateTimeAttack(
 
  // =================================================
  // BEACON ANIMATION
- // =================================================
+ // ==================================================
+
  timeAttackBeaconRing.rotation.x +=
   delta *
-  0.6;
+  0.45;
 
  timeAttackBeaconRing.rotation.y +=
   delta *
-  1.0;
+  0.8;
 
  timeAttackBeaconRing2.rotation.y -=
   delta *
-  0.7;
+  0.55;
 
  const pulse =
   1 +
   Math.sin(
    performance.now() *
-   0.004
+    0.004
   ) *
-  0.13;
+   0.13;
 
  timeAttackTargetCore.scale.setScalar(
   pulse
@@ -20335,7 +20434,8 @@ function updateTimeAttack(
 
  // =================================================
  // TARGET HIT
- // =================================================
+ // ==================================================
+
  const targetRadius =
   Number(
    target.radiusMeters
@@ -20350,8 +20450,9 @@ function updateTimeAttack(
  }
 
  // =================================================
- // CHECKPOINT
- // =================================================
+ // CHECKPOINT COMPLETE
+ // ==================================================
+
  if (
   timeAttackCheckpointIndex <
    checkpoints.length
@@ -20375,7 +20476,8 @@ function updateTimeAttack(
 
  // =================================================
  // GOAL
- // =================================================
+ // ==================================================
+
  finishTimeAttack();
 }
 
