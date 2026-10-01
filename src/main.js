@@ -11313,6 +11313,31 @@ function getWireDistanceBoost(
 // ==================================================
 // WIRE PHYSICS
 // ==================================================
+
+/*
+ * ワイヤー上方向強化テスト。
+ *
+ * 水平方向:
+ * 100%
+ *
+ * 上方向:
+ * 300%
+ *
+ * 下向きアンカーについては
+ * Y成分を強化しない。
+ */
+const WIRE_UPWARD_FORCE_MULTIPLIER =
+ 3;
+
+// --------------------------------------------------
+// TEMP FORCE
+// --------------------------------------------------
+const wireForceDirection =
+ new THREE.Vector3();
+
+// --------------------------------------------------
+// UPDATE WIRE
+// --------------------------------------------------
 function updateWire(
  anchor,
  delta,
@@ -11343,9 +11368,11 @@ function updateWire(
   keys["ShiftLeft"] ||
   keys["ShiftRight"];
 
- if (shiftHeld) {
+ if (
+  shiftHeld
+ ) {
   /*
-   * Shiftを押した瞬間の
+   * SHIFTを押した瞬間の
    * ロープ長を保存。
    */
   if (
@@ -11361,8 +11388,8 @@ function updateWire(
   }
 
   /*
-   * ロープ拘束のみ。
-   * ガス牽引はしない。
+   * Rope Lock中は
+   * ガス牽引しない。
    */
   anchor.pulling =
    false;
@@ -11403,7 +11430,7 @@ function updateWire(
  }
 
  // --------------------------------------------------
- // WIRE DIRECTION
+ // NORMAL WIRE DIRECTION
  // --------------------------------------------------
  wireDirection.subVectors(
   anchor.point,
@@ -11412,12 +11439,56 @@ function updateWire(
 
  if (
   wireDirection.lengthSq() <
-  0.001
+   0.001
  ) {
+  anchor.pulling =
+   false;
+
   return;
  }
 
  wireDirection.normalize();
+
+ // --------------------------------------------------
+ // FORCE DIRECTION
+ // --------------------------------------------------
+ /*
+  * 元のwireDirectionは
+  * Rope Constraint等でも使用するため
+  * 変更しない。
+  *
+  * Force専用Vectorを作る。
+  */
+ wireForceDirection.copy(
+  wireDirection
+ );
+
+ // --------------------------------------------------
+ // UPWARD FORCE × 3
+ // --------------------------------------------------
+ /*
+  * アンカーがPlayerより上にある場合のみ
+  * Y成分を3倍。
+  *
+  * 下向きアンカーのYまで3倍にすると
+  * 地面方向へ異常に叩きつけられるため、
+  * 負のYは従来通り。
+  */
+ if (
+  wireForceDirection.y >
+   0
+ ) {
+  wireForceDirection.y *=
+   WIRE_UPWARD_FORCE_MULTIPLIER;
+ }
+
+ /*
+  * ここではnormalizeしない。
+  *
+  * normalizeすると
+  * 「Yだけ3倍」ではなく
+  * X/Z成分まで弱くなるため。
+  */
 
  // --------------------------------------------------
  // DISTANCE BOOST
@@ -11434,8 +11505,7 @@ function updateWire(
   !anchor.impulseApplied
  ) {
   velocity.addScaledVector(
-   wireDirection,
-
+   wireForceDirection,
    WIRE_INITIAL_IMPULSE *
    boost.initialMultiplier
   );
@@ -11456,8 +11526,7 @@ function updateWire(
   true;
 
  velocity.addScaledVector(
-  wireDirection,
-
+  wireForceDirection,
   WIRE_SUSTAIN_ACCEL *
   boost.accelerationMultiplier *
   delta
