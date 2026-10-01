@@ -93,37 +93,44 @@ const MAX_MOVE_STEP = 0.22;
 // ==================================================
 
 /*
- * 入力なし・ガスなし・ワイヤーなしの
- * 通常空気抵抗。
+ * 通常の空気抵抗。
  */
 const AIR_DRAG =
  0.4;
 
 /*
- * 空中でWASDを押しているだけの場合。
+ * 空中でWASDだけ押している場合。
  *
- * 通常空気抵抗の50%。
+ * 入力なし時の50%。
  */
 const AIR_INPUT_DRAG_MULTIPLIER =
  0.5;
 
 /*
- * GAS使用中は推進力があるため、
- * 通常Dragは適用しない。
+ * GAS推進中。
  */
 const AIR_GAS_DRAG_MULTIPLIER =
  0;
 
 /*
- * WIRE牽引中も、
- * 通常Dragは適用しない。
+ * WIRE牽引中。
  */
 const AIR_WIRE_DRAG_MULTIPLIER =
  0;
 
 /*
- * 300km/hを超えた慣性へ
- * 追加適用する高速空気抵抗。
+ * Fキー:
+ *
+ * AIR BRAKE
+ *
+ * 通常空気抵抗の3倍。
+ */
+const AIR_BRAKE_DRAG_MULTIPLIER =
+ 3;
+
+/*
+ * 300km/h超の慣性へ
+ * 追加される高速抵抗。
  */
 const HIGH_SPEED_DRAG =
  0.32;
@@ -11827,6 +11834,7 @@ function updateGasFlight(
 // ==================================================
 // AIR DRAG
 // ==================================================
+
 function updateAirDrag(
  delta
 ) {
@@ -11840,39 +11848,55 @@ function updateAirDrag(
  }
 
  // =================================================
- // INPUT
+ // STATE
  // =================================================
+
  const movementInput =
   keys["KeyW"] ||
   keys["KeyA"] ||
   keys["KeyS"] ||
   keys["KeyD"];
 
- // =================================================
- // GAS
- // =================================================
  const gasActive =
   keys["Space"] &&
   gas >
   0;
 
- // =================================================
- // WIRE
- // =================================================
  const wireActive =
   leftAnchor.pulling ||
   rightAnchor.pulling;
 
+ const airBrakeActive =
+  keys["KeyF"];
+
  // =================================================
- // SELECT DRAG
+ // SELECT DRAG MULTIPLIER
  // =================================================
+
  let dragMultiplier =
   1;
 
  // -------------------------------------------------
+ // AIR BRAKE
+ // -------------------------------------------------
+ /*
+  * Fは最優先。
+  *
+  * GASやWIREを使っていても
+  * Fを押している間は
+  * 強い空気抵抗を受ける。
+  */
+ if (
+  airBrakeActive
+ ) {
+  dragMultiplier =
+   AIR_BRAKE_DRAG_MULTIPLIER;
+ }
+
+ // -------------------------------------------------
  // WIRE
  // -------------------------------------------------
- if (
+ else if (
   wireActive
  ) {
   dragMultiplier =
@@ -11890,17 +11914,11 @@ function updateAirDrag(
  }
 
  // -------------------------------------------------
- // MOVEMENT INPUT ONLY
+ // WASD ONLY
  // -------------------------------------------------
  else if (
   movementInput
  ) {
-  /*
-   * WASDを押しているだけでは
-   * 慣性を永久保存しない。
-   *
-   * 入力なし時の50%の抵抗。
-   */
   dragMultiplier =
    AIR_INPUT_DRAG_MULTIPLIER;
  }
@@ -11920,9 +11938,10 @@ function updateAirDrag(
    );
 
   /*
-   * 通常Dragは水平慣性へ適用。
+   * エアブレーキも含め、
+   * ここでは水平速度を減衰。
    *
-   * Y方向はGravityが担当する。
+   * Y方向はGravityに任せる。
    */
   velocity.x *=
    drag;
@@ -11934,13 +11953,7 @@ function updateAirDrag(
  // =================================================
  // HIGH SPEED DRAG
  // =================================================
- /*
-  * 300km/h超については、
-  * GAS/WIRE中でも完全には無制限にしない。
-  *
-  * 超過速度が大きいほど
-  * 徐々に抵抗が強くなる。
-  */
+
  const speed =
   velocity.length();
 
