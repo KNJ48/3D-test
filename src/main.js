@@ -17945,6 +17945,57 @@ const TIME_ATTACK_BEST_KEY =
  "paradis-timeattack-5k-city-run-best";
 
 // ==================================================
+// BEACON SETTINGS
+// ==================================================
+/*
+ * 光柱の見かけ上の長さ。
+ *
+ * 毎フレーム光柱の中心Yを
+ * Camera Yへ合わせるため、
+ * 実質的に上下へ無限に続いて見える。
+ */
+const TIME_ATTACK_BEAM_HEIGHT =
+ metersToUnits(
+  10000
+ );
+
+/*
+ * 外側の半透明光柱。
+ */
+const TIME_ATTACK_BEAM_RADIUS =
+ metersToUnits(
+  1.2
+ );
+
+/*
+ * 中央の明るい芯。
+ */
+const TIME_ATTACK_BEAM_CORE_RADIUS =
+ metersToUnits(
+  0.18
+ );
+
+/*
+ * CPリング半径。
+ */
+const TIME_ATTACK_RING_RADIUS =
+ metersToUnits(
+  4
+ );
+
+// ==================================================
+// COLORS
+// ==================================================
+const TIME_ATTACK_CP_COLOR =
+ 0xffd54f;
+
+const TIME_ATTACK_GOAL_COLOR =
+ 0x5cff8d;
+
+const TIME_ATTACK_CORE_COLOR =
+ 0xffffff;
+
+// ==================================================
 // STATE
 // ==================================================
 let timeAttackWorldData =
@@ -18015,7 +18066,7 @@ const timeAttackRoadMeshes =
  [];
 
 // ==================================================
-// MATERIALS
+// WORLD MATERIALS
 // ==================================================
 const timeAttackGroundMaterial =
  new THREE.MeshStandardMaterial({
@@ -18113,7 +18164,7 @@ function getTimeAttackHouseDimensions(
 }
 
 // ==================================================
-// HUD
+// TIME ATTACK HUD
 // ==================================================
 const timeAttackHUD =
  document.createElement(
@@ -18139,7 +18190,7 @@ Object.assign(
    "none",
 
   minWidth:
-   "330px",
+   "350px",
 
   padding:
    "14px 22px",
@@ -18148,7 +18199,7 @@ Object.assign(
    "border-box",
 
   background:
-   "rgba(8,12,10,.78)",
+   "rgba(8,12,10,.82)",
 
   border:
    "1px solid rgba(255,255,255,.28)",
@@ -18180,6 +18231,9 @@ document.body.appendChild(
  timeAttackHUD
 );
 
+// --------------------------------------------------
+// TITLE
+// --------------------------------------------------
 const timeAttackHUDTitle =
  document.createElement(
   "div"
@@ -18209,6 +18263,9 @@ timeAttackHUD.appendChild(
  timeAttackHUDTitle
 );
 
+// --------------------------------------------------
+// TIME
+// --------------------------------------------------
 const timeAttackHUDTime =
  document.createElement(
   "div"
@@ -18232,6 +18289,9 @@ timeAttackHUD.appendChild(
  timeAttackHUDTime
 );
 
+// --------------------------------------------------
+// CHECKPOINT
+// --------------------------------------------------
 const timeAttackHUDCheckpoint =
  document.createElement(
   "div"
@@ -18255,8 +18315,34 @@ timeAttackHUD.appendChild(
  timeAttackHUDCheckpoint
 );
 
+// --------------------------------------------------
+// ALTITUDE
+// --------------------------------------------------
+const timeAttackHUDAltitude =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackHUDAltitude.style,
+ {
+  marginTop:
+   "3px",
+
+  color:
+   "#aeb9ae",
+
+  fontSize:
+   "11px"
+ }
+);
+
+timeAttackHUD.appendChild(
+ timeAttackHUDAltitude
+);
+
 // ==================================================
-// COUNTDOWN
+// COUNTDOWN HUD
 // ==================================================
 const timeAttackCountdownHUD =
  document.createElement(
@@ -18309,10 +18395,31 @@ document.body.appendChild(
 );
 
 // ==================================================
-// CHECKPOINT BEACON
+// CHECKPOINT BEACON ROOT
 // ==================================================
+/*
+ *
+ * ROOT
+ *
+ * X/Z:
+ * 現在のTarget位置
+ *
+ * Y:
+ * Camera Y
+ *
+ *
+ * ├ Beam
+ * │  Camera中心で10km
+ * │
+ * └ Target Marker
+ *    Target実高度へ相対配置
+ *
+ */
 const timeAttackBeacon =
  new THREE.Group();
+
+timeAttackBeacon.name =
+ "time-attack-beacon";
 
 timeAttackBeacon.visible =
  false;
@@ -18321,76 +18428,214 @@ scene.add(
  timeAttackBeacon
 );
 
+// ==================================================
+// OUTER BEAM
+// ==================================================
+const timeAttackBeamMaterial =
+ new THREE.MeshBasicMaterial({
+  color:
+   TIME_ATTACK_CP_COLOR,
+
+  transparent:
+   true,
+
+  opacity:
+   0.20,
+
+  /*
+   * 建物の裏からも
+   * 目的方向を確認可能。
+   */
+  depthTest:
+   false,
+
+  depthWrite:
+   false,
+
+  toneMapped:
+   false,
+
+  blending:
+   THREE.AdditiveBlending
+ });
+
+const timeAttackBeam =
+ new THREE.Mesh(
+  new THREE.CylinderGeometry(
+   TIME_ATTACK_BEAM_RADIUS,
+   TIME_ATTACK_BEAM_RADIUS,
+   TIME_ATTACK_BEAM_HEIGHT,
+   12,
+   1,
+   true
+  ),
+
+  timeAttackBeamMaterial
+ );
+
+timeAttackBeam.renderOrder =
+ 9000;
+
+timeAttackBeacon.add(
+ timeAttackBeam
+);
+
+// ==================================================
+// BEAM CORE
+// ==================================================
+const timeAttackBeamCoreMaterial =
+ new THREE.MeshBasicMaterial({
+  color:
+   TIME_ATTACK_CORE_COLOR,
+
+  transparent:
+   true,
+
+  opacity:
+   0.68,
+
+  depthTest:
+   false,
+
+  depthWrite:
+   false,
+
+  toneMapped:
+   false,
+
+  blending:
+   THREE.AdditiveBlending
+ });
+
+const timeAttackBeamCore =
+ new THREE.Mesh(
+  new THREE.CylinderGeometry(
+   TIME_ATTACK_BEAM_CORE_RADIUS,
+   TIME_ATTACK_BEAM_CORE_RADIUS,
+   TIME_ATTACK_BEAM_HEIGHT,
+   8
+  ),
+
+  timeAttackBeamCoreMaterial
+ );
+
+timeAttackBeamCore.renderOrder =
+ 9001;
+
+timeAttackBeacon.add(
+ timeAttackBeamCore
+);
+
+// ==================================================
+// TARGET MARKER GROUP
+// ==================================================
+const timeAttackTargetMarker =
+ new THREE.Group();
+
+timeAttackBeacon.add(
+ timeAttackTargetMarker
+);
+
+// ==================================================
+// TARGET RING
+// ==================================================
+const timeAttackRingMaterial =
+ new THREE.MeshBasicMaterial({
+  color:
+   TIME_ATTACK_CP_COLOR,
+
+  transparent:
+   true,
+
+  opacity:
+   1,
+
+  depthTest:
+   false,
+
+  depthWrite:
+   false,
+
+  toneMapped:
+   false,
+
+  blending:
+   THREE.AdditiveBlending
+ });
+
 const timeAttackBeaconRing =
  new THREE.Mesh(
   new THREE.TorusGeometry(
-   4,
-   0.3,
+   TIME_ATTACK_RING_RADIUS,
+   metersToUnits(
+    0.30
+   ),
    10,
-   40
+   48
   ),
 
-  new THREE.MeshBasicMaterial({
-   color:
-    0xffd54f,
-
-   transparent:
-    true,
-
-   opacity:
-    0.95,
-
-   depthWrite:
-    false,
-
-   toneMapped:
-    false
-  })
+  timeAttackRingMaterial
  );
 
-timeAttackBeacon.add(
+timeAttackBeaconRing.renderOrder =
+ 9010;
+
+timeAttackTargetMarker.add(
  timeAttackBeaconRing
 );
 
-const timeAttackBeaconCore =
+// ==================================================
+// SECOND RING
+// ==================================================
+const timeAttackBeaconRing2 =
  new THREE.Mesh(
-  new THREE.SphereGeometry(
-   0.7,
-   12,
-   8
+  new THREE.TorusGeometry(
+   TIME_ATTACK_RING_RADIUS *
+   1.35,
+
+   metersToUnits(
+    0.10
+   ),
+
+   8,
+   48
   ),
 
-  new THREE.MeshBasicMaterial({
-   color:
-    0xffffff,
-
-   toneMapped:
-    false
-  })
+  timeAttackRingMaterial
  );
 
-timeAttackBeacon.add(
- timeAttackBeaconCore
+timeAttackBeaconRing2.renderOrder =
+ 9010;
+
+timeAttackTargetMarker.add(
+ timeAttackBeaconRing2
 );
 
-const timeAttackBeaconColumn =
+// ==================================================
+// TARGET CORE
+// ==================================================
+const timeAttackTargetCore =
  new THREE.Mesh(
-  new THREE.CylinderGeometry(
-   0.12,
-   0.12,
-   30,
-   8
+  new THREE.SphereGeometry(
+   metersToUnits(
+    0.7
+   ),
+   16,
+   10
   ),
 
   new THREE.MeshBasicMaterial({
    color:
-    0xffd54f,
+    TIME_ATTACK_CORE_COLOR,
 
    transparent:
     true,
 
    opacity:
-    0.32,
+    1,
+
+   depthTest:
+    false,
 
    depthWrite:
     false,
@@ -18400,11 +18645,11 @@ const timeAttackBeaconColumn =
   })
  );
 
-timeAttackBeaconColumn.position.y =
- 15;
+timeAttackTargetCore.renderOrder =
+ 9011;
 
-timeAttackBeacon.add(
- timeAttackBeaconColumn
+timeAttackTargetMarker.add(
+ timeAttackTargetCore
 );
 
 // ==================================================
@@ -18520,6 +18765,9 @@ Object.assign(
   marginTop:
    "22px",
 
+  color:
+   "#ffda6b",
+
   fontFamily:
    "monospace",
 
@@ -18527,10 +18775,7 @@ Object.assign(
    "38px",
 
   fontWeight:
-   "bold",
-
-  color:
-   "#ffda6b"
+   "bold"
  }
 );
 
@@ -18571,7 +18816,7 @@ timeAttackResultPanel.appendChild(
 );
 
 // ==================================================
-// RESULT BUTTON FACTORY
+// RESULT BUTTON
 // ==================================================
 function createTimeAttackResultButton(
  text,
@@ -18728,10 +18973,10 @@ function clearTimeAttackWorld() {
  timeAttackRoadMeshes.length =
   0;
 
- const children =
-  [
-   ...timeAttackWorldGroup.children
-  ];
+ const children = [
+  ...timeAttackWorldGroup
+   .children
+ ];
 
  for (
   const child
@@ -18760,7 +19005,7 @@ function clearTimeAttackWorld() {
 }
 
 // ==================================================
-// REGISTER OBJECT
+// REGISTER WORLD MESH
 // ==================================================
 function registerTimeAttackMesh(
  mesh,
@@ -18812,15 +19057,6 @@ function registerTimeAttackMesh(
 // ==================================================
 // CREATE HOUSE
 // ==================================================
-/*
- * 第一版ではTime Attack専用都市の家を
- * solidな街路建物として生成する。
- *
- * templateIdごとに寸法・高さは変わる。
- *
- * 本島のInstanced Houseとの完全共通化は
- * 後から可能。
- */
 function createTimeAttackHouse(
  descriptor,
  index
@@ -18866,7 +19102,6 @@ function createTimeAttackHouse(
     height,
     depth
    ),
-
    material
   );
 
@@ -18874,10 +19109,8 @@ function createTimeAttackHouse(
   metersToUnits(
    descriptor.xMeters
   ),
-
   height /
   2,
-
   metersToUnits(
    descriptor.zMeters
   )
@@ -18888,9 +19121,6 @@ function createTimeAttackHouse(
    descriptor.rotation
   ) ||
   0;
-
- mesh.castShadow =
-  false;
 
  mesh.receiveShadow =
   true;
@@ -18903,7 +19133,7 @@ function createTimeAttackHouse(
 }
 
 // ==================================================
-// CREATE SPECIAL BOX
+// SPECIAL BOX
 // ==================================================
 function createTimeAttackBox(
  descriptor
@@ -18943,7 +19173,6 @@ function createTimeAttackBox(
     height,
     depth
    ),
-
    material
   );
 
@@ -18951,10 +19180,8 @@ function createTimeAttackBox(
   metersToUnits(
    descriptor.xMeters
   ),
-
   height /
   2,
-
   metersToUnits(
    descriptor.zMeters
   )
@@ -19231,7 +19458,7 @@ async function loadTimeAttackWorld() {
 }
 
 // ==================================================
-// ACTIVE TARGET
+// CURRENT TARGET
 // ==================================================
 function getTimeAttackTarget() {
  if (
@@ -19241,7 +19468,8 @@ function getTimeAttackTarget() {
  }
 
  const checkpoints =
-  timeAttackWorldData.checkpoints ??
+  timeAttackWorldData
+   .checkpoints ??
   [];
 
  if (
@@ -19257,35 +19485,110 @@ function getTimeAttackTarget() {
 }
 
 // ==================================================
-// TARGET POSITION
+// TARGET IS GOAL
+// ==================================================
+function isTimeAttackGoalTarget() {
+ if (
+  !timeAttackWorldData
+ ) {
+  return false;
+ }
+
+ return (
+  timeAttackCheckpointIndex >=
+  timeAttackWorldData
+   .checkpoints
+   .length
+ );
+}
+
+// ==================================================
+// UPDATE BEACON COLOR
+// ==================================================
+function updateTimeAttackBeaconColor() {
+ const goal =
+  isTimeAttackGoalTarget();
+
+ const color =
+  goal
+   ? TIME_ATTACK_GOAL_COLOR
+   : TIME_ATTACK_CP_COLOR;
+
+ timeAttackBeamMaterial.color.setHex(
+  color
+ );
+
+ timeAttackRingMaterial.color.setHex(
+  color
+ );
+
+ timeAttackHUDCheckpoint.style.color =
+  goal
+   ? "#67ff9b"
+   : "#ffda6b";
+}
+
+// ==================================================
+// UPDATE BEACON TARGET
 // ==================================================
 function updateTimeAttackBeacon() {
  const target =
   getTimeAttackTarget();
 
- if (!target) {
+ if (
+  !target
+ ) {
   timeAttackBeacon.visible =
    false;
 
   return;
  }
 
- timeAttackBeacon.position.set(
+ const targetX =
   metersToUnits(
    target.xMeters
-  ),
+  );
 
+ const targetY =
   metersToUnits(
    Number(
     target.yMeters
    ) ||
-   2
-  ),
+   0
+  );
 
+ const targetZ =
   metersToUnits(
    target.zMeters
-  )
+  );
+
+ /*
+  * X/ZはCP固定。
+  *
+  * YだけCameraに追従。
+  *
+  * これにより光柱は
+  * プレイヤーを中心に上下5kmずつ伸び、
+  * 実質無限に見える。
+  */
+ timeAttackBeacon.position.set(
+  targetX,
+  camera.position.y,
+  targetZ
  );
+
+ /*
+  * リングだけは
+  * 実際のCP高度へ配置する。
+  */
+ timeAttackTargetMarker.position.set(
+  0,
+  targetY -
+   camera.position.y,
+  0
+ );
+
+ updateTimeAttackBeaconColor();
 
  timeAttackBeacon.visible =
   true;
@@ -19297,7 +19600,9 @@ function updateTimeAttackBeacon() {
 function getTimeAttackTargetDistanceMeters(
  target
 ) {
- if (!target) {
+ if (
+  !target
+ ) {
   return Infinity;
  }
 
@@ -19326,6 +19631,27 @@ function getTimeAttackTargetDistanceMeters(
    ),
 
   playerZ -
+   target.zMeters
+ );
+}
+
+// ==================================================
+// HORIZONTAL TARGET DISTANCE
+// ==================================================
+function getTimeAttackHorizontalDistanceMeters(
+ target
+) {
+ if (!target) {
+  return Infinity;
+ }
+
+ return Math.hypot(
+  camera.position.x *
+   METERS_PER_UNIT -
+   target.xMeters,
+
+  camera.position.z *
+   METERS_PER_UNIT -
    target.zMeters
  );
 }
@@ -19376,9 +19702,7 @@ function resetPlayerForTimeAttack() {
   metersToUnits(
    start.xMeters
   ),
-
   PLAYER_HEIGHT,
-
   metersToUnits(
    start.zMeters
   )
@@ -19406,7 +19730,7 @@ function resetPlayerForTimeAttack() {
 }
 
 // ==================================================
-// LOAD BEST TIME
+// LOAD BEST
 // ==================================================
 function loadTimeAttackBest() {
  const value =
@@ -19430,9 +19754,6 @@ function loadTimeAttackBest() {
 // START TIME ATTACK
 // ==================================================
 async function startTimeAttack01() {
- // ------------------------------------------------
- // UI
- // ------------------------------------------------
  hideMainMenu();
 
  worldLoadingHUD.style.display =
@@ -19447,11 +19768,11 @@ async function startTimeAttack01() {
   "Loading /world/timeattack-01.json";
 
  // ------------------------------------------------
- // REMOVE TUTORIAL
+ // CLEAR TUTORIAL
  // ------------------------------------------------
  if (
   typeof clearTutorialWorld ===
-  "function"
+   "function"
  ) {
   clearTutorialWorld();
  }
@@ -19460,7 +19781,7 @@ async function startTimeAttack01() {
   false;
 
  // ------------------------------------------------
- // REMOVE OPEN WORLD
+ // CLEAR OPEN WORLD
  // ------------------------------------------------
  clearAllGroundChunks();
 
@@ -19500,7 +19821,9 @@ async function startTimeAttack01() {
  const world =
   await loadTimeAttackWorld();
 
- if (!world) {
+ if (
+  !world
+ ) {
   throw new Error(
    "Unable to load Time Attack world."
   );
@@ -19637,9 +19960,6 @@ function finishTimeAttack() {
  timeAttackBeacon.visible =
   false;
 
- // ------------------------------------------------
- // BEST
- // ------------------------------------------------
  const oldBest =
   timeAttackBestTime;
 
@@ -19670,9 +19990,6 @@ function finishTimeAttack() {
    gas
   );
 
- // ------------------------------------------------
- // RESULT
- // ------------------------------------------------
  timeAttackResultTime.textContent =
   formatTimeAttackTime(
    timeAttackElapsed
@@ -19683,7 +20000,7 @@ function finishTimeAttack() {
    newBest
     ? "NEW BEST!\n"
     : ""
-  }BEST  ${
+  }BEST       ${
    formatTimeAttackTime(
     timeAttackBestTime
    )
@@ -19740,7 +20057,7 @@ function retryTimeAttack() {
 }
 
 // ==================================================
-// EXIT TO MAIN MENU
+// EXIT
 // ==================================================
 function exitTimeAttackToMenu() {
  timeAttackState =
@@ -19771,7 +20088,6 @@ function exitTimeAttackToMenu() {
 // ==================================================
 createTimeAttackResultButton(
  "RETRY",
-
  () => {
   retryTimeAttack();
  }
@@ -19779,7 +20095,6 @@ createTimeAttackResultButton(
 
 createTimeAttackResultButton(
  "MAIN MENU",
-
  () => {
   exitTimeAttackToMenu();
  }
@@ -19805,9 +20120,6 @@ function updateTimeAttack(
   timeAttackState ===
    "countdown"
  ) {
-  /*
-   * フライング防止。
-   */
   velocity.set(
    0,
    0,
@@ -19844,11 +20156,16 @@ function updateTimeAttack(
      .length
    }`;
 
+  timeAttackHUDAltitude.textContent =
+   "FOLLOW THE YELLOW BEAM";
+
+  updateTimeAttackBeacon();
+
   return;
  }
 
  // =================================================
- // FINISHED
+ // NOT RACING
  // =================================================
  if (
   timeAttackState !==
@@ -19870,7 +20187,7 @@ function updateTimeAttack(
  // =================================================
  // SPEED
  // =================================================
- const kmh =
+ const speedKmh =
   velocity.length() *
   METERS_PER_UNIT *
   3.6;
@@ -19878,7 +20195,7 @@ function updateTimeAttack(
  timeAttackMaxSpeedKmh =
   Math.max(
    timeAttackMaxSpeedKmh,
-   kmh
+   speedKmh
   );
 
  // =================================================
@@ -19887,14 +20204,26 @@ function updateTimeAttack(
  const target =
   getTimeAttackTarget();
 
- if (!target) {
+ if (
+  !target
+ ) {
   return;
  }
 
+ /*
+  * Cameraが上下しても
+  * 光柱を実質無限に維持するため
+  * 毎フレーム更新。
+  */
  updateTimeAttackBeacon();
 
  const distance =
   getTimeAttackTargetDistanceMeters(
+   target
+  );
+
+ const horizontalDistance =
+  getTimeAttackHorizontalDistanceMeters(
    target
   );
 
@@ -19921,39 +20250,98 @@ function updateTimeAttack(
    } / ${
     checkpoints.length
    }   ${
-    distance.toFixed(
+    horizontalDistance.toFixed(
      0
     )
    } m`;
  } else {
   timeAttackHUDCheckpoint.textContent =
    `GOAL   ${
-    distance.toFixed(
+    horizontalDistance.toFixed(
      0
     )
    } m`;
  }
 
+ const playerHeightMeters =
+  camera.position.y *
+  METERS_PER_UNIT;
+
+ const targetHeightMeters =
+  Number(
+   target.yMeters
+  ) ||
+  0;
+
+ const heightDifference =
+  targetHeightMeters -
+  playerHeightMeters;
+
+ if (
+  Math.abs(
+   heightDifference
+  ) <
+  2
+ ) {
+  timeAttackHUDAltitude.textContent =
+   "ALTITUDE OK";
+ } else if (
+  heightDifference >
+  0
+ ) {
+  timeAttackHUDAltitude.textContent =
+   `TARGET ${
+    heightDifference.toFixed(
+     0
+    )
+   } m ABOVE`;
+ } else {
+  timeAttackHUDAltitude.textContent =
+   `TARGET ${
+    Math.abs(
+     heightDifference
+    ).toFixed(
+     0
+    )
+   } m BELOW`;
+ }
+
  // =================================================
  // BEACON ANIMATION
  // =================================================
- timeAttackBeacon.rotation.y +=
+ timeAttackBeaconRing.rotation.x +=
   delta *
-  1.4;
+  0.6;
 
- timeAttackBeaconRing.rotation.z +=
+ timeAttackBeaconRing.rotation.y +=
   delta *
-  1.1;
+  1.0;
 
+ timeAttackBeaconRing2.rotation.y -=
+  delta *
+  0.7;
+
+ const pulse =
+  1 +
+  Math.sin(
+   performance.now() *
+   0.004
+  ) *
+  0.13;
+
+ timeAttackTargetCore.scale.setScalar(
+  pulse
+ );
+
+ // =================================================
+ // TARGET HIT
+ // =================================================
  const targetRadius =
   Number(
    target.radiusMeters
   ) ||
   20;
 
- // =================================================
- // NOT REACHED
- // =================================================
  if (
   distance >
    targetRadius
@@ -19968,12 +20356,14 @@ function updateTimeAttack(
   timeAttackCheckpointIndex <
    checkpoints.length
  ) {
+  const completed =
+   timeAttackCheckpointIndex +
+   1;
+
   timeAttackCheckpointIndex++;
 
   showMessage(
-   `CHECKPOINT ${
-    timeAttackCheckpointIndex
-   } / ${
+   `CHECKPOINT ${completed} / ${
     checkpoints.length
    }`
   );
