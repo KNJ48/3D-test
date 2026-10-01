@@ -52,9 +52,9 @@ const PLAYER_HEIGHT = 1.7;
 const PLAYER_RADIUS = 0.35;
 
 const GRAVITY = 14;
-const JUMP_SPEED = 5;
+const JUMP_SPEED = 3.5;
 
-const MAX_WALK_SPEED = 16;
+const MAX_WALK_SPEED = 6;
 const GROUND_ACCEL = 18;
 const GROUND_DECEL = 22;
 const GROUND_TURN = 12;
@@ -15374,7 +15374,10 @@ const GAME_MODES = {
   "open-world",
 
  TUTORIAL:
-  "tutorial"
+  "tutorial",
+
+ TIME_ATTACK:
+  "time-attack"
 };
 
 let currentGameMode =
@@ -16118,22 +16121,39 @@ async function enterTutorialWorld() {
 }
 
 // ==================================================
-// TUTORIAL GROUND HEIGHT
+// ACTIVE GROUND HEIGHT
 // ==================================================
 function getActiveGroundHeightMeters(
  xMeters,
  zMeters
 ) {
- /*
-  * Tutorialは完全な平地。
-  */
+ // ------------------------------------------------
+ // TUTORIAL
+ // ------------------------------------------------
  if (
   currentGameMode ===
-  GAME_MODES.TUTORIAL
+   GAME_MODES.TUTORIAL
  ) {
   return 0;
  }
 
+ // ------------------------------------------------
+ // TIME ATTACK
+ // ------------------------------------------------
+ /*
+  * Time Attack専用都市は
+  * 標高0mの平地。
+  */
+ if (
+  currentGameMode ===
+   GAME_MODES.TIME_ATTACK
+ ) {
+  return 0;
+ }
+
+ // ------------------------------------------------
+ // OPEN WORLD
+ // ------------------------------------------------
  return getTerrainHeightMeters(
   xMeters,
   zMeters
@@ -17915,6 +17935,2061 @@ function updateTutorialGuide(
 }
 
 // ==================================================
+// TIME ATTACK SYSTEM
+// ==================================================
+
+const TIME_ATTACK_WORLD_URL =
+ "/world/timeattack-01.json";
+
+const TIME_ATTACK_BEST_KEY =
+ "paradis-timeattack-5k-city-run-best";
+
+// ==================================================
+// STATE
+// ==================================================
+let timeAttackWorldData =
+ null;
+
+let timeAttackLoading =
+ false;
+
+let timeAttackLoaded =
+ false;
+
+/*
+ * idle
+ * countdown
+ * racing
+ * finished
+ */
+let timeAttackState =
+ "idle";
+
+let timeAttackCheckpointIndex =
+ 0;
+
+let timeAttackCountdown =
+ 3;
+
+let timeAttackStartTime =
+ 0;
+
+let timeAttackElapsed =
+ 0;
+
+let timeAttackBestTime =
+ null;
+
+let timeAttackMaxSpeedKmh =
+ 0;
+
+let timeAttackStartGas =
+ MAX_GAS;
+
+// ==================================================
+// WORLD GROUP
+// ==================================================
+const timeAttackWorldGroup =
+ new THREE.Group();
+
+timeAttackWorldGroup.name =
+ "time-attack-world";
+
+timeAttackWorldGroup.visible =
+ false;
+
+scene.add(
+ timeAttackWorldGroup
+);
+
+// ==================================================
+// RUNTIME OBJECTS
+// ==================================================
+const timeAttackColliders =
+ [];
+
+const timeAttackAnchorTargets =
+ [];
+
+const timeAttackRoadMeshes =
+ [];
+
+// ==================================================
+// MATERIALS
+// ==================================================
+const timeAttackGroundMaterial =
+ new THREE.MeshStandardMaterial({
+  color:
+   0x71845f,
+
+  roughness:
+   1
+ });
+
+const timeAttackBuildingMaterials = [
+ new THREE.MeshStandardMaterial({
+  map:
+   houseWallTexture,
+
+  color:
+   0xb99c7d,
+
+  roughness:
+   0.9
+ }),
+
+ new THREE.MeshStandardMaterial({
+  map:
+   houseWallTexture,
+
+  color:
+   0xa58569,
+
+  roughness:
+   0.9
+ }),
+
+ new THREE.MeshStandardMaterial({
+  map:
+   houseWallTexture,
+
+  color:
+   0xc6ac8d,
+
+  roughness:
+   0.9
+ })
+];
+
+const timeAttackRoadMaterial =
+ new THREE.MeshStandardMaterial({
+  color:
+   0x625b51,
+
+  roughness:
+   1
+ });
+
+// ==================================================
+// TEMPLATE DIMENSIONS
+// ==================================================
+function getTimeAttackHouseDimensions(
+ templateId
+) {
+ if (
+  Number(
+   templateId
+  ) ===
+  2
+ ) {
+  return {
+   widthMeters:
+    13,
+
+   depthMeters:
+    16,
+
+   heightMeters:
+    6.4,
+
+   roofHeightMeters:
+    3.1
+  };
+ }
+
+ return {
+  widthMeters:
+   9,
+
+  depthMeters:
+   11,
+
+  heightMeters:
+   9,
+
+  roofHeightMeters:
+   4
+ };
+}
+
+// ==================================================
+// HUD
+// ==================================================
+const timeAttackHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackHUD.style,
+ {
+  position:
+   "fixed",
+
+  left:
+   "50%",
+
+  top:
+   "28px",
+
+  transform:
+   "translateX(-50%)",
+
+  display:
+   "none",
+
+  minWidth:
+   "330px",
+
+  padding:
+   "14px 22px",
+
+  boxSizing:
+   "border-box",
+
+  background:
+   "rgba(8,12,10,.78)",
+
+  border:
+   "1px solid rgba(255,255,255,.28)",
+
+  borderRadius:
+   "5px",
+
+  color:
+   "white",
+
+  fontFamily:
+   "monospace",
+
+  textAlign:
+   "center",
+
+  textShadow:
+   "0 2px 4px black",
+
+  pointerEvents:
+   "none",
+
+  zIndex:
+   "3000"
+ }
+);
+
+document.body.appendChild(
+ timeAttackHUD
+);
+
+const timeAttackHUDTitle =
+ document.createElement(
+  "div"
+ );
+
+timeAttackHUDTitle.textContent =
+ "5K CITY RUN";
+
+Object.assign(
+ timeAttackHUDTitle.style,
+ {
+  color:
+   "#9ac49a",
+
+  fontSize:
+   "12px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "2px"
+ }
+);
+
+timeAttackHUD.appendChild(
+ timeAttackHUDTitle
+);
+
+const timeAttackHUDTime =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackHUDTime.style,
+ {
+  marginTop:
+   "4px",
+
+  fontSize:
+   "30px",
+
+  fontWeight:
+   "bold"
+ }
+);
+
+timeAttackHUD.appendChild(
+ timeAttackHUDTime
+);
+
+const timeAttackHUDCheckpoint =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackHUDCheckpoint.style,
+ {
+  marginTop:
+   "4px",
+
+  color:
+   "#ffda6b",
+
+  fontSize:
+   "13px"
+ }
+);
+
+timeAttackHUD.appendChild(
+ timeAttackHUDCheckpoint
+);
+
+// ==================================================
+// COUNTDOWN
+// ==================================================
+const timeAttackCountdownHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackCountdownHUD.style,
+ {
+  position:
+   "fixed",
+
+  left:
+   "50%",
+
+  top:
+   "45%",
+
+  transform:
+   "translate(-50%,-50%)",
+
+  display:
+   "none",
+
+  color:
+   "white",
+
+  fontFamily:
+   "Arial",
+
+  fontSize:
+   "110px",
+
+  fontWeight:
+   "bold",
+
+  textShadow:
+   "0 5px 18px black",
+
+  pointerEvents:
+   "none",
+
+  zIndex:
+   "4000"
+ }
+);
+
+document.body.appendChild(
+ timeAttackCountdownHUD
+);
+
+// ==================================================
+// CHECKPOINT BEACON
+// ==================================================
+const timeAttackBeacon =
+ new THREE.Group();
+
+timeAttackBeacon.visible =
+ false;
+
+scene.add(
+ timeAttackBeacon
+);
+
+const timeAttackBeaconRing =
+ new THREE.Mesh(
+  new THREE.TorusGeometry(
+   4,
+   0.3,
+   10,
+   40
+  ),
+
+  new THREE.MeshBasicMaterial({
+   color:
+    0xffd54f,
+
+   transparent:
+    true,
+
+   opacity:
+    0.95,
+
+   depthWrite:
+    false,
+
+   toneMapped:
+    false
+  })
+ );
+
+timeAttackBeacon.add(
+ timeAttackBeaconRing
+);
+
+const timeAttackBeaconCore =
+ new THREE.Mesh(
+  new THREE.SphereGeometry(
+   0.7,
+   12,
+   8
+  ),
+
+  new THREE.MeshBasicMaterial({
+   color:
+    0xffffff,
+
+   toneMapped:
+    false
+  })
+ );
+
+timeAttackBeacon.add(
+ timeAttackBeaconCore
+);
+
+const timeAttackBeaconColumn =
+ new THREE.Mesh(
+  new THREE.CylinderGeometry(
+   0.12,
+   0.12,
+   30,
+   8
+  ),
+
+  new THREE.MeshBasicMaterial({
+   color:
+    0xffd54f,
+
+   transparent:
+    true,
+
+   opacity:
+    0.32,
+
+   depthWrite:
+    false,
+
+   toneMapped:
+    false
+  })
+ );
+
+timeAttackBeaconColumn.position.y =
+ 15;
+
+timeAttackBeacon.add(
+ timeAttackBeaconColumn
+);
+
+// ==================================================
+// RESULT HUD
+// ==================================================
+const timeAttackResultHUD =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackResultHUD.style,
+ {
+  position:
+   "fixed",
+
+  inset:
+   "0",
+
+  display:
+   "none",
+
+  alignItems:
+   "center",
+
+  justifyContent:
+   "center",
+
+  background:
+   "rgba(0,0,0,.78)",
+
+  color:
+   "white",
+
+  fontFamily:
+   "Arial",
+
+  zIndex:
+   "65000"
+ }
+);
+
+document.body.appendChild(
+ timeAttackResultHUD
+);
+
+const timeAttackResultPanel =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackResultPanel.style,
+ {
+  width:
+   "450px",
+
+  padding:
+   "36px",
+
+  background:
+   "#171d19",
+
+  border:
+   "1px solid #697469",
+
+  borderRadius:
+   "7px",
+
+  textAlign:
+   "center"
+ }
+);
+
+timeAttackResultHUD.appendChild(
+ timeAttackResultPanel
+);
+
+const timeAttackResultTitle =
+ document.createElement(
+  "div"
+ );
+
+timeAttackResultTitle.textContent =
+ "FINISH";
+
+Object.assign(
+ timeAttackResultTitle.style,
+ {
+  fontSize:
+   "42px",
+
+  fontWeight:
+   "bold",
+
+  letterSpacing:
+   "4px"
+ }
+);
+
+timeAttackResultPanel.appendChild(
+ timeAttackResultTitle
+);
+
+const timeAttackResultTime =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackResultTime.style,
+ {
+  marginTop:
+   "22px",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "38px",
+
+  fontWeight:
+   "bold",
+
+  color:
+   "#ffda6b"
+ }
+);
+
+timeAttackResultPanel.appendChild(
+ timeAttackResultTime
+);
+
+const timeAttackResultDetails =
+ document.createElement(
+  "div"
+ );
+
+Object.assign(
+ timeAttackResultDetails.style,
+ {
+  marginTop:
+   "20px",
+
+  color:
+   "#b8c0b8",
+
+  fontFamily:
+   "monospace",
+
+  fontSize:
+   "14px",
+
+  lineHeight:
+   "1.8",
+
+  whiteSpace:
+   "pre-line"
+ }
+);
+
+timeAttackResultPanel.appendChild(
+ timeAttackResultDetails
+);
+
+// ==================================================
+// RESULT BUTTON FACTORY
+// ==================================================
+function createTimeAttackResultButton(
+ text,
+ onClick
+) {
+ const button =
+  document.createElement(
+   "button"
+  );
+
+ button.textContent =
+  text;
+
+ Object.assign(
+  button.style,
+  {
+   width:
+    "100%",
+
+   marginTop:
+    "12px",
+
+   padding:
+    "13px",
+
+   color:
+    "white",
+
+   background:
+    "rgba(255,255,255,.08)",
+
+   border:
+    "1px solid #777",
+
+   borderRadius:
+    "4px",
+
+   cursor:
+    "pointer",
+
+   fontSize:
+    "15px",
+
+   fontWeight:
+    "bold"
+  }
+ );
+
+ button.addEventListener(
+  "click",
+  onClick
+ );
+
+ timeAttackResultPanel.appendChild(
+  button
+ );
+
+ return button;
+}
+
+// ==================================================
+// FORMAT TIME
+// ==================================================
+function formatTimeAttackTime(
+ seconds
+) {
+ if (
+  !Number.isFinite(
+   seconds
+  )
+ ) {
+  return "--:--.---";
+ }
+
+ const totalMilliseconds =
+  Math.max(
+   0,
+   Math.floor(
+    seconds *
+    1000
+   )
+  );
+
+ const minutes =
+  Math.floor(
+   totalMilliseconds /
+   60000
+  );
+
+ const secondsPart =
+  Math.floor(
+   (
+    totalMilliseconds %
+    60000
+   ) /
+   1000
+  );
+
+ const milliseconds =
+  totalMilliseconds %
+  1000;
+
+ return (
+  `${String(
+   minutes
+  ).padStart(
+   2,
+   "0"
+  )}:` +
+  `${String(
+   secondsPart
+  ).padStart(
+   2,
+   "0"
+  )}.` +
+  `${String(
+   milliseconds
+  ).padStart(
+   3,
+   "0"
+  )}`
+ );
+}
+
+// ==================================================
+// CLEAR WORLD
+// ==================================================
+function clearTimeAttackWorld() {
+ for (
+  const collider
+  of timeAttackColliders
+ ) {
+  unregisterCollider(
+   collider
+  );
+ }
+
+ timeAttackColliders.length =
+  0;
+
+ for (
+  const target
+  of timeAttackAnchorTargets
+ ) {
+  removeArrayItem(
+   anchorTargets,
+   target
+  );
+ }
+
+ timeAttackAnchorTargets.length =
+  0;
+
+ timeAttackRoadMeshes.length =
+  0;
+
+ const children =
+  [
+   ...timeAttackWorldGroup.children
+  ];
+
+ for (
+  const child
+  of children
+ ) {
+  timeAttackWorldGroup.remove(
+   child
+  );
+
+  child.traverse(
+   object => {
+    if (
+     object.geometry
+    ) {
+     object.geometry.dispose();
+    }
+   }
+  );
+ }
+
+ timeAttackBeacon.visible =
+  false;
+
+ timeAttackWorldGroup.visible =
+  false;
+}
+
+// ==================================================
+// REGISTER OBJECT
+// ==================================================
+function registerTimeAttackMesh(
+ mesh,
+ collision =
+ true,
+ anchorable =
+ true
+) {
+ timeAttackWorldGroup.add(
+  mesh
+ );
+
+ mesh.updateWorldMatrix(
+  true,
+  true
+ );
+
+ if (
+  collision
+ ) {
+  const collider =
+   new THREE.Box3()
+    .setFromObject(
+     mesh
+    );
+
+  registerCollider(
+   collider
+  );
+
+  timeAttackColliders.push(
+   collider
+  );
+ }
+
+ if (
+  anchorable
+ ) {
+  anchorTargets.push(
+   mesh
+  );
+
+  timeAttackAnchorTargets.push(
+   mesh
+  );
+ }
+}
+
+// ==================================================
+// CREATE HOUSE
+// ==================================================
+/*
+ * 第一版ではTime Attack専用都市の家を
+ * solidな街路建物として生成する。
+ *
+ * templateIdごとに寸法・高さは変わる。
+ *
+ * 本島のInstanced Houseとの完全共通化は
+ * 後から可能。
+ */
+function createTimeAttackHouse(
+ descriptor,
+ index
+) {
+ const dimensions =
+  getTimeAttackHouseDimensions(
+   descriptor.templateId
+  );
+
+ const width =
+  metersToUnits(
+   Number(
+    descriptor.widthMeters
+   ) ||
+   dimensions.widthMeters
+  );
+
+ const depth =
+  metersToUnits(
+   Number(
+    descriptor.depthMeters
+   ) ||
+   dimensions.depthMeters
+  );
+
+ const height =
+  metersToUnits(
+   dimensions.heightMeters +
+   dimensions.roofHeightMeters *
+   0.55
+  );
+
+ const material =
+  timeAttackBuildingMaterials[
+   index %
+   timeAttackBuildingMaterials.length
+  ];
+
+ const mesh =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    width,
+    height,
+    depth
+   ),
+
+   material
+  );
+
+ mesh.position.set(
+  metersToUnits(
+   descriptor.xMeters
+  ),
+
+  height /
+  2,
+
+  metersToUnits(
+   descriptor.zMeters
+  )
+ );
+
+ mesh.rotation.y =
+  Number(
+   descriptor.rotation
+  ) ||
+  0;
+
+ mesh.castShadow =
+  false;
+
+ mesh.receiveShadow =
+  true;
+
+ registerTimeAttackMesh(
+  mesh,
+  true,
+  true
+ );
+}
+
+// ==================================================
+// CREATE SPECIAL BOX
+// ==================================================
+function createTimeAttackBox(
+ descriptor
+) {
+ const width =
+  metersToUnits(
+   descriptor.widthMeters ??
+   10
+  );
+
+ const depth =
+  metersToUnits(
+   descriptor.depthMeters ??
+   10
+  );
+
+ const height =
+  metersToUnits(
+   descriptor.heightMeters ??
+   20
+  );
+
+ const material =
+  new THREE.MeshStandardMaterial({
+   color:
+    descriptor.color ??
+    0x817667,
+
+   roughness:
+    0.9
+  });
+
+ const mesh =
+  new THREE.Mesh(
+   new THREE.BoxGeometry(
+    width,
+    height,
+    depth
+   ),
+
+   material
+  );
+
+ mesh.position.set(
+  metersToUnits(
+   descriptor.xMeters
+  ),
+
+  height /
+  2,
+
+  metersToUnits(
+   descriptor.zMeters
+  )
+ );
+
+ mesh.rotation.y =
+  descriptor.rotation ??
+  0;
+
+ mesh.receiveShadow =
+  true;
+
+ registerTimeAttackMesh(
+  mesh,
+  true,
+  descriptor.anchorable !==
+   false
+ );
+}
+
+// ==================================================
+// CREATE ROAD
+// ==================================================
+function createTimeAttackRoad(
+ road
+) {
+ const dx =
+  road.x2 -
+  road.x1;
+
+ const dz =
+  road.z2 -
+  road.z1;
+
+ const lengthMeters =
+  Math.hypot(
+   dx,
+   dz
+  );
+
+ if (
+  lengthMeters <=
+   0.001
+ ) {
+  return;
+ }
+
+ const mesh =
+  new THREE.Mesh(
+   new THREE.PlaneGeometry(
+    metersToUnits(
+     road.widthMeters ??
+     8
+    ),
+
+    metersToUnits(
+     lengthMeters
+    )
+   ),
+
+   timeAttackRoadMaterial
+  );
+
+ mesh.rotation.x =
+  -Math.PI /
+  2;
+
+ mesh.rotation.z =
+  -Math.atan2(
+   dx,
+   dz
+  );
+
+ mesh.position.set(
+  metersToUnits(
+   (
+    road.x1 +
+    road.x2
+   ) /
+   2
+  ),
+
+  0.025,
+
+  metersToUnits(
+   (
+    road.z1 +
+    road.z2
+   ) /
+   2
+  )
+ );
+
+ mesh.receiveShadow =
+  true;
+
+ timeAttackWorldGroup.add(
+  mesh
+ );
+
+ timeAttackRoadMeshes.push(
+  mesh
+ );
+}
+
+// ==================================================
+// BUILD WORLD
+// ==================================================
+function buildTimeAttackWorld(
+ world
+) {
+ clearTimeAttackWorld();
+
+ timeAttackWorldData =
+  world;
+
+ // ------------------------------------------------
+ // GROUND
+ // ------------------------------------------------
+ const ground =
+  new THREE.Mesh(
+   new THREE.PlaneGeometry(
+    metersToUnits(
+     Number(
+      world.widthMeters
+     ) ||
+     900
+    ),
+
+    metersToUnits(
+     Number(
+      world.depthMeters
+     ) ||
+     5200
+    )
+   ),
+
+   timeAttackGroundMaterial
+  );
+
+ ground.rotation.x =
+  -Math.PI /
+  2;
+
+ ground.receiveShadow =
+  true;
+
+ timeAttackWorldGroup.add(
+  ground
+ );
+
+ // ------------------------------------------------
+ // ROADS
+ // ------------------------------------------------
+ const roads =
+  Array.isArray(
+   world.roads
+  )
+   ? world.roads
+   : [];
+
+ for (
+  const road
+  of roads
+ ) {
+  createTimeAttackRoad(
+   road
+  );
+ }
+
+ // ------------------------------------------------
+ // OBJECTS
+ // ------------------------------------------------
+ const objects =
+  Array.isArray(
+   world.objects
+  )
+   ? world.objects
+   : [];
+
+ let houseIndex =
+  0;
+
+ for (
+  const descriptor
+  of objects
+ ) {
+  if (
+   descriptor.type ===
+   "house"
+  ) {
+   createTimeAttackHouse(
+    descriptor,
+    houseIndex++
+   );
+
+   continue;
+  }
+
+  if (
+   descriptor.type ===
+   "tutorial-box"
+  ) {
+   createTimeAttackBox(
+    descriptor
+   );
+  }
+ }
+
+ timeAttackWorldGroup.visible =
+  true;
+
+ timeAttackLoaded =
+  true;
+}
+
+// ==================================================
+// LOAD WORLD
+// ==================================================
+async function loadTimeAttackWorld() {
+ if (
+  timeAttackLoading
+ ) {
+  return null;
+ }
+
+ timeAttackLoading =
+  true;
+
+ try {
+  const response =
+   await fetch(
+    TIME_ATTACK_WORLD_URL,
+    {
+     cache:
+      "no-store"
+    }
+   );
+
+  if (
+   !response.ok
+  ) {
+   throw new Error(
+    `Time Attack world load failed: HTTP ${response.status}`
+   );
+  }
+
+  const world =
+   await response.json();
+
+  if (
+   !world ||
+   !Array.isArray(
+    world.checkpoints
+   ) ||
+   !world.start ||
+   !world.goal
+  ) {
+   throw new Error(
+    "Invalid timeattack-01.json"
+   );
+  }
+
+  buildTimeAttackWorld(
+   world
+  );
+
+  return world;
+
+ } finally {
+  timeAttackLoading =
+   false;
+ }
+}
+
+// ==================================================
+// ACTIVE TARGET
+// ==================================================
+function getTimeAttackTarget() {
+ if (
+  !timeAttackWorldData
+ ) {
+  return null;
+ }
+
+ const checkpoints =
+  timeAttackWorldData.checkpoints ??
+  [];
+
+ if (
+  timeAttackCheckpointIndex <
+  checkpoints.length
+ ) {
+  return checkpoints[
+   timeAttackCheckpointIndex
+  ];
+ }
+
+ return timeAttackWorldData.goal;
+}
+
+// ==================================================
+// TARGET POSITION
+// ==================================================
+function updateTimeAttackBeacon() {
+ const target =
+  getTimeAttackTarget();
+
+ if (!target) {
+  timeAttackBeacon.visible =
+   false;
+
+  return;
+ }
+
+ timeAttackBeacon.position.set(
+  metersToUnits(
+   target.xMeters
+  ),
+
+  metersToUnits(
+   Number(
+    target.yMeters
+   ) ||
+   2
+  ),
+
+  metersToUnits(
+   target.zMeters
+  )
+ );
+
+ timeAttackBeacon.visible =
+  true;
+}
+
+// ==================================================
+// TARGET DISTANCE
+// ==================================================
+function getTimeAttackTargetDistanceMeters(
+ target
+) {
+ if (!target) {
+  return Infinity;
+ }
+
+ const playerX =
+  camera.position.x *
+  METERS_PER_UNIT;
+
+ const playerY =
+  camera.position.y *
+  METERS_PER_UNIT;
+
+ const playerZ =
+  camera.position.z *
+  METERS_PER_UNIT;
+
+ return Math.hypot(
+  playerX -
+   target.xMeters,
+
+  playerY -
+   (
+    Number(
+     target.yMeters
+    ) ||
+    0
+   ),
+
+  playerZ -
+   target.zMeters
+ );
+}
+
+// ==================================================
+// RESET PLAYER
+// ==================================================
+function resetPlayerForTimeAttack() {
+ const start =
+  timeAttackWorldData.start;
+
+ releaseAnchor(
+  leftAnchor
+ );
+
+ releaseAnchor(
+  rightAnchor
+ );
+
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ health =
+  MAX_HEALTH;
+
+ gas =
+  MAX_GAS;
+
+ dead =
+  false;
+
+ grounded =
+  true;
+
+ groundedRoof =
+  null;
+
+ wallStunTimer =
+  0;
+
+ gasBurstCooldown =
+  0;
+
+ camera.position.set(
+  metersToUnits(
+   start.xMeters
+  ),
+
+  PLAYER_HEIGHT,
+
+  metersToUnits(
+   start.zMeters
+  )
+ );
+
+ yaw =
+  Number.isFinite(
+   start.yaw
+  )
+   ? start.yaw
+   : Math.PI;
+
+ pitch =
+  Number.isFinite(
+   start.pitch
+  )
+   ? start.pitch
+   : 0;
+
+ camera.rotation.y =
+  yaw;
+
+ camera.rotation.x =
+  pitch;
+}
+
+// ==================================================
+// LOAD BEST TIME
+// ==================================================
+function loadTimeAttackBest() {
+ const value =
+  Number(
+   localStorage.getItem(
+    TIME_ATTACK_BEST_KEY
+   )
+  );
+
+ timeAttackBestTime =
+  Number.isFinite(
+   value
+  ) &&
+  value >
+   0
+   ? value
+   : null;
+}
+
+// ==================================================
+// START TIME ATTACK
+// ==================================================
+async function startTimeAttack01() {
+ // ------------------------------------------------
+ // UI
+ // ------------------------------------------------
+ hideMainMenu();
+
+ worldLoadingHUD.style.display =
+  "flex";
+
+ setWorldLoadingStatus(
+  "LOADING 5K CITY RUN...",
+  0.1
+ );
+
+ worldLoadingDetails.textContent =
+  "Loading /world/timeattack-01.json";
+
+ // ------------------------------------------------
+ // REMOVE TUTORIAL
+ // ------------------------------------------------
+ if (
+  typeof clearTutorialWorld ===
+  "function"
+ ) {
+  clearTutorialWorld();
+ }
+
+ tutorialWorldGroup.visible =
+  false;
+
+ // ------------------------------------------------
+ // REMOVE OPEN WORLD
+ // ------------------------------------------------
+ clearAllGroundChunks();
+
+ for (
+  const [
+   key,
+   data
+  ]
+  of Array.from(
+   streamedWallSegments
+  )
+ ) {
+  destroyWallSegment(
+   key,
+   data
+  );
+ }
+
+ for (
+  const [
+   key,
+   mesh
+  ]
+  of Array.from(
+   streamedRoads
+  )
+ ) {
+  destroyStreamedRoad(
+   key,
+   mesh
+  );
+ }
+
+ // ------------------------------------------------
+ // LOAD
+ // ------------------------------------------------
+ const world =
+  await loadTimeAttackWorld();
+
+ if (!world) {
+  throw new Error(
+   "Unable to load Time Attack world."
+  );
+ }
+
+ setWorldLoadingStatus(
+  "PREPARING RACE...",
+  0.8
+ );
+
+ currentGameMode =
+  GAME_MODES.TIME_ATTACK;
+
+ worldDatabaseReady =
+  true;
+
+ loadTimeAttackBest();
+
+ resetPlayerForTimeAttack();
+
+ // ------------------------------------------------
+ // RACE STATE
+ // ------------------------------------------------
+ timeAttackState =
+  "countdown";
+
+ timeAttackCheckpointIndex =
+  0;
+
+ timeAttackCountdown =
+  3;
+
+ timeAttackElapsed =
+  0;
+
+ timeAttackMaxSpeedKmh =
+  0;
+
+ timeAttackStartGas =
+  gas;
+
+ updateTimeAttackBeacon();
+
+ timeAttackHUD.style.display =
+  "block";
+
+ timeAttackResultHUD.style.display =
+  "none";
+
+ setWorldLoadingStatus(
+  "READY",
+  1
+ );
+
+ await new Promise(
+  resolve =>
+   setTimeout(
+    resolve,
+    200
+   )
+ );
+
+ worldLoadingHUD.style.display =
+  "none";
+
+ startGameLoop();
+}
+
+// ==================================================
+// BEGIN RACE
+// ==================================================
+function beginTimeAttackRace() {
+ timeAttackState =
+  "racing";
+
+ timeAttackStartTime =
+  performance.now();
+
+ timeAttackElapsed =
+  0;
+
+ timeAttackCountdownHUD.textContent =
+  "GO!";
+
+ setTimeout(
+  () => {
+   if (
+    timeAttackState ===
+     "racing"
+   ) {
+    timeAttackCountdownHUD.style.display =
+     "none";
+   }
+  },
+  650
+ );
+}
+
+// ==================================================
+// FINISH
+// ==================================================
+function finishTimeAttack() {
+ if (
+  timeAttackState !==
+   "racing"
+ ) {
+  return;
+ }
+
+ timeAttackElapsed =
+  (
+   performance.now() -
+   timeAttackStartTime
+  ) /
+  1000;
+
+ timeAttackState =
+  "finished";
+
+ velocity.set(
+  0,
+  0,
+  0
+ );
+
+ releaseAnchor(
+  leftAnchor
+ );
+
+ releaseAnchor(
+  rightAnchor
+ );
+
+ timeAttackBeacon.visible =
+  false;
+
+ // ------------------------------------------------
+ // BEST
+ // ------------------------------------------------
+ const oldBest =
+  timeAttackBestTime;
+
+ const newBest =
+  oldBest ===
+   null ||
+  timeAttackElapsed <
+   oldBest;
+
+ if (
+  newBest
+ ) {
+  timeAttackBestTime =
+   timeAttackElapsed;
+
+  localStorage.setItem(
+   TIME_ATTACK_BEST_KEY,
+   String(
+    timeAttackElapsed
+   )
+  );
+ }
+
+ const gasUsed =
+  Math.max(
+   0,
+   timeAttackStartGas -
+   gas
+  );
+
+ // ------------------------------------------------
+ // RESULT
+ // ------------------------------------------------
+ timeAttackResultTime.textContent =
+  formatTimeAttackTime(
+   timeAttackElapsed
+  );
+
+ timeAttackResultDetails.textContent =
+  `${
+   newBest
+    ? "NEW BEST!\n"
+    : ""
+  }BEST  ${
+   formatTimeAttackTime(
+    timeAttackBestTime
+   )
+  }\n` +
+  `MAX SPEED  ${
+   timeAttackMaxSpeedKmh.toFixed(
+    0
+   )
+  } km/h\n` +
+  `GAS USED   ${
+   gasUsed.toFixed(
+    0
+   )
+  }`;
+
+ timeAttackResultHUD.style.display =
+  "flex";
+
+ if (
+  document.pointerLockElement
+ ) {
+  document.exitPointerLock();
+ }
+}
+
+// ==================================================
+// RETRY
+// ==================================================
+function retryTimeAttack() {
+ timeAttackResultHUD.style.display =
+  "none";
+
+ resetPlayerForTimeAttack();
+
+ timeAttackState =
+  "countdown";
+
+ timeAttackCheckpointIndex =
+  0;
+
+ timeAttackCountdown =
+  3;
+
+ timeAttackElapsed =
+  0;
+
+ timeAttackMaxSpeedKmh =
+  0;
+
+ timeAttackStartGas =
+  gas;
+
+ updateTimeAttackBeacon();
+}
+
+// ==================================================
+// EXIT TO MAIN MENU
+// ==================================================
+function exitTimeAttackToMenu() {
+ timeAttackState =
+  "idle";
+
+ timeAttackResultHUD.style.display =
+  "none";
+
+ timeAttackHUD.style.display =
+  "none";
+
+ timeAttackCountdownHUD.style.display =
+  "none";
+
+ timeAttackBeacon.visible =
+  false;
+
+ clearTimeAttackWorld();
+
+ currentGameMode =
+  GAME_MODES.MENU;
+
+ showMainMenu();
+}
+
+// ==================================================
+// RESULT BUTTONS
+// ==================================================
+createTimeAttackResultButton(
+ "RETRY",
+
+ () => {
+  retryTimeAttack();
+ }
+);
+
+createTimeAttackResultButton(
+ "MAIN MENU",
+
+ () => {
+  exitTimeAttackToMenu();
+ }
+);
+
+// ==================================================
+// UPDATE
+// ==================================================
+function updateTimeAttack(
+ delta
+) {
+ if (
+  currentGameMode !==
+   GAME_MODES.TIME_ATTACK
+ ) {
+  return;
+ }
+
+ // =================================================
+ // COUNTDOWN
+ // =================================================
+ if (
+  timeAttackState ===
+   "countdown"
+ ) {
+  /*
+   * フライング防止。
+   */
+  velocity.set(
+   0,
+   0,
+   0
+  );
+
+  timeAttackCountdown -=
+   delta;
+
+  timeAttackCountdownHUD.style.display =
+   "block";
+
+  if (
+   timeAttackCountdown >
+   0
+  ) {
+   timeAttackCountdownHUD.textContent =
+    String(
+     Math.ceil(
+      timeAttackCountdown
+     )
+    );
+  } else {
+   beginTimeAttackRace();
+  }
+
+  timeAttackHUDTime.textContent =
+   "00:00.000";
+
+  timeAttackHUDCheckpoint.textContent =
+   `CP 0 / ${
+    timeAttackWorldData
+     .checkpoints
+     .length
+   }`;
+
+  return;
+ }
+
+ // =================================================
+ // FINISHED
+ // =================================================
+ if (
+  timeAttackState !==
+   "racing"
+ ) {
+  return;
+ }
+
+ // =================================================
+ // TIMER
+ // =================================================
+ timeAttackElapsed =
+  (
+   performance.now() -
+   timeAttackStartTime
+  ) /
+  1000;
+
+ // =================================================
+ // SPEED
+ // =================================================
+ const kmh =
+  velocity.length() *
+  METERS_PER_UNIT *
+  3.6;
+
+ timeAttackMaxSpeedKmh =
+  Math.max(
+   timeAttackMaxSpeedKmh,
+   kmh
+  );
+
+ // =================================================
+ // TARGET
+ // =================================================
+ const target =
+  getTimeAttackTarget();
+
+ if (!target) {
+  return;
+ }
+
+ updateTimeAttackBeacon();
+
+ const distance =
+  getTimeAttackTargetDistanceMeters(
+   target
+  );
+
+ const checkpoints =
+  timeAttackWorldData
+   .checkpoints;
+
+ // =================================================
+ // HUD
+ // =================================================
+ timeAttackHUDTime.textContent =
+  formatTimeAttackTime(
+   timeAttackElapsed
+  );
+
+ if (
+  timeAttackCheckpointIndex <
+   checkpoints.length
+ ) {
+  timeAttackHUDCheckpoint.textContent =
+   `CP ${
+    timeAttackCheckpointIndex +
+    1
+   } / ${
+    checkpoints.length
+   }   ${
+    distance.toFixed(
+     0
+    )
+   } m`;
+ } else {
+  timeAttackHUDCheckpoint.textContent =
+   `GOAL   ${
+    distance.toFixed(
+     0
+    )
+   } m`;
+ }
+
+ // =================================================
+ // BEACON ANIMATION
+ // =================================================
+ timeAttackBeacon.rotation.y +=
+  delta *
+  1.4;
+
+ timeAttackBeaconRing.rotation.z +=
+  delta *
+  1.1;
+
+ const targetRadius =
+  Number(
+   target.radiusMeters
+  ) ||
+  20;
+
+ // =================================================
+ // NOT REACHED
+ // =================================================
+ if (
+  distance >
+   targetRadius
+ ) {
+  return;
+ }
+
+ // =================================================
+ // CHECKPOINT
+ // =================================================
+ if (
+  timeAttackCheckpointIndex <
+   checkpoints.length
+ ) {
+  timeAttackCheckpointIndex++;
+
+  showMessage(
+   `CHECKPOINT ${
+    timeAttackCheckpointIndex
+   } / ${
+    checkpoints.length
+   }`
+  );
+
+  updateTimeAttackBeacon();
+
+  return;
+ }
+
+ // =================================================
+ // GOAL
+ // =================================================
+ finishTimeAttack();
+}
+
+// ==================================================
 // MAIN MENU
 // ==================================================
 const mainMenuHUD =
@@ -17959,7 +20034,7 @@ document.body.appendChild(
 );
 
 // ==================================================
-// MAIN MENU PANEL
+// MAIN PANEL
 // ==================================================
 const mainMenuPanel =
  document.createElement(
@@ -17981,9 +20056,6 @@ mainMenuHUD.appendChild(
  mainMenuPanel
 );
 
-// ==================================================
-// TITLE
-// ==================================================
 const mainMenuTitle =
  document.createElement(
   "div"
@@ -18005,10 +20077,7 @@ Object.assign(
    "8px",
 
   marginBottom:
-   "8px",
-
-  textShadow:
-   "0 4px 14px rgba(0,0,0,.8)"
+   "8px"
  }
 );
 
@@ -18016,9 +20085,6 @@ mainMenuPanel.appendChild(
  mainMenuTitle
 );
 
-// ==================================================
-// SUBTITLE
-// ==================================================
 const mainMenuSubtitle =
  document.createElement(
   "div"
@@ -18051,9 +20117,6 @@ mainMenuPanel.appendChild(
  mainMenuSubtitle
 );
 
-// ==================================================
-// MAIN BUTTONS
-// ==================================================
 const mainMenuButtons =
  document.createElement(
   "div"
@@ -18078,7 +20141,7 @@ mainMenuPanel.appendChild(
 );
 
 // ==================================================
-// MAIN MENU BUTTON FACTORY
+// BUTTON FACTORY
 // ==================================================
 function createMainMenuButton(
  text,
@@ -18113,15 +20176,10 @@ function createMainMenuButton(
      : "rgba(255,255,255,.08)",
 
    border:
-    options.disabled
-     ? "1px solid #444"
-     : "1px solid #777",
+    "1px solid #777",
 
    borderRadius:
     "4px",
-
-   fontFamily:
-    "Arial",
 
    fontSize:
     "19px",
@@ -18135,38 +20193,13 @@ function createMainMenuButton(
    cursor:
     options.disabled
      ? "default"
-     : "pointer",
-
-   transition:
-    "background .15s, border-color .15s"
+     : "pointer"
   }
  );
 
  if (
   !options.disabled
  ) {
-  button.addEventListener(
-   "mouseenter",
-   () => {
-    button.style.background =
-     "rgba(130,170,130,.25)";
-
-    button.style.borderColor =
-     "#9fbd9f";
-   }
-  );
-
-  button.addEventListener(
-   "mouseleave",
-   () => {
-    button.style.background =
-     "rgba(255,255,255,.08)";
-
-    button.style.borderColor =
-     "#777";
-   }
-  );
-
   button.addEventListener(
    "click",
    onClick
@@ -18181,7 +20214,7 @@ function createMainMenuButton(
 }
 
 // ==================================================
-// MAIN MENU STATE
+// STATE
 // ==================================================
 let mainMenuOpen =
  true;
@@ -18189,14 +20222,17 @@ let mainMenuOpen =
 let openWorldStarting =
  false;
 
-let miniGameMenuOpen =
- false;
-
 let tutorialStarting =
  false;
 
+let timeAttackStarting =
+ false;
+
+let miniGameMenuOpen =
+ false;
+
 // ==================================================
-// OPEN WORLD BUTTON
+// OPEN WORLD
 // ==================================================
 const openWorldButton =
  createMainMenuButton(
@@ -18204,8 +20240,7 @@ const openWorldButton =
 
   async () => {
    if (
-    openWorldStarting ||
-    tutorialStarting
+    openWorldStarting
    ) {
     return;
    }
@@ -18213,39 +20248,12 @@ const openWorldButton =
    openWorldStarting =
     true;
 
-   openWorldButton.disabled =
-    true;
-
-   openWorldButton.textContent =
-    "STARTING...";
-
-   try {
-    await startOpenWorld();
-   } finally {
-    /*
-     * startOpenWorld() 側が
-     * エラー処理を持っているが、
-     * Menuへ戻った時に再利用できるよう
-     * 状態は復元可能にする。
-     */
-    if (
-     mainMenuOpen
-    ) {
-     openWorldStarting =
-      false;
-
-     openWorldButton.disabled =
-      false;
-
-     openWorldButton.textContent =
-      "OPEN WORLD";
-    }
-   }
+   await startOpenWorld();
   }
  );
 
 // ==================================================
-// MINI GAMES BUTTON
+// MINI GAMES
 // ==================================================
 createMainMenuButton(
  "MINI GAMES",
@@ -18256,7 +20264,7 @@ createMainMenuButton(
 );
 
 // ==================================================
-// SETTINGS BUTTON
+// SETTINGS
 // ==================================================
 createMainMenuButton(
  "SETTINGS",
@@ -18269,42 +20277,7 @@ createMainMenuButton(
 );
 
 // ==================================================
-// MAIN MENU FOOTER
-// ==================================================
-const mainMenuFooter =
- document.createElement(
-  "div"
- );
-
-mainMenuFooter.textContent =
- "SELECT GAME MODE";
-
-Object.assign(
- mainMenuFooter.style,
- {
-  marginTop:
-   "35px",
-
-  color:
-   "#697469",
-
-  fontFamily:
-   "monospace",
-
-  fontSize:
-   "12px",
-
-  letterSpacing:
-   "2px"
- }
-);
-
-mainMenuPanel.appendChild(
- mainMenuFooter
-);
-
-// ==================================================
-// MINI GAME MENU PANEL
+// MINI GAME PANEL
 // ==================================================
 const miniGameMenuPanel =
  document.createElement(
@@ -18329,9 +20302,6 @@ mainMenuHUD.appendChild(
  miniGameMenuPanel
 );
 
-// ==================================================
-// MINI GAME TITLE
-// ==================================================
 const miniGameTitle =
  document.createElement(
   "div"
@@ -18353,10 +20323,7 @@ Object.assign(
    "5px",
 
   marginBottom:
-   "8px",
-
-  textShadow:
-   "0 4px 14px rgba(0,0,0,.8)"
+   "35px"
  }
 );
 
@@ -18364,44 +20331,6 @@ miniGameMenuPanel.appendChild(
  miniGameTitle
 );
 
-// ==================================================
-// MINI GAME SUBTITLE
-// ==================================================
-const miniGameDescription =
- document.createElement(
-  "div"
- );
-
-miniGameDescription.textContent =
- "SELECT MODE";
-
-Object.assign(
- miniGameDescription.style,
- {
-  color:
-   "#aeb9ae",
-
-  fontFamily:
-   "monospace",
-
-  fontSize:
-   "14px",
-
-  letterSpacing:
-   "3px",
-
-  marginBottom:
-   "40px"
- }
-);
-
-miniGameMenuPanel.appendChild(
- miniGameDescription
-);
-
-// ==================================================
-// MINI GAME BUTTONS
-// ==================================================
 const miniGameButtons =
  document.createElement(
   "div"
@@ -18425,14 +20354,10 @@ miniGameMenuPanel.appendChild(
  miniGameButtons
 );
 
-// ==================================================
-// MINI GAME BUTTON FACTORY
-// ==================================================
 function createMiniGameButton(
  title,
  description,
- onClick,
- options = {}
+ onClick
 ) {
  const button =
   document.createElement(
@@ -18449,126 +20374,78 @@ function createMiniGameButton(
     "18px 22px",
 
    color:
-    options.disabled
-     ? "#777"
-     : "white",
+    "white",
 
    background:
-    options.disabled
-     ? "rgba(255,255,255,.03)"
-     : "rgba(255,255,255,.08)",
+    "rgba(255,255,255,.08)",
 
    border:
-    options.disabled
-     ? "1px solid #3d443d"
-     : "1px solid #777",
+    "1px solid #777",
 
    borderRadius:
     "5px",
 
    cursor:
-    options.disabled
-     ? "default"
-     : "pointer",
+    "pointer",
 
    textAlign:
-    "left",
-
-   transition:
-    "background .15s, border-color .15s"
+    "left"
   }
  );
 
- const titleElement =
+ const heading =
   document.createElement(
    "div"
   );
 
- titleElement.textContent =
+ heading.textContent =
   title;
 
  Object.assign(
-  titleElement.style,
+  heading.style,
   {
    fontSize:
     "20px",
 
    fontWeight:
-    "bold",
-
-   letterSpacing:
-    "2px"
+    "bold"
   }
  );
 
- button.appendChild(
-  titleElement
- );
-
- const descriptionElement =
+ const detail =
   document.createElement(
    "div"
   );
 
- descriptionElement.textContent =
+ detail.textContent =
   description;
 
  Object.assign(
-  descriptionElement.style,
+  detail.style,
   {
    marginTop:
     "6px",
 
    color:
-    options.disabled
-     ? "#555"
-     : "#aeb9ae",
+    "#aeb9ae",
 
    fontFamily:
     "monospace",
 
    fontSize:
-    "13px",
-
-   letterSpacing:
-    "1px"
+    "13px"
   }
  );
 
- button.appendChild(
-  descriptionElement
+ button.append(
+  heading,
+  detail
  );
 
- if (
-  !options.disabled
- ) {
-  button.addEventListener(
-   "mouseenter",
-   () => {
-    button.style.background =
-     "rgba(130,170,130,.25)";
-
-    button.style.borderColor =
-     "#9fbd9f";
-   }
-  );
-
-  button.addEventListener(
-   "mouseleave",
-   () => {
-    button.style.background =
-     "rgba(255,255,255,.08)";
-
-    button.style.borderColor =
-     "#777";
-   }
-  );
-
-  button.addEventListener(
-   "click",
-   onClick
-  );
- }
+ button.addEventListener(
+  "click",
+  onClick
+ );
 
  miniGameButtons.appendChild(
   button
@@ -18578,81 +20455,80 @@ function createMiniGameButton(
 }
 
 // ==================================================
-// TUTORIAL BUTTON
+// TUTORIAL
 // ==================================================
-const tutorialButton =
- createMiniGameButton(
-  "TUTORIAL",
+createMiniGameButton(
+ "TUTORIAL",
 
-  "基本操作と立体機動を練習する",
+ "基本操作と立体機動を練習",
 
-  async () => {
-   if (
-    tutorialStarting ||
-    openWorldStarting
-   ) {
-    return;
-   }
-
-   tutorialStarting =
-    true;
-
-   tutorialButton.disabled =
-    true;
-
-   try {
-    await startTutorial();
-   } catch (
-    error
-   ) {
-    console.error(
-     "TUTORIAL START FAILED",
-     error
-    );
-
-    tutorialStarting =
-     false;
-
-    tutorialButton.disabled =
-     false;
-   }
+ async () => {
+  if (
+   tutorialStarting
+  ) {
+   return;
   }
- );
+
+  tutorialStarting =
+   true;
+
+  try {
+   await enterTutorialWorld();
+  } finally {
+   tutorialStarting =
+    false;
+  }
+ }
+);
 
 // ==================================================
 // TIME ATTACK
 // ==================================================
 createMiniGameButton(
- "TIME ATTACK",
+ "TIME ATTACK — 5K CITY RUN",
 
- "最速でゴールを目指す - COMING SOON",
+ "5.0km / 6 CHECKPOINTS / NORMAL",
 
- () => {},
+ async () => {
+  if (
+   timeAttackStarting
+  ) {
+   return;
+  }
 
- {
-  disabled:
-   true
+  timeAttackStarting =
+   true;
+
+  try {
+   await startTimeAttack01();
+  } catch (
+   error
+  ) {
+   console.error(
+    "TIME ATTACK START FAILED",
+    error
+   );
+
+   worldLoadingHUD.style.display =
+    "flex";
+
+   worldLoadingStatus.textContent =
+    "TIME ATTACK LOAD FAILED";
+
+   worldLoadingDetails.textContent =
+    String(
+     error?.stack ||
+     error
+    );
+  } finally {
+   timeAttackStarting =
+    false;
+  }
  }
 );
 
 // ==================================================
-// TITAN HUNT
-// ==================================================
-createMiniGameButton(
- "TITAN HUNT",
-
- "巨人討伐チャレンジ - COMING SOON",
-
- () => {},
-
- {
-  disabled:
-   true
- }
-);
-
-// ==================================================
-// BACK BUTTON
+// BACK
 // ==================================================
 createMiniGameButton(
  "BACK",
@@ -18668,13 +20544,6 @@ createMiniGameButton(
 // OPEN MINI GAME MENU
 // ==================================================
 function openMiniGameMenu() {
- if (
-  openWorldStarting ||
-  tutorialStarting
- ) {
-  return;
- }
-
  miniGameMenuOpen =
   true;
 
@@ -18689,12 +20558,6 @@ function openMiniGameMenu() {
 // CLOSE MINI GAME MENU
 // ==================================================
 function closeMiniGameMenu() {
- if (
-  tutorialStarting
- ) {
-  return;
- }
-
  miniGameMenuOpen =
   false;
 
@@ -18703,35 +20566,6 @@ function closeMiniGameMenu() {
 
  mainMenuPanel.style.display =
   "block";
-}
-
-// ==================================================
-// START TUTORIAL
-// ==================================================
-async function startTutorial() {
- try {
-  await enterTutorialWorld();
-
-  /*
-   * enterTutorialWorld() が成功すれば
-   * Tutorial Worldへ移行済み。
-   */
-  tutorialStarting =
-   false;
-
-  tutorialButton.disabled =
-   false;
- } catch (
-  error
- ) {
-  tutorialStarting =
-   false;
-
-  tutorialButton.disabled =
-   false;
-
-  throw error;
- }
 }
 
 // ==================================================
@@ -18744,12 +20578,6 @@ function showMainMenu() {
  miniGameMenuOpen =
   false;
 
- openWorldStarting =
-  false;
-
- tutorialStarting =
-  false;
-
  mainMenuHUD.style.display =
   "flex";
 
@@ -18758,23 +20586,6 @@ function showMainMenu() {
 
  miniGameMenuPanel.style.display =
   "none";
-
- openWorldButton.disabled =
-  false;
-
- openWorldButton.textContent =
-  "OPEN WORLD";
-
- tutorialButton.disabled =
-  false;
-
- if (
-  typeof currentGameMode !==
-  "undefined"
- ) {
-  currentGameMode =
-   GAME_MODES.MENU;
- }
 
  if (
   document.pointerLockElement
@@ -18801,6 +20612,13 @@ function hideMainMenu() {
 
  miniGameMenuPanel.style.display =
   "none";
+}
+
+// ==================================================
+// START TUTORIAL COMPATIBILITY
+// ==================================================
+async function startTutorial() {
+ await enterTutorialWorld();
 }
 
 // ==================================================
@@ -22865,10 +24683,6 @@ const clock =
 let gameLoopStarted =
  false;
 
-/*
- * Tutorialへ入ったあと、
- * GUIDEを1回だけ開始する。
- */
 let tutorialGuideAutoStarted =
  false;
 
@@ -22880,19 +24694,13 @@ function animate() {
   animate
  );
 
- // =================================================
- // MENU
- // =================================================
  if (
   currentGameMode ===
-  GAME_MODES.MENU
+   GAME_MODES.MENU
  ) {
   return;
  }
 
- // =================================================
- // READY CHECK
- // =================================================
  if (
   !worldDatabaseReady
  ) {
@@ -22906,8 +24714,13 @@ function animate() {
   );
 
  // =================================================
- // PLAYER
+ // TIME ATTACK COUNTDOWN
  // =================================================
+ /*
+  * Countdown中もPlayer Update自体は行うが、
+  * updateTimeAttack()が毎フレームvelocityを
+  * 0へ戻してフライングを防ぐ。
+  */
  updatePlayer(
   delta
  );
@@ -22917,44 +24730,11 @@ function animate() {
  // =================================================
  if (
   currentGameMode ===
-  GAME_MODES.OPEN_WORLD
+   GAME_MODES.OPEN_WORLD
  ) {
-  /*
-   * 次にTutorialへ入った時、
-   * GUIDEを最初から開始できるようにする。
-   */
   tutorialGuideAutoStarted =
    false;
 
-  // ------------------------------------------------
-  // TUTORIAL UI OFF
-  // ------------------------------------------------
-  if (
-   typeof tutorialGuideActive !==
-   "undefined"
-  ) {
-   tutorialGuideActive =
-    false;
-  }
-
-  if (
-   typeof tutorialGuideHUD !==
-   "undefined"
-  ) {
-   tutorialGuideHUD.style.display =
-    "none";
-  }
-
-  if (
-   typeof hideTutorialBeacon ===
-   "function"
-  ) {
-   hideTutorialBeacon();
-  }
-
-  // ------------------------------------------------
-  // WORLD STREAMING
-  // ------------------------------------------------
   updateWorldStreaming(
    delta
   );
@@ -22965,9 +24745,6 @@ function animate() {
 
   updateAreaSystem();
 
-  // ------------------------------------------------
-  // TITAN
-  // ------------------------------------------------
   updateTitanParts(
    delta
   );
@@ -22978,45 +24755,43 @@ function animate() {
  // =================================================
  if (
   currentGameMode ===
-  GAME_MODES.TUTORIAL
+   GAME_MODES.TUTORIAL
  ) {
-  // ------------------------------------------------
-  // START GUIDE ONCE
-  // ------------------------------------------------
   if (
    !tutorialGuideAutoStarted
   ) {
    tutorialGuideAutoStarted =
     true;
 
-   console.log(
-    "STARTING TUTORIAL GUIDE"
-   );
-
    startTutorialGuide();
   }
 
-  // ------------------------------------------------
-  // GUIDE UPDATE
-  // ------------------------------------------------
   updateTutorialGuide(
    delta
   );
 
-  // ------------------------------------------------
-  // FREE TRAINING GAS RECOVERY
-  // ------------------------------------------------
-  /*
-   * TutorialではGas切れで
-   * 操作練習が止まらないようにする。
-   */
   gas =
    Math.min(
     MAX_GAS,
     gas +
-    8 *
-    delta
+     8 *
+     delta
    );
+ }
+
+ // =================================================
+ // TIME ATTACK
+ // =================================================
+ if (
+  currentGameMode ===
+   GAME_MODES.TIME_ATTACK
+ ) {
+  tutorialGuideAutoStarted =
+   false;
+
+  updateTimeAttack(
+   delta
+  );
  }
 
  // =================================================
@@ -23026,9 +24801,6 @@ function animate() {
   delta
  );
 
- // =================================================
- // WIRE VISUAL
- // =================================================
  updateWireVisual(
   leftAnchor
  );
@@ -23065,10 +24837,6 @@ function startGameLoop() {
   true;
 
  clock.start();
-
- console.log(
-  "GAME LOOP STARTED"
- );
 
  animate();
 }
