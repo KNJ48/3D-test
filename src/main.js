@@ -420,14 +420,35 @@ const AIR_CONTROL_ACCEL = 19.2;
 // ==================================================
 // GAS BURST
 // ==================================================
-const GAS_BURST_COST = 10;
 
-const GAS_DOUBLE_TAP_WINDOW = 0.5;
+/*
+ * SPACE DOUBLE TAP
+ *
+ * 視点方向ではなく、
+ * 常にWorld +Y方向へBurstする。
+ *
+ * 水平慣性は維持。
+ */
 
-const GAS_BURST_IMPULSE = 24;
+const GAS_BURST_COST =
+ 10;
 
-// 0.5秒
-const GAS_BURST_COOLDOWN = 0.5;
+const GAS_DOUBLE_TAP_WINDOW =
+ 0.5;
+
+/*
+ * 上方向への瞬間速度加算。
+ *
+ * 既存値24 unit/sを維持。
+ *
+ * METERS_PER_UNIT = 0.5の場合、
+ * +12m/s相当。
+ */
+const GAS_BURST_IMPULSE =
+ 24;
+
+const GAS_BURST_COOLDOWN =
+ 0.5;
 
 // ==================================================
 // WIRE
@@ -8401,48 +8422,83 @@ function limitWireSafetySpeed() {
 // ==================================================
 // GAS BURST
 // ==================================================
+
 function gasBurst() {
-  if (
-    dead ||
-    grounded ||
-    wallStunTimer > 0 ||
-    gasBurstCooldown > 0 ||
-    gas <
-      GAS_BURST_COST
-  ) {
-    return false;
-  }
+ // =================================================
+ // CHECK
+ // =================================================
 
-  gas -=
-    GAS_BURST_COST;
+ if (
+  dead ||
+  grounded ||
+  wallStunTimer >
+   0 ||
+  gasBurstCooldown >
+   0 ||
+  gas <
+   GAS_BURST_COST
+ ) {
+  return false;
+ }
 
-  gasBurstCooldown =
-    GAS_BURST_COOLDOWN;
+ // =================================================
+ // GAS COST
+ // =================================================
 
-  camera.getWorldDirection(
-    burstDirection
+ gas -=
+  GAS_BURST_COST;
+
+ gas =
+  Math.max(
+   gas,
+   0
   );
 
-  burstDirection.normalize();
+ // =================================================
+ // COOLDOWN
+ // =================================================
 
-  // 純粋な加算方式
-  velocity.addScaledVector(
-    burstDirection,
-    GAS_BURST_IMPULSE
-  );
+ gasBurstCooldown =
+  GAS_BURST_COOLDOWN;
 
-  // ワイヤー牽引中なら
-  // 300km/hを突破できる。
-  if (
-    leftAnchor.pulling ||
-    rightAnchor.pulling
-  ) {
-    limitWireSafetySpeed();
-  } else {
-    limitNormalSpeed();
-  }
+ // =================================================
+ // VERTICAL BURST
+ // =================================================
+ /*
+  * 視点方向は一切使用しない。
+  *
+  * World +Y方向へ
+  * 瞬間速度を純粋加算。
+  *
+  * X/Z慣性は変更しない。
+  */
 
-  return true;
+ velocity.y +=
+  GAS_BURST_IMPULSE;
+
+ // =================================================
+ // SAFETY
+ // =================================================
+ /*
+  * Wire牽引中:
+  *
+  * Wire用Safety Limit。
+  *
+  * それ以外:
+  *
+  * 通常300km/h上限。
+  */
+
+ if (
+  leftAnchor.pulling ||
+  rightAnchor.pulling
+ ) {
+  limitWireSafetySpeed();
+ } else {
+  limitNormalSpeed();
+ }
+
+ return true;
 }
 
 // ==================================================
