@@ -8422,81 +8422,132 @@ function limitWireSafetySpeed() {
 // ==================================================
 // GAS BURST
 // ==================================================
-
 function gasBurst() {
  // =================================================
  // CHECK
  // =================================================
-
  if (
-  dead ||
-  grounded ||
-  wallStunTimer >
-   0 ||
-  gasBurstCooldown >
-   0 ||
-  gas <
-   GAS_BURST_COST
+ dead ||
+ grounded ||
+ wallStunTimer >
+ 0 ||
+ gasBurstCooldown >
+ 0 ||
+ gas <
+ GAS_BURST_COST
  ) {
-  return false;
+ return false;
  }
 
  // =================================================
  // GAS COST
  // =================================================
-
  gas -=
-  GAS_BURST_COST;
+ GAS_BURST_COST;
 
  gas =
-  Math.max(
-   gas,
-   0
-  );
+ Math.max(
+ gas,
+ 0
+ );
 
  // =================================================
  // COOLDOWN
  // =================================================
-
  gasBurstCooldown =
-  GAS_BURST_COOLDOWN;
+ GAS_BURST_COOLDOWN;
 
  // =================================================
- // VERTICAL BURST
- // =================================================
- /*
-  * 視点方向は一切使用しない。
-  *
-  * World +Y方向へ
-  * 瞬間速度を純粋加算。
-  *
-  * X/Z慣性は変更しない。
-  */
-
- velocity.y +=
-  GAS_BURST_IMPULSE;
-
- // =================================================
- // SAFETY
+ // FIXED VERTICAL BURST
  // =================================================
  /*
-  * Wire牽引中:
+  * 現在のY速度を完全に上書きする。
   *
-  * Wire用Safety Limit。
+  * 落下速度がどれだけ大きくても、
+  * GAS BURST成功時点で
   *
-  * それ以外:
+  * +10 m/s
   *
-  * 通常300km/h上限。
+  * に確定。
+  *
+  * velocity.x / velocity.z は
+  * 一切変更しない。
+  */
+ velocity.y =
+ GAS_BURST_VERTICAL_SPEED;
+
+ // =================================================
+ // HORIZONTAL SAFETY LIMIT
+ // =================================================
+ /*
+  * GAS BURSTの
+  *
+  * Y = +10m/s
+  *
+  * を確実に維持するため、
+  * ここでは従来の
+  *
+  * limitNormalSpeed()
+  * limitWireSafetySpeed()
+  *
+  * を使用しない。
+  *
+  * これらはVector全体を縮小するため、
+  * 水平速度が上限を超えている場合に
+  * Y速度まで10m/s未満へ縮小される。
+  *
+  * 代わりにX/ZだけSafety Limitする。
   */
 
+ // -------------------------------------------------
+ // SELECT LIMIT
+ // -------------------------------------------------
+ const horizontalLimit =
+ (
+ leftAnchor.pulling ||
+ rightAnchor.pulling
+ )
+ ? WIRE_SAFETY_MAX_SPEED
+ : NORMAL_MAX_SPEED;
+
+ // -------------------------------------------------
+ // HORIZONTAL SPEED
+ // -------------------------------------------------
+ const horizontalSpeed =
+ Math.hypot(
+ velocity.x,
+ velocity.z
+ );
+
+ // -------------------------------------------------
+ // LIMIT X / Z ONLY
+ // -------------------------------------------------
  if (
-  leftAnchor.pulling ||
-  rightAnchor.pulling
+ horizontalSpeed >
+ horizontalLimit
  ) {
-  limitWireSafetySpeed();
- } else {
-  limitNormalSpeed();
+ const scale =
+ horizontalLimit /
+ horizontalSpeed;
+
+ velocity.x *=
+ scale;
+
+ velocity.z *=
+ scale;
  }
+
+ // =================================================
+ // FINAL VERTICAL GUARANTEE
+ // =================================================
+ /*
+  * Safety処理後も最後にもう一度保証。
+  *
+  * GAS BURSTがtrueを返す瞬間の
+  * Y速度は必ず+10m/s。
+  */
+ velocity.y =
+ GAS_BURST_VERTICAL_SPEED;
 
  return true;
 }
