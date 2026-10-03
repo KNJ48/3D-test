@@ -11387,33 +11387,59 @@ function updateWireVisual(
 // WIRE GAS
 // ==================================================
 function updateWireGas(
-  delta
+ delta
 ) {
-  const active =
-    keys["KeyW"] &&
-    (
-      leftAnchor.connected ||
-      rightAnchor.connected
-    );
+ const active =
+ keys["KeyW"] &&
+ (
+ leftAnchor.connected ||
+ rightAnchor.connected
+ );
 
-  if (
-    !active ||
-    gas <= 0
-  ) {
-    return false;
-  }
+ if (
+ !active
+ ) {
+ return false;
+ }
 
-  gas -=
-    WIRE_GAS_USE_RATE *
-    delta;
+ // =================================================
+ // RISE GUYS
+ // =================================================
+ /*
+  * RISE GUYSでは
+  * ワイヤー牽引はGASを消費しない。
+  *
+  * GASが0でも使用可能。
+  */
+ if (
+ currentGameMode ===
+ GAME_MODES.RISE_GUYS
+ ) {
+ return true;
+ }
 
-  gas =
-    Math.max(
-      gas,
-      0
-    );
+ // =================================================
+ // NORMAL MODES
+ // =================================================
+ if (
+ gas <=
+ 0
+ ) {
+ return false;
+ }
 
-  return gas > 0;
+ gas -=
+ WIRE_GAS_USE_RATE *
+ delta;
+
+ gas =
+ Math.max(
+ gas,
+ 0
+ );
+
+ return gas >
+ 0;
 }
 
 // ==================================================
@@ -15647,16 +15673,15 @@ settingsPanel.appendChild(
 // ==================================================
 const GAME_MODES = {
  MENU:
-  "menu",
-
+ "menu",
  OPEN_WORLD:
-  "open-world",
-
+ "open-world",
  TUTORIAL:
-  "tutorial",
-
+ "tutorial",
  TIME_ATTACK:
-  "time-attack"
+ "time-attack",
+ RISE_GUYS:
+ "rise-guys"
 };
 
 let currentGameMode =
@@ -16410,32 +16435,44 @@ function getActiveGroundHeightMeters(
  // TUTORIAL
  // ------------------------------------------------
  if (
-  currentGameMode ===
-   GAME_MODES.TUTORIAL
+ currentGameMode ===
+ GAME_MODES.TUTORIAL
  ) {
-  return 0;
+ return 0;
  }
 
  // ------------------------------------------------
  // TIME ATTACK
  // ------------------------------------------------
+ if (
+ currentGameMode ===
+ GAME_MODES.TIME_ATTACK
+ ) {
+ return 0;
+ }
+
+ // ------------------------------------------------
+ // RISE GUYS
+ // ------------------------------------------------
  /*
-  * Time Attack専用都市は
-  * 標高0mの平地。
+  * 実質的なVoid。
+  *
+  * MAGMAより十分下へ地面を置き、
+  * 通常の地面接地で助からないようにする。
   */
  if (
-  currentGameMode ===
-   GAME_MODES.TIME_ATTACK
+ currentGameMode ===
+ GAME_MODES.RISE_GUYS
  ) {
-  return 0;
+ return -1000;
  }
 
  // ------------------------------------------------
  // OPEN WORLD
  // ------------------------------------------------
  return getTerrainHeightMeters(
-  xMeters,
-  zMeters
+ xMeters,
+ zMeters
  );
 }
 
@@ -18210,6 +18247,1624 @@ function updateTutorialGuide(
   ) {
    completeTutorialStep();
   }
+ }
+}
+
+// ==================================================
+// RISE GUYS
+// ==================================================
+/*
+ * Vertical obstacle survival.
+ *
+ * 上へ登り、
+ * 下から迫るMAGMAから逃げる。
+ *
+ * RISE GUYS中:
+ *
+ * ・START GAS = 50
+ * ・WIRE PULLはGAS不要
+ * ・通常GAS / BURSTはGASを消費
+ * ・MAGMAは徐々に加速
+ */
+
+// ==================================================
+// SETTINGS
+// ==================================================
+const RISE_GUYS_START_GAS =
+ 50;
+
+const RISE_GUYS_GOAL_HEIGHT_METERS =
+ 500;
+
+const RISE_GUYS_WORLD_RADIUS_METERS =
+ 140;
+
+// --------------------------------------------------
+// MAGMA
+// --------------------------------------------------
+const RISE_GUYS_MAGMA_START_METERS =
+ -20;
+
+const RISE_GUYS_MAGMA_START_SPEED_MPS =
+ 0.8;
+
+const RISE_GUYS_MAGMA_ACCEL_MPS2 =
+ 0.035;
+
+const RISE_GUYS_MAGMA_MAX_SPEED_MPS =
+ 5.5;
+
+// --------------------------------------------------
+// WIND
+// --------------------------------------------------
+const RISE_GUYS_FAN_RANGE_METERS =
+ 65;
+
+const RISE_GUYS_FAN_FORCE =
+ 32;
+
+// ==================================================
+// STATE
+// ==================================================
+let riseGuysState =
+ "idle";
+
+let riseGuysElapsed =
+ 0;
+
+let riseGuysMagmaHeightMeters =
+ RISE_GUYS_MAGMA_START_METERS;
+
+let riseGuysMagmaSpeedMps =
+ RISE_GUYS_MAGMA_START_SPEED_MPS;
+
+let riseGuysHighestMeters =
+ 0;
+
+// ==================================================
+// WORLD GROUP
+// ==================================================
+const riseGuysWorldGroup =
+ new THREE.Group();
+
+riseGuysWorldGroup.name =
+ "rise-guys-world";
+
+riseGuysWorldGroup.visible =
+ false;
+
+scene.add(
+ riseGuysWorldGroup
+);
+
+// ==================================================
+// RUNTIME
+// ==================================================
+const riseGuysColliders =
+ [];
+
+const riseGuysAnchorTargets =
+ [];
+
+const riseGuysFans =
+ [];
+
+const riseGuysRotators =
+ [];
+
+const riseGuysMovers =
+ [];
+
+// ==================================================
+// MATERIALS
+// ==================================================
+const riseGuysPlatformMaterial =
+ new THREE.MeshStandardMaterial({
+ color:
+ 0xb8a889,
+ roughness:
+ 0.85
+ });
+
+const riseGuysDarkMaterial =
+ new THREE.MeshStandardMaterial({
+ color:
+ 0x4e5655,
+ roughness:
+ 0.75,
+ metalness:
+ 0.15
+ });
+
+const riseGuysFanMaterial =
+ new THREE.MeshStandardMaterial({
+ color:
+ 0x667176,
+ roughness:
+ 0.48,
+ metalness:
+ 0.55
+ });
+
+const riseGuysHazardMaterial =
+ new THREE.MeshStandardMaterial({
+ color:
+ 0xd66a36,
+ roughness:
+ 0.75
+ });
+
+const riseGuysGoalMaterial =
+ new THREE.MeshBasicMaterial({
+ color:
+ 0x65ff91,
+ transparent:
+ true,
+ opacity:
+ 0.65,
+ toneMapped:
+ false
+ });
+
+// ==================================================
+// MAGMA MATERIAL
+// ==================================================
+const riseGuysMagmaMaterial =
+ new THREE.MeshBasicMaterial({
+ color:
+ 0xff3b08,
+ transparent:
+ true,
+ opacity:
+ 0.92,
+ toneMapped:
+ false
+ });
+
+// ==================================================
+// MAGMA
+// ==================================================
+const riseGuysMagma =
+ new THREE.Mesh(
+ new THREE.PlaneGeometry(
+ metersToUnits(
+ RISE_GUYS_WORLD_RADIUS_METERS *
+ 4
+ ),
+ metersToUnits(
+ RISE_GUYS_WORLD_RADIUS_METERS *
+ 4
+ )
+ ),
+ riseGuysMagmaMaterial
+ );
+
+riseGuysMagma.rotation.x =
+ -Math.PI /
+ 2;
+
+riseGuysMagma.visible =
+ false;
+
+scene.add(
+ riseGuysMagma
+);
+
+// ==================================================
+// HUD
+// ==================================================
+const riseGuysHUD =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ riseGuysHUD.style,
+ {
+ position:
+ "fixed",
+ left:
+ "50%",
+ top:
+ "25px",
+ transform:
+ "translateX(-50%)",
+ display:
+ "none",
+ minWidth:
+ "350px",
+ padding:
+ "13px 20px",
+ color:
+ "white",
+ background:
+ "rgba(10,14,12,.84)",
+ border:
+ "1px solid rgba(255,255,255,.3)",
+ borderRadius:
+ "5px",
+ fontFamily:
+ "monospace",
+ textAlign:
+ "center",
+ textShadow:
+ "0 2px 4px black",
+ pointerEvents:
+ "none",
+ zIndex:
+ "3000"
+ }
+);
+
+document.body.appendChild(
+ riseGuysHUD
+);
+
+const riseGuysHUDTitle =
+ document.createElement(
+ "div"
+ );
+
+riseGuysHUDTitle.textContent =
+ "RISE GUYS";
+
+riseGuysHUDTitle.style.color =
+ "#ffcc66";
+
+riseGuysHUDTitle.style.fontWeight =
+ "bold";
+
+riseGuysHUDTitle.style.letterSpacing =
+ "3px";
+
+riseGuysHUD.appendChild(
+ riseGuysHUDTitle
+);
+
+const riseGuysHUDHeight =
+ document.createElement(
+ "div"
+ );
+
+riseGuysHUDHeight.style.fontSize =
+ "26px";
+
+riseGuysHUDHeight.style.fontWeight =
+ "bold";
+
+riseGuysHUDHeight.style.marginTop =
+ "5px";
+
+riseGuysHUD.appendChild(
+ riseGuysHUDHeight
+);
+
+const riseGuysHUDMagma =
+ document.createElement(
+ "div"
+ );
+
+riseGuysHUDMagma.style.marginTop =
+ "4px";
+
+riseGuysHUDMagma.style.color =
+ "#ff8065";
+
+riseGuysHUD.appendChild(
+ riseGuysHUDMagma
+);
+
+// ==================================================
+// RESULT
+// ==================================================
+const riseGuysResultHUD =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ riseGuysResultHUD.style,
+ {
+ position:
+ "fixed",
+ inset:
+ "0",
+ display:
+ "none",
+ alignItems:
+ "center",
+ justifyContent:
+ "center",
+ background:
+ "rgba(0,0,0,.80)",
+ color:
+ "white",
+ fontFamily:
+ "Arial",
+ zIndex:
+ "65000"
+ }
+);
+
+document.body.appendChild(
+ riseGuysResultHUD
+);
+
+const riseGuysResultPanel =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ riseGuysResultPanel.style,
+ {
+ width:
+ "430px",
+ padding:
+ "35px",
+ background:
+ "#171d19",
+ border:
+ "1px solid #777",
+ borderRadius:
+ "7px",
+ textAlign:
+ "center"
+ }
+);
+
+riseGuysResultHUD.appendChild(
+ riseGuysResultPanel
+);
+
+const riseGuysResultTitle =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ riseGuysResultTitle.style,
+ {
+ fontSize:
+ "40px",
+ fontWeight:
+ "bold",
+ letterSpacing:
+ "3px",
+ marginBottom:
+ "16px"
+ }
+);
+
+riseGuysResultPanel.appendChild(
+ riseGuysResultTitle
+);
+
+const riseGuysResultText =
+ document.createElement(
+ "div"
+ );
+
+Object.assign(
+ riseGuysResultText.style,
+ {
+ color:
+ "#ccc",
+ fontFamily:
+ "monospace",
+ lineHeight:
+ "1.8",
+ whiteSpace:
+ "pre-line"
+ }
+);
+
+riseGuysResultPanel.appendChild(
+ riseGuysResultText
+);
+
+// ==================================================
+// RESULT BUTTON
+// ==================================================
+function createRiseGuysButton(
+ text,
+ callback
+) {
+ const button =
+ document.createElement(
+ "button"
+ );
+
+ button.textContent =
+ text;
+
+ Object.assign(
+ button.style,
+ {
+ width:
+ "100%",
+ marginTop:
+ "12px",
+ padding:
+ "13px",
+ color:
+ "white",
+ background:
+ "rgba(255,255,255,.08)",
+ border:
+ "1px solid #777",
+ borderRadius:
+ "4px",
+ cursor:
+ "pointer",
+ fontSize:
+ "15px",
+ fontWeight:
+ "bold"
+ }
+ );
+
+ button.addEventListener(
+ "click",
+ callback
+ );
+
+ riseGuysResultPanel.appendChild(
+ button
+ );
+
+ return button;
+}
+
+// ==================================================
+// REGISTER OBJECT
+// ==================================================
+function registerRiseGuysObject(
+ mesh,
+ collision = true,
+ anchorable = true
+) {
+ riseGuysWorldGroup.add(
+ mesh
+ );
+
+ mesh.updateWorldMatrix(
+ true,
+ true
+ );
+
+ if (
+ collision
+ ) {
+ const collider =
+ new THREE.Box3()
+ .setFromObject(
+ mesh
+ );
+
+ registerCollider(
+ collider
+ );
+
+ riseGuysColliders.push(
+ collider
+ );
+ }
+
+ if (
+ anchorable
+ ) {
+ anchorTargets.push(
+ mesh
+ );
+
+ riseGuysAnchorTargets.push(
+ mesh
+ );
+ }
+}
+
+// ==================================================
+// CREATE PLATFORM
+// ==================================================
+function createRiseGuysPlatform(
+ xMeters,
+ yMeters,
+ zMeters,
+ widthMeters,
+ heightMeters,
+ depthMeters,
+ rotation = 0
+) {
+ const mesh =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ metersToUnits(
+ widthMeters
+ ),
+ metersToUnits(
+ heightMeters
+ ),
+ metersToUnits(
+ depthMeters
+ )
+ ),
+ riseGuysPlatformMaterial
+ );
+
+ mesh.position.set(
+ metersToUnits(
+ xMeters
+ ),
+ metersToUnits(
+ yMeters
+ ),
+ metersToUnits(
+ zMeters
+ )
+ );
+
+ mesh.rotation.y =
+ rotation;
+
+ mesh.receiveShadow =
+ true;
+
+ registerRiseGuysObject(
+ mesh,
+ true,
+ true
+ );
+
+ return mesh;
+}
+
+// ==================================================
+// CREATE FAN
+// ==================================================
+function createRiseGuysFan(
+ xMeters,
+ yMeters,
+ zMeters,
+ directionX,
+ directionZ
+) {
+ const group =
+ new THREE.Group();
+
+ group.position.set(
+ metersToUnits(
+ xMeters
+ ),
+ metersToUnits(
+ yMeters
+ ),
+ metersToUnits(
+ zMeters
+ )
+ );
+
+ // -------------------------------------------------
+ // HUB
+ // -------------------------------------------------
+ const hub =
+ new THREE.Mesh(
+ new THREE.CylinderGeometry(
+ metersToUnits(
+ 2
+ ),
+ metersToUnits(
+ 2
+ ),
+ metersToUnits(
+ 3
+ ),
+ 16
+ ),
+ riseGuysFanMaterial
+ );
+
+ hub.rotation.x =
+ Math.PI /
+ 2;
+
+ group.add(
+ hub
+ );
+
+ // -------------------------------------------------
+ // BLADES
+ // -------------------------------------------------
+ const blades =
+ new THREE.Group();
+
+ for (
+ let i = 0;
+ i < 4;
+ i++
+ ) {
+ const blade =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ metersToUnits(
+ 2.5
+ ),
+ metersToUnits(
+ 18
+ ),
+ metersToUnits(
+ 0.7
+ )
+ ),
+ riseGuysFanMaterial
+ );
+
+ blade.position.y =
+ metersToUnits(
+ 8
+ );
+
+ blade.rotation.z =
+ i *
+ Math.PI /
+ 2;
+
+ blades.add(
+ blade
+ );
+ }
+
+ group.add(
+ blades
+ );
+
+ riseGuysWorldGroup.add(
+ group
+ );
+
+ anchorTargets.push(
+ group
+ );
+
+ riseGuysAnchorTargets.push(
+ group
+ );
+
+ riseGuysFans.push({
+ group,
+ blades,
+ direction:
+ new THREE.Vector3(
+ directionX,
+ 0,
+ directionZ
+ ).normalize(),
+ range:
+ metersToUnits(
+ RISE_GUYS_FAN_RANGE_METERS
+ ),
+ phase:
+ Math.random() *
+ Math.PI *
+ 2
+ });
+}
+
+// ==================================================
+// CREATE ROTATOR
+// ==================================================
+function createRiseGuysRotator(
+ xMeters,
+ yMeters,
+ zMeters,
+ lengthMeters
+) {
+ const pivot =
+ new THREE.Group();
+
+ pivot.position.set(
+ metersToUnits(
+ xMeters
+ ),
+ metersToUnits(
+ yMeters
+ ),
+ metersToUnits(
+ zMeters
+ )
+ );
+
+ const arm =
+ new THREE.Mesh(
+ new THREE.BoxGeometry(
+ metersToUnits(
+ lengthMeters
+ ),
+ metersToUnits(
+ 1.5
+ ),
+ metersToUnits(
+ 2
+ )
+ ),
+ riseGuysHazardMaterial
+ );
+
+ arm.receiveShadow =
+ true;
+
+ pivot.add(
+ arm
+ );
+
+ riseGuysWorldGroup.add(
+ pivot
+ );
+
+ anchorTargets.push(
+ arm
+ );
+
+ riseGuysAnchorTargets.push(
+ arm
+ );
+
+ riseGuysRotators.push({
+ pivot,
+ arm,
+ speed:
+ 0.7 +
+ Math.random() *
+ 0.6
+ });
+}
+
+// ==================================================
+// BUILD WORLD
+// ==================================================
+function buildRiseGuysWorld() {
+ clearRiseGuysWorld();
+
+ // -------------------------------------------------
+ // START
+ // -------------------------------------------------
+ createRiseGuysPlatform(
+ 0,
+ 1,
+ 0,
+ 35,
+ 2,
+ 35
+ );
+
+ /*
+  * 手作業で完全固定された一本道ではなく、
+  * 高度ごとに左右へ蛇行する
+  * 浮遊構造を生成。
+  */
+ for (
+ let level = 0;
+ level < 25;
+ level++
+ ) {
+ const y =
+ 20 +
+ level *
+ 19;
+
+ const angle =
+ level *
+ 1.31;
+
+ const radius =
+ 30 +
+ (
+ level %
+ 4
+ ) *
+ 7;
+
+ const x =
+ Math.sin(
+ angle
+ ) *
+ radius;
+
+ const z =
+ Math.cos(
+ angle
+ ) *
+ radius;
+
+ // -------------------------------------------------
+ // MAIN PLATFORM
+ // -------------------------------------------------
+ createRiseGuysPlatform(
+ x,
+ y,
+ z,
+ 14 +
+ (
+ level %
+ 3
+ ) *
+ 5,
+ 2.5,
+ 12 +
+ (
+ (
+ level +
+ 1
+ ) %
+ 3
+ ) *
+ 5,
+ angle *
+ 0.25
+ );
+
+ // -------------------------------------------------
+ // SECONDARY ANCHOR OBJECT
+ // -------------------------------------------------
+ createRiseGuysPlatform(
+ x *
+ 0.45,
+ y +
+ 7,
+ z *
+ 0.45,
+ 5,
+ 12,
+ 5,
+ 0
+ );
+
+ // -------------------------------------------------
+ // OCCASIONAL WALL
+ // -------------------------------------------------
+ if (
+ level %
+ 4 ===
+ 2
+ ) {
+ createRiseGuysPlatform(
+ -x *
+ 0.45,
+ y +
+ 5,
+ -z *
+ 0.45,
+ 18,
+ 15,
+ 3,
+ angle
+ );
+ }
+
+ // -------------------------------------------------
+ // FAN
+ // -------------------------------------------------
+ if (
+ level ===
+ 6 ||
+ level ===
+ 13 ||
+ level ===
+ 19
+ ) {
+ createRiseGuysFan(
+ x,
+ y +
+ 12,
+ z,
+ -Math.cos(
+ angle
+ ),
+ Math.sin(
+ angle
+ )
+ );
+ }
+
+ // -------------------------------------------------
+ // ROTATING ARM
+ // -------------------------------------------------
+ if (
+ level ===
+ 9 ||
+ level ===
+ 16 ||
+ level ===
+ 22
+ ) {
+ createRiseGuysRotator(
+ x,
+ y +
+ 8,
+ z,
+ 32
+ );
+ }
+ }
+
+ // -------------------------------------------------
+ // GOAL
+ // -------------------------------------------------
+ const goal =
+ new THREE.Mesh(
+ new THREE.CylinderGeometry(
+ metersToUnits(
+ 13
+ ),
+ metersToUnits(
+ 13
+ ),
+ metersToUnits(
+ 2
+ ),
+ 32
+ ),
+ riseGuysGoalMaterial
+ );
+
+ goal.position.set(
+ 0,
+ metersToUnits(
+ RISE_GUYS_GOAL_HEIGHT_METERS
+ ),
+ 0
+ );
+
+ riseGuysWorldGroup.add(
+ goal
+ );
+
+ anchorTargets.push(
+ goal
+ );
+
+ riseGuysAnchorTargets.push(
+ goal
+ );
+
+ riseGuysWorldGroup.visible =
+ true;
+}
+
+// ==================================================
+// CLEAR WORLD
+// ==================================================
+function clearRiseGuysWorld() {
+ for (
+ const collider
+ of riseGuysColliders
+ ) {
+ unregisterCollider(
+ collider
+ );
+ }
+
+ riseGuysColliders.length =
+ 0;
+
+ for (
+ const target
+ of riseGuysAnchorTargets
+ ) {
+ removeArrayItem(
+ anchorTargets,
+ target
+ );
+ }
+
+ riseGuysAnchorTargets.length =
+ 0;
+
+ riseGuysFans.length =
+ 0;
+
+ riseGuysRotators.length =
+ 0;
+
+ riseGuysMovers.length =
+ 0;
+
+ const children = [
+ ...riseGuysWorldGroup.children
+ ];
+
+ for (
+ const child
+ of children
+ ) {
+ riseGuysWorldGroup.remove(
+ child
+ );
+
+ child.traverse(
+ object => {
+ if (
+ object.geometry
+ ) {
+ object.geometry.dispose();
+ }
+ }
+ );
+ }
+
+ riseGuysWorldGroup.visible =
+ false;
+}
+
+// ==================================================
+// RESET PLAYER
+// ==================================================
+function resetPlayerForRiseGuys() {
+ releaseAnchor(
+ leftAnchor
+ );
+
+ releaseAnchor(
+ rightAnchor
+ );
+
+ velocity.set(
+ 0,
+ 0,
+ 0
+ );
+
+ health =
+ MAX_HEALTH;
+
+ gas =
+ RISE_GUYS_START_GAS;
+
+ dead =
+ false;
+
+ grounded =
+ true;
+
+ groundedRoof =
+ null;
+
+ wallStunTimer =
+ 0;
+
+ gasBurstCooldown =
+ 0;
+
+ lastSpaceTapTime =
+ -Infinity;
+
+ camera.position.set(
+ 0,
+ PLAYER_HEIGHT +
+ metersToUnits(
+ 2
+ ),
+ 0
+ );
+
+ yaw =
+ Math.PI;
+
+ pitch =
+ 0;
+
+ camera.rotation.y =
+ yaw;
+
+ camera.rotation.x =
+ pitch;
+}
+
+// ==================================================
+// START
+// ==================================================
+async function startRiseGuys() {
+ hideMainMenu();
+
+ worldLoadingHUD.style.display =
+ "flex";
+
+ setWorldLoadingStatus(
+ "BUILDING RISE GUYS...",
+ 0.25
+ );
+
+ // -------------------------------------------------
+ // CLEAR OTHER MODES
+ // -------------------------------------------------
+ clearAllGroundChunks();
+
+ clearTutorialWorld();
+
+ tutorialWorldGroup.visible =
+ false;
+
+ if (
+ timeAttackWorldGroup.visible
+ ) {
+ clearTimeAttackWorld();
+ }
+
+ for (
+ const [
+ key,
+ data
+ ]
+ of Array.from(
+ streamedWallSegments
+ )
+ ) {
+ destroyWallSegment(
+ key,
+ data
+ );
+ }
+
+ for (
+ const [
+ key,
+ mesh
+ ]
+ of Array.from(
+ streamedRoads
+ )
+ ) {
+ destroyStreamedRoad(
+ key,
+ mesh
+ );
+ }
+
+ // -------------------------------------------------
+ // WORLD
+ // -------------------------------------------------
+ buildRiseGuysWorld();
+
+ currentGameMode =
+ GAME_MODES.RISE_GUYS;
+
+ worldDatabaseReady =
+ true;
+
+ // -------------------------------------------------
+ // STATE
+ // -------------------------------------------------
+ riseGuysState =
+ "playing";
+
+ riseGuysElapsed =
+ 0;
+
+ riseGuysMagmaHeightMeters =
+ RISE_GUYS_MAGMA_START_METERS;
+
+ riseGuysMagmaSpeedMps =
+ RISE_GUYS_MAGMA_START_SPEED_MPS;
+
+ riseGuysHighestMeters =
+ 0;
+
+ resetPlayerForRiseGuys();
+
+ // -------------------------------------------------
+ // MAGMA
+ // -------------------------------------------------
+ riseGuysMagma.position.set(
+ 0,
+ metersToUnits(
+ riseGuysMagmaHeightMeters
+ ),
+ 0
+ );
+
+ riseGuysMagma.visible =
+ true;
+
+ // -------------------------------------------------
+ // UI
+ // -------------------------------------------------
+ riseGuysHUD.style.display =
+ "block";
+
+ riseGuysResultHUD.style.display =
+ "none";
+
+ setWorldLoadingStatus(
+ "RISE!",
+ 1
+ );
+
+ await new Promise(
+ resolve =>
+ setTimeout(
+ resolve,
+ 200
+ )
+ );
+
+ worldLoadingHUD.style.display =
+ "none";
+
+ showMessage(
+ "RISE GUYS"
+ );
+
+ startGameLoop();
+}
+
+// ==================================================
+// FAIL
+// ==================================================
+function failRiseGuys() {
+ if (
+ riseGuysState !==
+ "playing"
+ ) {
+ return;
+ }
+
+ riseGuysState =
+ "failed";
+
+ velocity.set(
+ 0,
+ 0,
+ 0
+ );
+
+ releaseAnchor(
+ leftAnchor
+ );
+
+ releaseAnchor(
+ rightAnchor
+ );
+
+ riseGuysResultTitle.textContent =
+ "ELIMINATED";
+
+ riseGuysResultTitle.style.color =
+ "#ff654f";
+
+ riseGuysResultText.textContent =
+ `HEIGHT ${riseGuysHighestMeters.toFixed(
+ 0
+ )} m\n` +
+ `TIME ${riseGuysElapsed.toFixed(
+ 1
+ )} s`;
+
+ riseGuysResultHUD.style.display =
+ "flex";
+
+ if (
+ document.pointerLockElement
+ ) {
+ document.exitPointerLock();
+ }
+}
+
+// ==================================================
+// FINISH
+// ==================================================
+function finishRiseGuys() {
+ if (
+ riseGuysState !==
+ "playing"
+ ) {
+ return;
+ }
+
+ riseGuysState =
+ "finished";
+
+ velocity.set(
+ 0,
+ 0,
+ 0
+ );
+
+ releaseAnchor(
+ leftAnchor
+ );
+
+ releaseAnchor(
+ rightAnchor
+ );
+
+ riseGuysResultTitle.textContent =
+ "QUALIFIED!";
+
+ riseGuysResultTitle.style.color =
+ "#67ff9b";
+
+ riseGuysResultText.textContent =
+ `TIME ${riseGuysElapsed.toFixed(
+ 2
+ )} s\n` +
+ `GAS LEFT ${gas.toFixed(
+ 0
+ )}`;
+
+ riseGuysResultHUD.style.display =
+ "flex";
+
+ if (
+ document.pointerLockElement
+ ) {
+ document.exitPointerLock();
+ }
+}
+
+// ==================================================
+// RETRY
+// ==================================================
+function retryRiseGuys() {
+ riseGuysResultHUD.style.display =
+ "none";
+
+ riseGuysState =
+ "playing";
+
+ riseGuysElapsed =
+ 0;
+
+ riseGuysMagmaHeightMeters =
+ RISE_GUYS_MAGMA_START_METERS;
+
+ riseGuysMagmaSpeedMps =
+ RISE_GUYS_MAGMA_START_SPEED_MPS;
+
+ riseGuysHighestMeters =
+ 0;
+
+ resetPlayerForRiseGuys();
+
+ riseGuysMagma.position.y =
+ metersToUnits(
+ riseGuysMagmaHeightMeters
+ );
+
+ riseGuysMagma.visible =
+ true;
+}
+
+// ==================================================
+// EXIT
+// ==================================================
+function exitRiseGuysToMenu() {
+ riseGuysState =
+ "idle";
+
+ riseGuysHUD.style.display =
+ "none";
+
+ riseGuysResultHUD.style.display =
+ "none";
+
+ riseGuysMagma.visible =
+ false;
+
+ clearRiseGuysWorld();
+
+ currentGameMode =
+ GAME_MODES.MENU;
+
+ showMainMenu();
+}
+
+// ==================================================
+// BUTTONS
+// ==================================================
+createRiseGuysButton(
+ "RETRY",
+ retryRiseGuys
+);
+
+createRiseGuysButton(
+ "MAIN MENU",
+ exitRiseGuysToMenu
+);
+
+// ==================================================
+// FAN UPDATE
+// ==================================================
+function updateRiseGuysFans(
+ delta
+) {
+ const time =
+ performance.now() /
+ 1000;
+
+ for (
+ const fan
+ of riseGuysFans
+ ) {
+ fan.blades.rotation.z +=
+ delta *
+ 3.5;
+
+ const strengthCycle =
+ (
+ Math.sin(
+ time *
+ 1.2 +
+ fan.phase
+ ) +
+ 1
+ ) /
+ 2;
+
+ const strength =
+ strengthCycle *
+ RISE_GUYS_FAN_FORCE;
+
+ const distance =
+ camera.position.distanceTo(
+ fan.group.position
+ );
+
+ if (
+ distance >
+ fan.range
+ ) {
+ continue;
+ }
+
+ const distanceFactor =
+ 1 -
+ distance /
+ fan.range;
+
+ velocity.addScaledVector(
+ fan.direction,
+ strength *
+ distanceFactor *
+ delta
+ );
+ }
+}
+
+// ==================================================
+// ROTATOR UPDATE
+// ==================================================
+function updateRiseGuysRotators(
+ delta
+) {
+ for (
+ const rotator
+ of riseGuysRotators
+ ) {
+ rotator.pivot.rotation.y +=
+ rotator.speed *
+ delta;
+ }
+}
+
+// ==================================================
+// UPDATE
+// ==================================================
+function updateRiseGuys(
+ delta
+) {
+ if (
+ currentGameMode !==
+ GAME_MODES.RISE_GUYS ||
+ riseGuysState !==
+ "playing"
+ ) {
+ return;
+ }
+
+ riseGuysElapsed +=
+ delta;
+
+ // -------------------------------------------------
+ // HEIGHT
+ // -------------------------------------------------
+ const playerHeightMeters =
+ (
+ camera.position.y -
+ PLAYER_HEIGHT
+ ) *
+ METERS_PER_UNIT;
+
+ riseGuysHighestMeters =
+ Math.max(
+ riseGuysHighestMeters,
+ playerHeightMeters
+ );
+
+ // -------------------------------------------------
+ // MAGMA SPEED
+ // -------------------------------------------------
+ riseGuysMagmaSpeedMps =
+ Math.min(
+ RISE_GUYS_MAGMA_MAX_SPEED_MPS,
+ riseGuysMagmaSpeedMps +
+ RISE_GUYS_MAGMA_ACCEL_MPS2 *
+ delta
+ );
+
+ // -------------------------------------------------
+ // MAGMA HEIGHT
+ // -------------------------------------------------
+ riseGuysMagmaHeightMeters +=
+ riseGuysMagmaSpeedMps *
+ delta;
+
+ riseGuysMagma.position.y =
+ metersToUnits(
+ riseGuysMagmaHeightMeters
+ );
+
+ // -------------------------------------------------
+ // GIMMICKS
+ // -------------------------------------------------
+ updateRiseGuysFans(
+ delta
+ );
+
+ updateRiseGuysRotators(
+ delta
+ );
+
+ // -------------------------------------------------
+ // HUD
+ // -------------------------------------------------
+ riseGuysHUDHeight.textContent =
+ `${Math.max(
+ 0,
+ playerHeightMeters
+ ).toFixed(
+ 0
+ )} / ${
+ RISE_GUYS_GOAL_HEIGHT_METERS
+ } m`;
+
+ const magmaDistance =
+ playerHeightMeters -
+ riseGuysMagmaHeightMeters;
+
+ riseGuysHUDMagma.textContent =
+ `MAGMA ${
+ Math.max(
+ 0,
+ magmaDistance
+ ).toFixed(
+ 0
+ )
+ } m BELOW   GAS ${
+ gas.toFixed(
+ 0
+ )
+ }`;
+
+ // -------------------------------------------------
+ // MAGMA HIT
+ // -------------------------------------------------
+ if (
+ playerHeightMeters <=
+ riseGuysMagmaHeightMeters +
+ 0.5
+ ) {
+ failRiseGuys();
+ return;
+ }
+
+ // -------------------------------------------------
+ // GOAL
+ // -------------------------------------------------
+ if (
+ playerHeightMeters >=
+ RISE_GUYS_GOAL_HEIGHT_METERS
+ ) {
+ finishRiseGuys();
  }
 }
 
@@ -21249,6 +22904,38 @@ createMiniGameButton(
    tutorialStarting =
     false;
   }
+ }
+);
+
+// ==================================================
+// RISE GUYS
+// ==================================================
+createMiniGameButton(
+ "RISE GUYS",
+ "上昇するMAGMAから逃げながら障害物を登る",
+ async () => {
+ try {
+ await startRiseGuys();
+ } catch (
+ error
+ ) {
+ console.error(
+ "RISE GUYS START FAILED",
+ error
+ );
+
+ worldLoadingHUD.style.display =
+ "flex";
+
+ worldLoadingStatus.textContent =
+ "RISE GUYS START FAILED";
+
+ worldLoadingDetails.textContent =
+ String(
+ error?.stack ||
+ error
+ );
+ }
  }
 );
 
@@ -25563,6 +27250,21 @@ function animate() {
   updateTimeAttack(
    delta
   );
+ }
+
+ // =================================================
+ // RISE GUYS
+ // =================================================
+ if (
+ currentGameMode ===
+ GAME_MODES.RISE_GUYS
+ ) {
+ tutorialGuideAutoStarted =
+ false;
+
+ updateRiseGuys(
+ delta
+ );
  }
 
  // =================================================
