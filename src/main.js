@@ -370,52 +370,125 @@ const WALL_STUN_MAX_KMH = 150;
 // ==================================================
 // GAS
 // ==================================================
-const MAX_GAS = 500;
+const MAX_GAS =
+ 500;
 
-const FLIGHT_GAS_USE_RATE = 2.4;
+/*
+ * 通常時のGAS消費量。
+ */
+const FLIGHT_GAS_USE_RATE =
+ 2.4;
 
 const WIRE_GAS_USE_RATE =
-  FLIGHT_GAS_USE_RATE * 0.5;
+ FLIGHT_GAS_USE_RATE *
+ 0.5;
+
+// --------------------------------------------------
+// FALLING GAS BOOST
+// --------------------------------------------------
+/*
+ * 落下速度が速いほど、
+ *
+ * ・GAS消費量
+ * ・上方向への回復加速度
+ *
+ * を増加させる。
+ *
+ * 0km/h落下:
+ * 1.0倍
+ *
+ * 300km/h落下:
+ * 3.0倍
+ */
+const GAS_FALL_REFERENCE_KMH =
+ 300;
+
+const GAS_FALL_MAX_MULTIPLIER =
+ 3.0;
+
+// --------------------------------------------------
+// FALL SPEED FACTOR
+// --------------------------------------------------
+function getGasFallFactor() {
+ /*
+  * 上昇中なら0。
+  */
+ if (
+ velocity.y >=
+ 0
+ ) {
+ return 0;
+ }
+
+ /*
+  * Y方向の落下速度だけを
+  * km/hへ変換。
+  */
+ const fallKmh =
+ -velocity.y *
+ METERS_PER_UNIT *
+ 3.6;
+
+ return THREE.MathUtils.clamp(
+ fallKmh /
+ GAS_FALL_REFERENCE_KMH,
+ 0,
+ 1
+ );
+}
+
+// --------------------------------------------------
+// FALL MULTIPLIER
+// --------------------------------------------------
+function getGasFallMultiplier() {
+ const factor =
+ getGasFallFactor();
+
+ return THREE.MathUtils.lerp(
+ 1,
+ GAS_FALL_MAX_MULTIPLIER,
+ factor
+ );
+}
 
 // --------------------------
 // NORMAL GAS SPEED LIMIT
 // --------------------------
-
-// 通常ガス飛行の3次元合成最高速度
-// 150 km/h
-const GAS_NORMAL_MAX_KMH = 150;
+const GAS_NORMAL_MAX_KMH =
+ 150;
 
 const GAS_NORMAL_MAX_SPEED =
-  GAS_NORMAL_MAX_KMH /
-  3.6 /
-  METERS_PER_UNIT;
+ GAS_NORMAL_MAX_KMH /
+ 3.6 /
+ METERS_PER_UNIT;
 
 // --------------------------
 // VERTICAL GAS
 // --------------------------
-
-// 通常ガスによる最高上昇速度
-// 20 m/s
-const GAS_CLIMB_MAX_MPS = 20;
+const GAS_CLIMB_MAX_MPS =
+ 20;
 
 const GAS_CLIMB_SPEED =
-  GAS_CLIMB_MAX_MPS /
-  METERS_PER_UNIT;
+ GAS_CLIMB_MAX_MPS /
+ METERS_PER_UNIT;
 
-// 落下中にガスを使用した際の
-// 上方向への回復加速度
-const GAS_RECOVERY_ACCEL = 28;
+/*
+ * 基本回復加速度。
+ *
+ * 落下速度に応じて
+ * 最大3倍になる。
+ */
+const GAS_RECOVERY_ACCEL =
+ 28;
 
-// 通常上昇時の加速度
-const GAS_CLIMB_ACCEL = 18;
+const GAS_CLIMB_ACCEL =
+ 18;
 
 // --------------------------
 // AIR CONTROL
 // --------------------------
-
-// 空中WASD操作の加速度
-// 元の24から80%へ調整
-const AIR_CONTROL_ACCEL = 19.2;
+const AIR_CONTROL_ACCEL =
+ 19.2;
 
 // ==================================================
 // GAS BURST
@@ -423,20 +496,24 @@ const AIR_CONTROL_ACCEL = 19.2;
 /*
  * SPACE DOUBLE TAP
  *
- * World +Y方向への瞬間ブースト。
- *
- * 落下中:
- * 落下速度を完全に打ち消したうえで
+ * 基本:
  * 上方向へ+10m/s。
  *
- * 上昇中:
- * 現在の上昇速度へ+10m/s。
+ * 落下速度が速いほど、
+ *
+ * ・GAS消費
+ * ・上方向Impulse
+ *
+ * の両方が増える。
+ *
+ * 300km/h落下時:
+ * 3倍
  *
  * X/Z慣性は維持。
  */
 
 // --------------------------------------------------
-// COST
+// BASE COST
 // --------------------------------------------------
 const GAS_BURST_COST =
  10;
@@ -448,7 +525,7 @@ const GAS_DOUBLE_TAP_WINDOW =
  0.5;
 
 // --------------------------------------------------
-// UPWARD BOOST
+// BASE UPWARD IMPULSE
 // --------------------------------------------------
 const GAS_BURST_IMPULSE_MPS =
  10;
@@ -8437,6 +8514,29 @@ function limitWireSafetySpeed() {
 // ==================================================
 function gasBurst() {
  // =================================================
+ // FALL MULTIPLIER
+ // =================================================
+ /*
+  * GASを使用する前の落下速度から
+  * 倍率を決定する。
+  *
+  * 0km/h:
+  * 1倍
+  *
+  * 300km/h以上:
+  * 3倍
+  */
+ const fallMultiplier =
+ getGasFallMultiplier();
+
+ // =================================================
+ // COST
+ // =================================================
+ const burstCost =
+ GAS_BURST_COST *
+ fallMultiplier;
+
+ // =================================================
  // CHECK
  // =================================================
  if (
@@ -8447,7 +8547,7 @@ function gasBurst() {
  gasBurstCooldown >
  0 ||
  gas <
- GAS_BURST_COST
+ burstCost
  ) {
  return false;
  }
@@ -8456,7 +8556,7 @@ function gasBurst() {
  // GAS COST
  // =================================================
  gas -=
- GAS_BURST_COST;
+ burstCost;
 
  gas =
  Math.max(
@@ -8474,22 +8574,27 @@ function gasBurst() {
  // VERTICAL BURST
  // =================================================
  /*
-  * 落下中なら、
-  * まず下向き速度を完全に打ち消す。
+  * 落下中:
+  *
+  * まず落下速度を完全に打ち消す。
   *
   * その後、
-  * World +Y方向へ+10m/s。
   *
-  * 上昇中なら
-  * 現在の上昇速度へ+10m/s。
+  * 基本+10m/s
+  * ×
+  * 落下速度倍率
   *
-  * X/Z速度はここでは変更しない。
+  * の上向きImpulse。
   *
-  * -100m/s → +10m/s
-  *  -30m/s → +10m/s
-  *    0m/s → +10m/s
-  *   +5m/s → +15m/s
-  *  +30m/s → +40m/s
+  *
+  * 落下なし:
+  *
+  * +10m/s
+  *
+  *
+  * 300km/h以上で落下:
+  *
+  * +30m/s
   */
  if (
  velocity.y <
@@ -8500,7 +8605,8 @@ function gasBurst() {
  }
 
  velocity.y +=
- GAS_BURST_IMPULSE;
+ GAS_BURST_IMPULSE *
+ fallMultiplier;
 
  // =================================================
  // SAFETY
@@ -11713,194 +11819,213 @@ function constrainRope(
 // NORMAL GAS FLIGHT
 // ==================================================
 function updateGasFlight(
-  delta
+ delta
 ) {
-  const usingGas =
-    !grounded &&
-    keys["Space"] &&
-    gas > 0;
+ const usingGas =
+ !grounded &&
+ keys["Space"] &&
+ gas >
+ 0;
 
-  if (
-    !usingGas
-  ) {
-    return;
-  }
+ if (
+ !usingGas
+ ) {
+ return;
+ }
 
-  // -------------------------
-  // GAS CONSUMPTION
-  // -------------------------
-  gas -=
-    FLIGHT_GAS_USE_RATE *
-    delta;
+ // =================================================
+ // FALL MULTIPLIER
+ // =================================================
+ /*
+  * GAS処理前の落下速度から倍率を決定。
+  *
+  * 落下が速いほど、
+  *
+  * ・GAS消費
+  * ・上方向回復加速度
+  *
+  * が増える。
+  */
+ const fallMultiplier =
+ getGasFallMultiplier();
 
-  gas =
-    Math.max(
-      gas,
-      0
-    );
+ // =================================================
+ // GAS CONSUMPTION
+ // =================================================
+ const gasUseRate =
+ FLIGHT_GAS_USE_RATE *
+ fallMultiplier;
 
-  /*
-   * このフレームの通常ガスを
-   * 使用する前の総速度。
-   *
-   * ワイヤーやBURSTですでに
-   * 150km/hを超えていた場合、
-   * その慣性は強制的に消さない。
-   */
-  const speedBeforeGas =
-    velocity.length();
+ gas -=
+ gasUseRate *
+ delta;
 
-  const alreadyOverLimit =
-    speedBeforeGas >
-    GAS_NORMAL_MAX_SPEED;
+ gas =
+ Math.max(
+ gas,
+ 0
+ );
 
-  // =================================================
-  // VERTICAL GAS
-  // =================================================
+ // =================================================
+ // ORIGINAL SPEED
+ // =================================================
+ const speedBeforeGas =
+ velocity.length();
 
-  if (
-    velocity.y < 0
-  ) {
-    /*
-     * 落下中。
-     *
-     * ガスで下向き速度を回復する。
-     */
-    velocity.y +=
-      GAS_RECOVERY_ACCEL *
-      delta;
+ const alreadyOverLimit =
+ speedBeforeGas >
+ GAS_NORMAL_MAX_SPEED;
 
-    /*
-     * この処理によって
-     * 上昇上限を飛び越さない。
-     */
-    velocity.y =
-      Math.min(
-        velocity.y,
-        GAS_CLIMB_SPEED
-      );
-  } else if (
-    velocity.y <
-    GAS_CLIMB_SPEED
-  ) {
-    /*
-     * 通常上昇。
-     */
-    velocity.y +=
-      GAS_CLIMB_ACCEL *
-      delta;
+ // =================================================
+ // VERTICAL GAS
+ // =================================================
+ if (
+ velocity.y <
+ 0
+ ) {
+ /*
+  * 落下中。
+  *
+  * 落下速度が速いほど
+  * 上方向への回復加速度を強くする。
+  *
+  * 0km/h付近:
+  * 28
+  *
+  * 300km/h以上:
+  * 84
+  */
+ const recoveryAccel =
+ GAS_RECOVERY_ACCEL *
+ fallMultiplier;
 
-    velocity.y =
-      Math.min(
-        velocity.y,
-        GAS_CLIMB_SPEED
-      );
-  }
+ velocity.y +=
+ recoveryAccel *
+ delta;
 
-  // =================================================
-  // HORIZONTAL GAS CONTROL
-  // =================================================
+ /*
+  * 1フレームで落下を打ち消して
+  * 上昇へ入った場合も、
+  * 上昇速度上限を超えない。
+  */
+ velocity.y =
+ Math.min(
+ velocity.y,
+ GAS_CLIMB_SPEED
+ );
+ } else if (
+ velocity.y <
+ GAS_CLIMB_SPEED
+ ) {
+ /*
+  * すでに上昇している場合は
+  * 通常の上昇加速度。
+  *
+  * 落下していないので
+  * Fall Bonusは付かない。
+  */
+ velocity.y +=
+ GAS_CLIMB_ACCEL *
+ delta;
 
-  input.set(
-    0,
-    0,
-    0
-  );
+ velocity.y =
+ Math.min(
+ velocity.y,
+ GAS_CLIMB_SPEED
+ );
+ }
 
-  if (
-    keys["KeyW"]
-  ) {
-    input.add(
-      forward
-    );
-  }
+ // =================================================
+ // HORIZONTAL GAS CONTROL
+ // =================================================
+ input.set(
+ 0,
+ 0,
+ 0
+ );
 
-  if (
-    keys["KeyS"]
-  ) {
-    input.sub(
-      forward
-    );
-  }
+ if (
+ keys["KeyW"]
+ ) {
+ input.add(
+ forward
+ );
+ }
 
-  if (
-    keys["KeyD"]
-  ) {
-    input.add(
-      right
-    );
-  }
+ if (
+ keys["KeyS"]
+ ) {
+ input.sub(
+ forward
+ );
+ }
 
-  if (
-    keys["KeyA"]
-  ) {
-    input.sub(
-      right
-    );
-  }
+ if (
+ keys["KeyD"]
+ ) {
+ input.add(
+ right
+ );
+ }
 
-  if (
-    input.lengthSq() > 0
-  ) {
-    input.normalize();
+ if (
+ keys["KeyA"]
+ ) {
+ input.sub(
+ right
+ );
+ }
 
-    /*
-     * 既存の慣性を消さず、
-     * 入力方向へ加速度を追加。
-     */
-    velocity.addScaledVector(
-      input,
-      AIR_CONTROL_ACCEL *
-      delta
-    );
-  }
+ if (
+ input.lengthSq() >
+ 0
+ ) {
+ input.normalize();
 
-  // =================================================
-  // NORMAL GAS TOTAL SPEED LIMIT
-  // =================================================
+ velocity.addScaledVector(
+ input,
+ AIR_CONTROL_ACCEL *
+ delta
+ );
+ }
 
-  const speedAfterGas =
-    velocity.length();
+ // =================================================
+ // NORMAL GAS TOTAL SPEED LIMIT
+ // =================================================
+ const speedAfterGas =
+ velocity.length();
 
-  /*
-   * 通常速度域から、
-   * このフレームのガスによって
-   * 150km/hを突破した場合。
-   */
-  if (
-    !alreadyOverLimit &&
-    speedAfterGas >
-    GAS_NORMAL_MAX_SPEED
-  ) {
-    velocity.multiplyScalar(
-      GAS_NORMAL_MAX_SPEED /
-      speedAfterGas
-    );
+ if (
+ !alreadyOverLimit &&
+ speedAfterGas >
+ GAS_NORMAL_MAX_SPEED
+ ) {
+ velocity.multiplyScalar(
+ GAS_NORMAL_MAX_SPEED /
+ speedAfterGas
+ );
 
-    return;
-  }
+ return;
+ }
 
-  /*
-   * ワイヤーやGAS BURSTで
-   * すでに150km/hを超えていた場合。
-   *
-   * 通常ガスを押したことで
-   * さらに総速度が増えることだけ防ぐ。
-   *
-   * 150km/hへ強制減速はしない。
-   */
-  if (
-    alreadyOverLimit &&
-    speedAfterGas >
-    speedBeforeGas &&
-    speedAfterGas >
-    0.001
-  ) {
-    velocity.multiplyScalar(
-      speedBeforeGas /
-      speedAfterGas
-    );
-  }
+ /*
+  * GAS使用前から150km/hを
+  * 超えている場合、
+  * GASによってさらに総速度が
+  * 増えることだけ防止する。
+  */
+ if (
+ alreadyOverLimit &&
+ speedAfterGas >
+ speedBeforeGas &&
+ speedAfterGas >
+ 0.001
+ ) {
+ velocity.multiplyScalar(
+ speedBeforeGas /
+ speedAfterGas
+ );
+ }
 }
 
 // ==================================================
