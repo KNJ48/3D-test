@@ -420,33 +420,46 @@ const AIR_CONTROL_ACCEL = 19.2;
 // ==================================================
 // GAS BURST
 // ==================================================
-
 /*
  * SPACE DOUBLE TAP
  *
- * 視点方向ではなく、
- * 常にWorld +Y方向へBurstする。
+ * World +Y方向への瞬間ブースト。
  *
- * 水平慣性は維持。
+ * 落下中:
+ * 落下速度を完全に打ち消したうえで
+ * 上方向へ+10m/s。
+ *
+ * 上昇中:
+ * 現在の上昇速度へ+10m/s。
+ *
+ * X/Z慣性は維持。
  */
 
+// --------------------------------------------------
+// COST
+// --------------------------------------------------
 const GAS_BURST_COST =
  10;
 
+// --------------------------------------------------
+// DOUBLE TAP
+// --------------------------------------------------
 const GAS_DOUBLE_TAP_WINDOW =
  0.5;
 
-/*
- * 上方向への瞬間速度加算。
- *
- * 既存値24 unit/sを維持。
- *
- * METERS_PER_UNIT = 0.5の場合、
- * +12m/s相当。
- */
-const GAS_BURST_IMPULSE =
- 24;
+// --------------------------------------------------
+// UPWARD BOOST
+// --------------------------------------------------
+const GAS_BURST_IMPULSE_MPS =
+ 10;
 
+const GAS_BURST_IMPULSE =
+ GAS_BURST_IMPULSE_MPS /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// COOLDOWN
+// --------------------------------------------------
 const GAS_BURST_COOLDOWN =
  0.5;
 
@@ -8458,96 +8471,48 @@ function gasBurst() {
  GAS_BURST_COOLDOWN;
 
  // =================================================
- // FIXED VERTICAL BURST
+ // VERTICAL BURST
  // =================================================
  /*
-  * 現在のY速度を完全に上書きする。
+  * 落下中なら、
+  * まず下向き速度を完全に打ち消す。
   *
-  * 落下速度がどれだけ大きくても、
-  * GAS BURST成功時点で
+  * その後、
+  * World +Y方向へ+10m/s。
   *
-  * +10 m/s
+  * 上昇中なら
+  * 現在の上昇速度へ+10m/s。
   *
-  * に確定。
+  * X/Z速度はここでは変更しない。
   *
-  * velocity.x / velocity.z は
-  * 一切変更しない。
+  * -100m/s → +10m/s
+  *  -30m/s → +10m/s
+  *    0m/s → +10m/s
+  *   +5m/s → +15m/s
+  *  +30m/s → +40m/s
   */
- velocity.y =
- GAS_BURST_VERTICAL_SPEED;
-
- // =================================================
- // HORIZONTAL SAFETY LIMIT
- // =================================================
- /*
-  * GAS BURSTの
-  *
-  * Y = +10m/s
-  *
-  * を確実に維持するため、
-  * ここでは従来の
-  *
-  * limitNormalSpeed()
-  * limitWireSafetySpeed()
-  *
-  * を使用しない。
-  *
-  * これらはVector全体を縮小するため、
-  * 水平速度が上限を超えている場合に
-  * Y速度まで10m/s未満へ縮小される。
-  *
-  * 代わりにX/ZだけSafety Limitする。
-  */
-
- // -------------------------------------------------
- // SELECT LIMIT
- // -------------------------------------------------
- const horizontalLimit =
- (
- leftAnchor.pulling ||
- rightAnchor.pulling
- )
- ? WIRE_SAFETY_MAX_SPEED
- : NORMAL_MAX_SPEED;
-
- // -------------------------------------------------
- // HORIZONTAL SPEED
- // -------------------------------------------------
- const horizontalSpeed =
- Math.hypot(
- velocity.x,
- velocity.z
- );
-
- // -------------------------------------------------
- // LIMIT X / Z ONLY
- // -------------------------------------------------
  if (
- horizontalSpeed >
- horizontalLimit
+ velocity.y <
+ 0
  ) {
- const scale =
- horizontalLimit /
- horizontalSpeed;
-
- velocity.x *=
- scale;
-
- velocity.z *=
- scale;
+ velocity.y =
+ 0;
  }
 
+ velocity.y +=
+ GAS_BURST_IMPULSE;
+
  // =================================================
- // FINAL VERTICAL GUARANTEE
+ // SAFETY
  // =================================================
- /*
-  * Safety処理後も最後にもう一度保証。
-  *
-  * GAS BURSTがtrueを返す瞬間の
-  * Y速度は必ず+10m/s。
-  */
- velocity.y =
- GAS_BURST_VERTICAL_SPEED;
+ if (
+ leftAnchor.pulling ||
+ rightAnchor.pulling
+ ) {
+ limitWireSafetySpeed();
+ } else {
+ limitNormalSpeed();
+ }
 
  return true;
 }
