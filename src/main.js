@@ -11572,19 +11572,50 @@ function getWireDistanceBoost(
 // WIRE PHYSICS
 // ==================================================
 /*
- * ワイヤー上方向強化。
+ * HYBRID WIRE PHYSICS
  *
- * 水平方向:
- * 100%
+ * 既存:
+ * アンカー方向への推進力
  *
- * 上方向:
- * 300%
+ * +
  *
- * 下向きアンカーについては
- * Y成分を強化しない。
+ * TEST:
+ * Wでロープそのものを巻き取る。
+ *
+ * 比較用に両方を同時使用する。
  */
+
+// --------------------------------------------------
+// UPWARD FORCE
+// --------------------------------------------------
 const WIRE_UPWARD_FORCE_MULTIPLIER =
  3;
+
+// --------------------------------------------------
+// REEL SPEED
+// --------------------------------------------------
+/*
+ * Wを押している間、
+ * ロープを毎秒22m巻き取る。
+ *
+ * 内部unitへ変換して使用。
+ */
+const WIRE_REEL_SPEED_MPS =
+ 22;
+
+const WIRE_REEL_SPEED =
+ WIRE_REEL_SPEED_MPS /
+ METERS_PER_UNIT;
+
+/*
+ * これ以上短くしない。
+ */
+const WIRE_MIN_LENGTH_METERS =
+ 4;
+
+const WIRE_MIN_LENGTH =
+ WIRE_MIN_LENGTH_METERS /
+ METERS_PER_UNIT;
 
 // --------------------------------------------------
 // TEMP FORCE
@@ -11608,13 +11639,10 @@ function updateWire(
  ) {
  anchor.pulling =
  false;
-
  anchor.impulseApplied =
  false;
-
  anchor.ropeLocked =
  false;
-
  return;
  }
 
@@ -11622,14 +11650,8 @@ function updateWire(
  // ROPE LOCK DISABLED
  // --------------------------------------------------
  /*
-  * Shiftは現在、
-  *
-  * LEFT ANCHOR
-  *
-  * に使用する。
-  *
-  * そのため旧Shift Rope Lockは
-  * 完全に無効化する。
+  * Shiftを左アンカーへ変更したため、
+  * 旧Shift Rope Lockは使用しない。
   */
  anchor.ropeLocked =
  false;
@@ -11643,15 +11665,13 @@ function updateWire(
  ) {
  anchor.pulling =
  false;
-
  anchor.impulseApplied =
  false;
-
  return;
  }
 
  // --------------------------------------------------
- // NORMAL WIRE DIRECTION
+ // WIRE DIRECTION
  // --------------------------------------------------
  wireDirection.subVectors(
  anchor.point,
@@ -11664,34 +11684,38 @@ function updateWire(
  ) {
  anchor.pulling =
  false;
-
  return;
  }
 
  wireDirection.normalize();
 
- // --------------------------------------------------
- // FORCE DIRECTION
- // --------------------------------------------------
+ // ==================================================
+ // START PULL
+ // ==================================================
+ if (
+ !anchor.impulseApplied
+ ) {
  /*
-  * wireDirection自体は変更せず、
-  * Force専用Vectorを使用する。
+  * 最初のロープ長は
+  * 現在距離。
   */
+ anchor.length =
+ camera.position.distanceTo(
+ anchor.point
+ );
+
+ // ------------------------------------------------
+ // EXISTING INITIAL IMPULSE
+ // ------------------------------------------------
+ const boost =
+ getWireDistanceBoost(
+ anchor
+ );
+
  wireForceDirection.copy(
  wireDirection
  );
 
- // --------------------------------------------------
- // UPWARD FORCE × 3
- // --------------------------------------------------
- /*
-  * アンカーがPlayerより
-  * 上にある場合のみ
-  * Y成分を3倍。
-  *
-  * 下方向へのY成分は
-  * 従来通り。
-  */
  if (
  wireForceDirection.y >
  0
@@ -11700,26 +11724,6 @@ function updateWire(
  WIRE_UPWARD_FORCE_MULTIPLIER;
  }
 
- /*
-  * normalizeしない。
-  *
-  * Yだけを強化するため。
-  */
-
- // --------------------------------------------------
- // DISTANCE BOOST
- // --------------------------------------------------
- const boost =
- getWireDistanceBoost(
- anchor
- );
-
- // --------------------------------------------------
- // INITIAL IMPULSE
- // --------------------------------------------------
- if (
- !anchor.impulseApplied
- ) {
  velocity.addScaledVector(
  wireForceDirection,
  WIRE_INITIAL_IMPULSE *
@@ -11728,19 +11732,57 @@ function updateWire(
 
  anchor.impulseApplied =
  true;
-
- /*
-  * 牽引開始時点のロープ長。
-  */
- anchor.length =
- camera.position.distanceTo(
- anchor.point
- );
  }
 
- // --------------------------------------------------
- // SUSTAINED PULL
- // --------------------------------------------------
+ // ==================================================
+ // REEL IN
+ // ==================================================
+ /*
+  * ここが今回の実験部分。
+  *
+  * Wを押している間、
+  * ロープ最大長そのものを
+  * 毎フレーム短くする。
+  */
+ anchor.length =
+ Math.max(
+ WIRE_MIN_LENGTH,
+ anchor.length -
+ WIRE_REEL_SPEED *
+ delta
+ );
+
+ // ==================================================
+ // EXISTING SUSTAINED FORCE
+ // ==================================================
+ /*
+  * 既存の牽引加速度も残す。
+  *
+  * つまり今回は、
+  *
+  * 推進力
+  * +
+  * ロープ巻き取り
+  *
+  * のハイブリッド。
+  */
+ const boost =
+ getWireDistanceBoost(
+ anchor
+ );
+
+ wireForceDirection.copy(
+ wireDirection
+ );
+
+ if (
+ wireForceDirection.y >
+ 0
+ ) {
+ wireForceDirection.y *=
+ WIRE_UPWARD_FORCE_MULTIPLIER;
+ }
+
  anchor.pulling =
  true;
 
@@ -11766,32 +11808,32 @@ function constrainRope(
  // --------------------------------------------------
  // ACTIVE CHECK
  // --------------------------------------------------
+ /*
+  * 接続されている限り、
+  * Wを離してもロープ長を保持する。
+  */
  if (
-  !anchor.connected ||
-  (
-   !anchor.pulling &&
-   !anchor.ropeLocked
-  )
+ !anchor.connected
  ) {
-  return;
+ return;
  }
 
  // --------------------------------------------------
  // ROPE VECTOR
  // --------------------------------------------------
  ropeOutward.subVectors(
-  camera.position,
-  anchor.point
+ camera.position,
+ anchor.point
  );
 
  const distance =
  ropeOutward.length();
 
  if (
-  distance <
-  0.001
+ distance <
+ 0.001
  ) {
-  return;
+ return;
  }
 
  ropeOutward.normalize();
@@ -11800,52 +11842,46 @@ function constrainRope(
  // POSITION CONSTRAINT
  // --------------------------------------------------
  if (
-  distance >
-  anchor.length
+ distance >
+ anchor.length
  ) {
-  camera.position
-  .copy(
-   anchor.point
-  )
-  .addScaledVector(
-   ropeOutward,
-   anchor.length
-  );
+ camera.position
+ .copy(
+ anchor.point
+ )
+ .addScaledVector(
+ ropeOutward,
+ anchor.length
+ );
  }
 
  // --------------------------------------------------
  // VELOCITY CONSTRAINT
  // --------------------------------------------------
+ /*
+  * アンカーから外へ逃げる速度だけ消す。
+  *
+  * 接線方向の速度は残るので、
+  * 振り子運動になる。
+  */
  const outwardVelocity =
  velocity.dot(
-  ropeOutward
+ ropeOutward
  );
 
  if (
-  outwardVelocity > 0
+ outwardVelocity >
+ 0
  ) {
-  /*
-   * ロープを伸ばす方向の
-   * 速度だけ取り除く。
-   *
-   * この処理は速度を追加しない。
-   */
-  velocity.addScaledVector(
-   ropeOutward,
-   -outwardVelocity
-  );
+ velocity.addScaledVector(
+ ropeOutward,
+ -outwardVelocity
+ );
  }
 
  // --------------------------------------------------
  // SAFETY
  // --------------------------------------------------
- /*
-  * 拘束処理そのものから
-  * 異常速度が発生した場合の
-  * 最終安全装置。
-  *
-  * ワイヤー用1000km/h上限。
-  */
  limitWireSafetySpeed();
 }
 
