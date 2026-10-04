@@ -3983,25 +3983,25 @@ const HOUSE_TEMPLATES = {
  // TEMPLATE 01
  // --------------------------------------------------
  1: {
-  id: 1,
-  name: "STANDARD_3F",
+ id: 1,
+ name: "STANDARD_3F",
 
-  widthMeters: 9,
-  depthMeters: 11,
+ widthMeters: 9,
+ depthMeters: 11,
 
-  floorCount: 3,
-  floorHeightMeters: 3,
+ floorCount: 3,
+ floorHeightMeters: 3,
 
-  roofHeightMeters: 4,
-  roofOverhangMeters: 0.6,
-  roofThicknessMeters: 0.28,
+ roofHeightMeters: 4,
+ roofOverhangMeters: 0.6,
+ roofThicknessMeters: 0.28,
 
-  frontWindowsPerFloor: 3,
-  sideWindowsPerFloor: 2,
+ frontWindowsPerFloor: 3,
+ sideWindowsPerFloor: 2,
 
-  windowWidthMeters: 1.35,
-  windowHeightMeters: 1.75,
-  windowSurfaceOffsetMeters: 0.03
+ windowWidthMeters: 1.35,
+ windowHeightMeters: 1.75,
+ windowSurfaceOffsetMeters: 0.03
  },
 
  // --------------------------------------------------
@@ -4019,25 +4019,72 @@ const HOUSE_TEMPLATES = {
   * ・窓が多い
   */
  2: {
-  id: 2,
-  name: "WIDE_2F",
+ id: 2,
+ name: "WIDE_2F",
 
-  widthMeters: 13,
-  depthMeters: 16,
+ widthMeters: 13,
+ depthMeters: 16,
 
-  floorCount: 2,
-  floorHeightMeters: 3.2,
+ floorCount: 2,
+ floorHeightMeters: 3.2,
 
-  roofHeightMeters: 3.1,
-  roofOverhangMeters: 0.8,
-  roofThicknessMeters: 0.32,
+ roofHeightMeters: 3.1,
+ roofOverhangMeters: 0.8,
+ roofThicknessMeters: 0.32,
 
-  frontWindowsPerFloor: 4,
-  sideWindowsPerFloor: 3,
+ frontWindowsPerFloor: 4,
+ sideWindowsPerFloor: 3,
 
-  windowWidthMeters: 1.45,
-  windowHeightMeters: 1.7,
-  windowSurfaceOffsetMeters: 0.03
+ windowWidthMeters: 1.45,
+ windowHeightMeters: 1.7,
+ windowSurfaceOffsetMeters: 0.03
+ },
+
+ // --------------------------------------------------
+ // TEMPLATE 03
+ // --------------------------------------------------
+ /*
+  * 高層タイプの4階建て。
+  *
+  * Template 01より
+  *
+  * ・高い
+  * ・少し幅広
+  * ・奥行きも大きい
+  * ・縦方向の存在感が強い
+  * ・立体機動のアンカー地点として使いやすい
+  *
+  * 壁部分:
+  *
+  * 3.3m × 4階
+  * = 13.2m
+  *
+  * 屋根:
+  * 4.8m
+  *
+  * 最大高:
+  * 約18m
+  */
+ 3: {
+ id: 3,
+ name: "TALL_4F",
+
+ widthMeters: 11,
+ depthMeters: 14,
+
+ floorCount: 4,
+ floorHeightMeters: 3.3,
+
+ roofHeightMeters: 4.8,
+ roofOverhangMeters: 0.7,
+ roofThicknessMeters: 0.30,
+
+ frontWindowsPerFloor: 3,
+ sideWindowsPerFloor: 3,
+
+ windowWidthMeters: 1.4,
+ windowHeightMeters: 1.8,
+ windowSurfaceOffsetMeters: 0.03
  }
 };
 
