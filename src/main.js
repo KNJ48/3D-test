@@ -89,6 +89,103 @@ const WIRE_SAFETY_MAX_SPEED =
 const MAX_MOVE_STEP = 0.22;
 
 // ==================================================
+// MANEUVER MOVEMENT PHYSICS
+// ==================================================
+/*
+ * 移動感を比較対象の物理へ寄せる。
+ *
+ * このゲーム:
+ * 1 unit = 0.5m
+ *
+ * なので、
+ * m/s系の値は内部unitへ変換する。
+ */
+
+// --------------------------------------------------
+// GRAVITY
+// --------------------------------------------------
+const MANEUVER_GRAVITY_MPS2 =
+ 21;
+
+const MANEUVER_GRAVITY =
+ MANEUVER_GRAVITY_MPS2 /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// AIR CONTROL
+// --------------------------------------------------
+const MANEUVER_AIR_CONTROL_MPS2 =
+ 20;
+
+const MANEUVER_AIR_CONTROL_ACCEL =
+ MANEUVER_AIR_CONTROL_MPS2 /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// AIR DRAG
+// --------------------------------------------------
+const MANEUVER_AIR_DRAG =
+ 0.045;
+
+// --------------------------------------------------
+// MAX SPEED
+// --------------------------------------------------
+const MANEUVER_MAX_SPEED_MPS =
+ 68;
+
+const MANEUVER_MAX_SPEED =
+ MANEUVER_MAX_SPEED_MPS /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// GAS THRUST
+// --------------------------------------------------
+const MANEUVER_GAS_THRUST_MPS2 =
+ 48;
+
+const MANEUVER_GAS_THRUST_ACCEL =
+ MANEUVER_GAS_THRUST_MPS2 /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// WIRE REEL
+// --------------------------------------------------
+const MANEUVER_WIRE_REEL_MPS =
+ 22;
+
+const MANEUVER_WIRE_REEL_SPEED =
+ MANEUVER_WIRE_REEL_MPS /
+ METERS_PER_UNIT;
+
+// GAS噴射中。
+// Wを押していなくても少し巻き取る。
+const MANEUVER_GAS_REEL_MPS =
+ 7;
+
+const MANEUVER_GAS_REEL_SPEED =
+ MANEUVER_GAS_REEL_MPS /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// MIN ROPE LENGTH
+// --------------------------------------------------
+const MANEUVER_MIN_ROPE_METERS =
+ 4;
+
+const MANEUVER_MIN_ROPE_LENGTH =
+ MANEUVER_MIN_ROPE_METERS /
+ METERS_PER_UNIT;
+
+// --------------------------------------------------
+// INITIAL ROPE TENSION
+// --------------------------------------------------
+/*
+ * 接続時点で現在距離の96%へする。
+ */
+const MANEUVER_INITIAL_ROPE_RATIO =
+ 0.96;
+
+// ==================================================
 // AIR
 // ==================================================
 
@@ -11110,44 +11207,65 @@ function fireAutoDualAnchors() {
 // CONNECT ANCHOR
 // ==================================================
 function connectAnchor(
-  anchor,
-  point,
-  target
+ anchor,
+ point,
+ target
 ) {
-  anchor.state =
-    "CONNECTED";
+ anchor.state =
+ "CONNECTED";
 
-  anchor.connected = true;
+ anchor.connected =
+ true;
 
-  anchor.point.copy(
-    point
-  );
+ anchor.point.copy(
+ point
+ );
 
-  anchor.targetPoint.copy(
-    point
-  );
+ anchor.targetPoint.copy(
+ point
+ );
 
-  anchor.target =
-    target;
+ anchor.target =
+ target;
 
-  anchor.length =
-    camera.position.distanceTo(
-      point
-    );
+ // =================================================
+ // INITIAL ROPE TENSION
+ // =================================================
+ /*
+  * 比較対象と同様、
+  * 接続瞬間の距離より
+  * 少し短いロープから開始。
+  *
+  * 100m先へ接続
+  * ↓
+  * 約96mのロープ
+  *
+  * 接続しただけで軽く張力が発生する。
+  */
+ anchor.length =
+ camera.position.distanceTo(
+ point
+ ) *
+ MANEUVER_INITIAL_ROPE_RATIO;
 
-  anchor.pulling = false;
+ anchor.pulling =
+ false;
 
-  anchor.impulseApplied = false;
+ anchor.impulseApplied =
+ false;
 
-  /*
-   * 接続地点にアンカー本体を残す。
-   */
-  anchor.projectileMesh.position.copy(
-    point
-  );
+ anchor.ropeLocked =
+ false;
 
-  anchor.projectileMesh.visible =
-    true;
+ // -------------------------------------------------
+ // PROJECTILE
+ // -------------------------------------------------
+ anchor.projectileMesh.position.copy(
+ point
+ );
+
+ anchor.projectileMesh.visible =
+ true;
 }
 
 // ==================================================
@@ -11572,56 +11690,23 @@ function getWireDistanceBoost(
 // WIRE PHYSICS
 // ==================================================
 /*
- * HYBRID WIRE PHYSICS
+ * REEL BASED WIRE PHYSICS
  *
- * 既存:
- * アンカー方向への推進力
+ * 旧方式:
  *
- * +
+ * velocityへアンカー方向の
+ * 推進力を加える。
  *
- * TEST:
- * Wでロープそのものを巻き取る。
  *
- * 比較用に両方を同時使用する。
+ * 新方式:
+ *
+ * ロープ長そのものを縮め、
+ * Rope Constraintによって
+ * プレイヤーをアンカー側へ引き込む。
+ *
+ * 接線方向の慣性は保持されるため、
+ * 振り子運動へ入りやすい。
  */
-
-// --------------------------------------------------
-// UPWARD FORCE
-// --------------------------------------------------
-const WIRE_UPWARD_FORCE_MULTIPLIER =
- 3;
-
-// --------------------------------------------------
-// REEL SPEED
-// --------------------------------------------------
-/*
- * Wを押している間、
- * ロープを毎秒22m巻き取る。
- *
- * 内部unitへ変換して使用。
- */
-const WIRE_REEL_SPEED_MPS =
- 22;
-
-const WIRE_REEL_SPEED =
- WIRE_REEL_SPEED_MPS /
- METERS_PER_UNIT;
-
-/*
- * これ以上短くしない。
- */
-const WIRE_MIN_LENGTH_METERS =
- 4;
-
-const WIRE_MIN_LENGTH =
- WIRE_MIN_LENGTH_METERS /
- METERS_PER_UNIT;
-
-// --------------------------------------------------
-// TEMP FORCE
-// --------------------------------------------------
-const wireForceDirection =
- new THREE.Vector3();
 
 // --------------------------------------------------
 // UPDATE WIRE
@@ -11639,164 +11724,93 @@ function updateWire(
  ) {
  anchor.pulling =
  false;
+
  anchor.impulseApplied =
  false;
- anchor.ropeLocked =
- false;
- return;
- }
 
- // --------------------------------------------------
- // ROPE LOCK DISABLED
- // --------------------------------------------------
- /*
-  * Shiftを左アンカーへ変更したため、
-  * 旧Shift Rope Lockは使用しない。
-  */
  anchor.ropeLocked =
  false;
 
- // --------------------------------------------------
- // NO PULL
- // --------------------------------------------------
- if (
- !keys["KeyW"] ||
- !gasAvailable
- ) {
- anchor.pulling =
- false;
- anchor.impulseApplied =
- false;
  return;
  }
 
  // --------------------------------------------------
- // WIRE DIRECTION
+ // OLD ROPE LOCK DISABLED
  // --------------------------------------------------
- wireDirection.subVectors(
- anchor.point,
- camera.position
- );
-
- if (
- wireDirection.lengthSq() <
- 0.001
- ) {
- anchor.pulling =
+ anchor.ropeLocked =
  false;
- return;
- }
 
- wireDirection.normalize();
+ // =================================================
+ // REEL SPEED
+ // =================================================
+ let reelSpeed =
+ 0;
 
- // ==================================================
- // START PULL
- // ==================================================
+ // --------------------------------------------------
+ // W = FAST REEL
+ // --------------------------------------------------
  if (
- !anchor.impulseApplied
+ keys["KeyW"]
  ) {
  /*
-  * 最初のロープ長は
-  * 現在距離。
+  * 比較対象と同じ22m/s。
+  *
+  * この巻き取り自体は
+  * 推進加速度ではない。
   */
- anchor.length =
- camera.position.distanceTo(
- anchor.point
- );
+ reelSpeed =
+ MANEUVER_WIRE_REEL_SPEED;
+ }
 
- // ------------------------------------------------
- // EXISTING INITIAL IMPULSE
- // ------------------------------------------------
- const boost =
- getWireDistanceBoost(
- anchor
- );
-
- wireForceDirection.copy(
- wireDirection
- );
-
- if (
- wireForceDirection.y >
+ // --------------------------------------------------
+ // GAS = SLOW REEL
+ // --------------------------------------------------
+ else if (
+ keys["Space"] &&
+ gas >
  0
  ) {
- wireForceDirection.y *=
- WIRE_UPWARD_FORCE_MULTIPLIER;
+ reelSpeed =
+ MANEUVER_GAS_REEL_SPEED;
  }
 
- velocity.addScaledVector(
- wireForceDirection,
- WIRE_INITIAL_IMPULSE *
- boost.initialMultiplier
- );
-
- anchor.impulseApplied =
- true;
- }
-
- // ==================================================
- // REEL IN
- // ==================================================
- /*
-  * ここが今回の実験部分。
-  *
-  * Wを押している間、
-  * ロープ最大長そのものを
-  * 毎フレーム短くする。
-  */
+ // --------------------------------------------------
+ // REEL
+ // --------------------------------------------------
+ if (
+ reelSpeed >
+ 0
+ ) {
  anchor.length =
  Math.max(
- WIRE_MIN_LENGTH,
+ MANEUVER_MIN_ROPE_LENGTH,
  anchor.length -
- WIRE_REEL_SPEED *
+ reelSpeed *
  delta
  );
-
- // ==================================================
- // EXISTING SUSTAINED FORCE
- // ==================================================
- /*
-  * 既存の牽引加速度も残す。
-  *
-  * つまり今回は、
-  *
-  * 推進力
-  * +
-  * ロープ巻き取り
-  *
-  * のハイブリッド。
-  */
- const boost =
- getWireDistanceBoost(
- anchor
- );
-
- wireForceDirection.copy(
- wireDirection
- );
-
- if (
- wireForceDirection.y >
- 0
- ) {
- wireForceDirection.y *=
- WIRE_UPWARD_FORCE_MULTIPLIER;
- }
 
  anchor.pulling =
  true;
+ } else {
+ anchor.pulling =
+ false;
+ }
 
- velocity.addScaledVector(
- wireForceDirection,
- WIRE_SUSTAIN_ACCEL *
- boost.accelerationMultiplier *
- delta
- );
+ /*
+  * IMPORTANT:
+  *
+  * ここではvelocityへ
+  * アンカー方向の推進力を追加しない。
+  *
+  * WIRE_INITIAL_IMPULSE
+  * WIRE_SUSTAIN_ACCEL
+  * 距離Boost
+  *
+  * は、この新しい移動物理では
+  * 使用しない。
+  */
 
- // --------------------------------------------------
- // SAFETY
- // --------------------------------------------------
- limitWireSafetySpeed();
+ void gasAvailable;
 }
 
 // ==================================================
@@ -11805,13 +11819,6 @@ function updateWire(
 function constrainRope(
  anchor
 ) {
- // --------------------------------------------------
- // ACTIVE CHECK
- // --------------------------------------------------
- /*
-  * 接続されている限り、
-  * Wを離してもロープ長を保持する。
-  */
  if (
  !anchor.connected
  ) {
@@ -11819,8 +11826,19 @@ function constrainRope(
  }
 
  // --------------------------------------------------
- // ROPE VECTOR
+ // RELAXATION PASSES
  // --------------------------------------------------
+ /*
+  * 比較対象と同じく2pass。
+  *
+  * 高速時にConstraintが
+  * 柔らかくなりすぎるのを防ぐ。
+  */
+ for (
+ let pass = 0;
+ pass < 2;
+ pass++
+ ) {
  ropeOutward.subVectors(
  camera.position,
  anchor.point
@@ -11836,15 +11854,24 @@ function constrainRope(
  return;
  }
 
- ropeOutward.normalize();
-
- // --------------------------------------------------
- // POSITION CONSTRAINT
- // --------------------------------------------------
+ // ------------------------------------------------
+ // WITHIN ROPE LENGTH
+ // ------------------------------------------------
  if (
- distance >
+ distance <=
  anchor.length
  ) {
+ continue;
+ }
+
+ ropeOutward.multiplyScalar(
+ 1 /
+ distance
+ );
+
+ // ------------------------------------------------
+ // POSITION CONSTRAINT
+ // ------------------------------------------------
  camera.position
  .copy(
  anchor.point
@@ -11853,16 +11880,21 @@ function constrainRope(
  ropeOutward,
  anchor.length
  );
- }
 
- // --------------------------------------------------
+ // ------------------------------------------------
  // VELOCITY CONSTRAINT
- // --------------------------------------------------
+ // ------------------------------------------------
  /*
-  * アンカーから外へ逃げる速度だけ消す。
+  * ロープを伸ばす方向だけ消す。
   *
-  * 接線方向の速度は残るので、
-  * 振り子運動になる。
+  * アンカーへ向かう速度:
+  * 残す
+  *
+  * 接線方向:
+  * 残す
+  *
+  * 外向き:
+  * 消す
   */
  const outwardVelocity =
  velocity.dot(
@@ -11878,11 +11910,7 @@ function constrainRope(
  -outwardVelocity
  );
  }
-
- // --------------------------------------------------
- // SAFETY
- // --------------------------------------------------
- limitWireSafetySpeed();
+ }
 }
 
 // ==================================================
@@ -11904,30 +11932,14 @@ function updateGasFlight(
  }
 
  // =================================================
- // FALL MULTIPLIER
- // =================================================
- /*
-  * GAS処理前の落下速度から倍率を決定。
-  *
-  * 落下が速いほど、
-  *
-  * ・GAS消費
-  * ・上方向回復加速度
-  *
-  * が増える。
-  */
- const fallMultiplier =
- getGasFallMultiplier();
-
- // =================================================
  // GAS CONSUMPTION
  // =================================================
- const gasUseRate =
- FLIGHT_GAS_USE_RATE *
- fallMultiplier;
-
+ /*
+  * GAS残量システム自体は
+  * 現在のゲーム仕様を維持。
+  */
  gas -=
- gasUseRate *
+ FLIGHT_GAS_USE_RATE *
  delta;
 
  gas =
@@ -11937,76 +11949,18 @@ function updateGasFlight(
  );
 
  // =================================================
- // ORIGINAL SPEED
+ // UPWARD THRUST
  // =================================================
- const speedBeforeGas =
- velocity.length();
-
- const alreadyOverLimit =
- speedBeforeGas >
- GAS_NORMAL_MAX_SPEED;
-
- // =================================================
- // VERTICAL GAS
- // =================================================
- if (
- velocity.y <
- 0
- ) {
  /*
-  * 落下中。
-  *
-  * 落下速度が速いほど
-  * 上方向への回復加速度を強くする。
-  *
-  * 0km/h付近:
-  * 28
-  *
-  * 300km/h以上:
-  * 84
-  */
- const recoveryAccel =
- GAS_RECOVERY_ACCEL *
- fallMultiplier;
-
- velocity.y +=
- recoveryAccel *
- delta;
-
- /*
-  * 1フレームで落下を打ち消して
-  * 上昇へ入った場合も、
-  * 上昇速度上限を超えない。
-  */
- velocity.y =
- Math.min(
- velocity.y,
- GAS_CLIMB_SPEED
- );
- } else if (
- velocity.y <
- GAS_CLIMB_SPEED
- ) {
- /*
-  * すでに上昇している場合は
-  * 通常の上昇加速度。
-  *
-  * 落下していないので
-  * Fall Bonusは付かない。
+  * 速度を目標値へ近づけるのではなく、
+  * World +Yへ48m/s²の力を加える。
   */
  velocity.y +=
- GAS_CLIMB_ACCEL *
+ MANEUVER_GAS_THRUST_ACCEL *
  delta;
 
- velocity.y =
- Math.min(
- velocity.y,
- GAS_CLIMB_SPEED
- );
- }
-
  // =================================================
- // HORIZONTAL GAS CONTROL
+ // AIR CONTROL
  // =================================================
  input.set(
  0,
@@ -12052,48 +12006,13 @@ function updateGasFlight(
  ) {
  input.normalize();
 
+ /*
+  * 20m/s²。
+  */
  velocity.addScaledVector(
  input,
- AIR_CONTROL_ACCEL *
+ MANEUVER_AIR_CONTROL_ACCEL *
  delta
- );
- }
-
- // =================================================
- // NORMAL GAS TOTAL SPEED LIMIT
- // =================================================
- const speedAfterGas =
- velocity.length();
-
- if (
- !alreadyOverLimit &&
- speedAfterGas >
- GAS_NORMAL_MAX_SPEED
- ) {
- velocity.multiplyScalar(
- GAS_NORMAL_MAX_SPEED /
- speedAfterGas
- );
-
- return;
- }
-
- /*
-  * GAS使用前から150km/hを
-  * 超えている場合、
-  * GASによってさらに総速度が
-  * 増えることだけ防止する。
-  */
- if (
- alreadyOverLimit &&
- speedAfterGas >
- speedBeforeGas &&
- speedAfterGas >
- 0.001
- ) {
- velocity.multiplyScalar(
- speedBeforeGas /
- speedAfterGas
  );
  }
 }
@@ -12101,150 +12020,74 @@ function updateGasFlight(
 // ==================================================
 // AIR DRAG
 // ==================================================
-
 function updateAirDrag(
  delta
 ) {
- // =================================================
- // GROUND
- // =================================================
  if (
-  grounded
+ grounded
  ) {
-  return;
+ return;
  }
 
  // =================================================
- // STATE
+ // AIR DRAG
  // =================================================
-
- const movementInput =
-  keys["KeyW"] ||
-  keys["KeyA"] ||
-  keys["KeyS"] ||
-  keys["KeyD"];
-
- const gasActive =
-  keys["Space"] &&
-  gas >
-  0;
-
- const wireActive =
-  leftAnchor.pulling ||
-  rightAnchor.pulling;
-
- const airBrakeActive =
-  keys["KeyF"];
-
- // =================================================
- // SELECT DRAG MULTIPLIER
- // =================================================
-
- let dragMultiplier =
-  1;
-
- // -------------------------------------------------
- // AIR BRAKE
- // -------------------------------------------------
  /*
-  * Fは最優先。
+  * 比較対象:
   *
-  * GASやWIREを使っていても
-  * Fを押している間は
-  * 強い空気抵抗を受ける。
+  * exp(-0.045 * dt)
+  *
+  * GAS / WIRE / WASDで
+  * 抵抗値を切り替えない。
+  *
+  * 3次元速度すべてへ非常に弱い抵抗。
   */
- if (
-  airBrakeActive
- ) {
-  dragMultiplier =
-   AIR_BRAKE_DRAG_MULTIPLIER;
- }
+ const drag =
+ Math.exp(
+ -MANEUVER_AIR_DRAG *
+ delta
+ );
 
- // -------------------------------------------------
- // WIRE
- // -------------------------------------------------
- else if (
-  wireActive
- ) {
-  dragMultiplier =
-   AIR_WIRE_DRAG_MULTIPLIER;
- }
-
- // -------------------------------------------------
- // GAS
- // -------------------------------------------------
- else if (
-  gasActive
- ) {
-  dragMultiplier =
-   AIR_GAS_DRAG_MULTIPLIER;
- }
-
- // -------------------------------------------------
- // WASD ONLY
- // -------------------------------------------------
- else if (
-  movementInput
- ) {
-  dragMultiplier =
-   AIR_INPUT_DRAG_MULTIPLIER;
- }
+ velocity.multiplyScalar(
+ drag
+ );
 
  // =================================================
- // NORMAL AIR DRAG
+ // SOFT MAX SPEED
  // =================================================
- if (
-  dragMultiplier >
-  0
- ) {
-  const drag =
-   Math.exp(
-    -AIR_DRAG *
-    dragMultiplier *
-    delta
-   );
-
-  /*
-   * エアブレーキも含め、
-   * ここでは水平速度を減衰。
-   *
-   * Y方向はGravityに任せる。
-   */
-  velocity.x *=
-   drag;
-
-  velocity.z *=
-   drag;
- }
-
- // =================================================
- // HIGH SPEED DRAG
- // =================================================
-
+ /*
+  * hard clampではなく、
+  * 上限を超えた分に応じて減速。
+  */
  const speed =
-  velocity.length();
+ velocity.length();
 
  if (
-  speed >
-  NORMAL_MAX_SPEED
+ speed >
+ MANEUVER_MAX_SPEED
  ) {
-  const excessRatio =
-   (
-    speed -
-    NORMAL_MAX_SPEED
-   ) /
-   NORMAL_MAX_SPEED;
+ /*
+  * 比較対象の式を
+  * 内部unitスケールに合わせる。
+  */
+ const excessMetersPerSecond =
+ (
+ speed -
+ MANEUVER_MAX_SPEED
+ ) *
+ METERS_PER_UNIT;
 
-  const highDrag =
-   Math.exp(
-    -HIGH_SPEED_DRAG *
-    excessRatio *
-    delta
-   );
+ const reduction =
+ Math.min(
+ 1,
+ excessMetersPerSecond *
+ 0.02
+ );
 
-  velocity.multiplyScalar(
-   highDrag
-  );
+ velocity.multiplyScalar(
+ 1 -
+ reduction
+ );
  }
 }
 
