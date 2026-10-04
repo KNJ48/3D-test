@@ -11740,6 +11740,14 @@ function updateWire(
 function constrainRope(
  anchor
 ) {
+ // --------------------------------------------------
+ // ACTIVE CHECK
+ // --------------------------------------------------
+ /*
+  * アンカー接続中は
+  * Wを離していても
+  * 現在のロープ長を維持する。
+  */
  if (
  !anchor.connected
  ) {
@@ -11750,16 +11758,18 @@ function constrainRope(
  // RELAXATION PASSES
  // --------------------------------------------------
  /*
-  * 比較対象と同じく2pass。
-  *
-  * 高速時にConstraintが
-  * 柔らかくなりすぎるのを防ぐ。
+  * 高速移動時にロープConstraintが
+  * 柔らかくなりすぎないよう
+  * 2回処理する。
   */
  for (
  let pass = 0;
  pass < 2;
  pass++
  ) {
+ // ------------------------------------------------
+ // ROPE VECTOR
+ // ------------------------------------------------
  ropeOutward.subVectors(
  camera.position,
  anchor.point
@@ -11776,7 +11786,7 @@ function constrainRope(
  }
 
  // ------------------------------------------------
- // WITHIN ROPE LENGTH
+ // WITHIN LENGTH
  // ------------------------------------------------
  if (
  distance <=
@@ -11793,6 +11803,10 @@ function constrainRope(
  // ------------------------------------------------
  // POSITION CONSTRAINT
  // ------------------------------------------------
+ /*
+  * ロープ長より外へ出た場合、
+  * プレイヤーをロープ半径上へ戻す。
+  */
  camera.position
  .copy(
  anchor.point
@@ -11806,16 +11820,16 @@ function constrainRope(
  // VELOCITY CONSTRAINT
  // ------------------------------------------------
  /*
-  * ロープを伸ばす方向だけ消す。
+  * アンカーから外へ離れる速度だけ消す。
   *
-  * アンカーへ向かう速度:
-  * 残す
+  * アンカー方向:
+  * 維持
   *
   * 接線方向:
-  * 残す
+  * 維持
   *
   * 外向き:
-  * 消す
+  * 除去
   */
  const outwardVelocity =
  velocity.dot(
@@ -11834,204 +11848,28 @@ function constrainRope(
  }
 }
 
- // =================================================
- // INACTIVE
- // =================================================
- if (
- gasDashTimer <=
- 0
- ) {
- return;
- }
-
- // =================================================
- // ACTIVE TIME THIS FRAME
- // =================================================
- /*
-  * 最終フレームで
-  * 0.1秒を超えて余計に噴射しないよう、
-  * 実際に噴射する時間だけ取り出す。
-  */
- const activeDelta =
- Math.min(
- delta,
- gasDashTimer
- );
-
- gasDashTimer =
- Math.max(
- 0,
- gasDashTimer -
- delta
- );
-
- // =================================================
- // UPWARD GAS
- // =================================================
- /*
-  * 視点Pitchには影響されない。
-  *
-  * 常にWorld +Y。
-  */
- velocity.y +=
- GAS_DASH_UP_ACCEL *
- activeDelta;
-
- // =================================================
- // HORIZONTAL INPUT
- // =================================================
- input.set(
- 0,
- 0,
- 0
- );
-
- // -------------------------------------------------
- // FORWARD
- // -------------------------------------------------
- if (
- keys["KeyW"]
- ) {
- input.add(
- forward
- );
- }
-
- // -------------------------------------------------
- // BACK
- // -------------------------------------------------
- if (
- keys["KeyS"]
- ) {
- input.sub(
- forward
- );
- }
-
- // -------------------------------------------------
- // RIGHT
- // -------------------------------------------------
- if (
- keys["KeyD"]
- ) {
- input.add(
- right
- );
- }
-
- // -------------------------------------------------
- // LEFT
- // -------------------------------------------------
- if (
- keys["KeyA"]
- ) {
- input.sub(
- right
- );
- }
-
- // =================================================
- // HORIZONTAL GAS
- // =================================================
- if (
- input.lengthSq() >
- 0
- ) {
- input.normalize();
-
- velocity.addScaledVector(
- input,
- GAS_DASH_SIDE_ACCEL *
- activeDelta
- );
- }
-}
-
- // ==================================================
- // UPWARD GAS
- // ==================================================
- /*
-  * 常にWorld +Y方向。
-  */
- velocity.y +=
- GAS_DASH_UP_ACCEL *
- activeDelta;
-
- // ==================================================
- // HORIZONTAL INPUT
- // ==================================================
- input.set(
- 0,
- 0,
- 0
- );
-
- // FORWARD
- if (
- keys["KeyW"]
- ) {
- input.add(
- forward
- );
- }
-
- // BACK
- if (
- keys["KeyS"]
- ) {
- input.sub(
- forward
- );
- }
-
- // RIGHT
- if (
- keys["KeyD"]
- ) {
- input.add(
- right
- );
- }
-
- // LEFT
- if (
- keys["KeyA"]
- ) {
- input.sub(
- right
- );
- }
-
- // ==================================================
- // HORIZONTAL GAS
- // ==================================================
- /*
-  * WASDを押している場合だけ、
-  * その方向へ瞬間加速。
-  *
-  * W+Dなどの場合はnormalizeして
-  * 斜めだけ強くなることを防ぐ。
-  */
- if (
- input.lengthSq() >
- 0
- ) {
- input.normalize();
-
- velocity.addScaledVector(
- input,
- GAS_DASH_SIDE_ACCEL *
- activeDelta
- );
- }
-}
-
 // ==================================================
 // GAS DASH FUNCTIONS
 // ==================================================
+/*
+ * 新GAS仕様。
+ *
+ * SPACEを押した瞬間に
+ * GAS DASHを開始。
+ *
+ * 0.1秒だけ、
+ *
+ * ・World +Y
+ * ・現在のWASD入力方向
+ *
+ * へ加速する。
+ *
+ * SPACE長押しによる継続噴射なし。
+ * DOUBLE TAP BURSTなし。
+ */
 
 // --------------------------------------------------
-// START
+// START GAS DASH
 // --------------------------------------------------
 function startGasDash() {
  // ------------------------------------------------
@@ -12072,7 +11910,7 @@ function startGasDash() {
 }
 
 // --------------------------------------------------
-// UPDATE
+// UPDATE GAS DASH
 // --------------------------------------------------
 function updateGasFlight(
  delta
@@ -12088,9 +11926,10 @@ function updateGasFlight(
  }
 
  // ------------------------------------------------
- // EXACT ACTIVE TIME
+ // ACTIVE DELTA
  // ------------------------------------------------
  /*
+  * 最終フレームで
   * 0.1秒を超えて噴射しない。
   */
  const activeDelta =
@@ -12099,17 +11938,22 @@ function updateGasFlight(
  gasDashTimer
  );
 
+ // ------------------------------------------------
+ // TIMER
+ // ------------------------------------------------
  gasDashTimer =
  Math.max(
  0,
  gasDashTimer -
- delta
+ activeDelta
  );
 
  // =================================================
- // UP
+ // UPWARD GAS
  // =================================================
  /*
+  * カメラのPitchとは無関係。
+  *
   * 常にWorld +Y。
   */
  velocity.y +=
@@ -12117,7 +11961,7 @@ function updateGasFlight(
  activeDelta;
 
  // =================================================
- // WASD DIRECTION
+ // HORIZONTAL INPUT
  // =================================================
  input.set(
  0,
@@ -12125,6 +11969,9 @@ function updateGasFlight(
  0
  );
 
+ // -------------------------------------------------
+ // FORWARD
+ // -------------------------------------------------
  if (
  keys["KeyW"]
  ) {
@@ -12133,6 +11980,9 @@ function updateGasFlight(
  );
  }
 
+ // -------------------------------------------------
+ // BACK
+ // -------------------------------------------------
  if (
  keys["KeyS"]
  ) {
@@ -12141,6 +11991,9 @@ function updateGasFlight(
  );
  }
 
+ // -------------------------------------------------
+ // RIGHT
+ // -------------------------------------------------
  if (
  keys["KeyD"]
  ) {
@@ -12149,6 +12002,9 @@ function updateGasFlight(
  );
  }
 
+ // -------------------------------------------------
+ // LEFT
+ // -------------------------------------------------
  if (
  keys["KeyA"]
  ) {
@@ -12158,8 +12014,12 @@ function updateGasFlight(
  }
 
  // =================================================
- // HORIZONTAL DASH
+ // HORIZONTAL GAS
  // =================================================
+ /*
+  * W+D等でも斜め方向だけ
+  * 強くならないようnormalize。
+  */
  if (
  input.lengthSq() >
  0
@@ -12172,8 +12032,6 @@ function updateGasFlight(
  activeDelta
  );
  }
-
- return;
 }
 
 // ==================================================
@@ -26994,150 +26852,210 @@ function updateStun(
 // PLAYER UPDATE
 // ==================================================
 function updatePlayer(
-  delta
+ delta
 ) {
-  if (dead) {
-    spacePressed =
-      false;
+ // --------------------------------------------------
+ // DEAD
+ // --------------------------------------------------
+ if (
+ dead
+ ) {
+ spacePressed =
+ false;
+ return;
+ }
 
-    return;
-  }
+ // =================================================
+ // CAMERA
+ // =================================================
+ camera.rotation.y =
+ yaw;
 
-  gasDashTimer =
-    Math.max(
-      0,
-      gasBurstCooldown -
-        delta
-    );
+ camera.rotation.x =
+ pitch;
 
-  camera.rotation.y =
-    yaw;
+ // =================================================
+ // MOVEMENT DIRECTIONS
+ // =================================================
+ forward.set(
+ -Math.sin(
+ yaw
+ ),
+ 0,
+ -Math.cos(
+ yaw
+ )
+ );
 
-  camera.rotation.x =
-    pitch;
+ right.set(
+ Math.cos(
+ yaw
+ ),
+ 0,
+ -Math.sin(
+ yaw
+ )
+ );
 
-  forward.set(
-    -Math.sin(yaw),
-    0,
-    -Math.cos(yaw)
-  );
+ // =================================================
+ // STUN
+ // =================================================
+ if (
+ updateStun(
+ delta
+ )
+ ) {
+ return;
+ }
 
-  right.set(
-    Math.cos(yaw),
-    0,
-    -Math.sin(yaw)
-  );
+ // =================================================
+ // GROUND CONTROL
+ // =================================================
+ if (
+ grounded &&
+ !leftAnchor.connected &&
+ !rightAnchor.connected
+ ) {
+ updateGround(
+ delta
+ );
+ }
 
-  if (
-    updateStun(
-      delta
-    )
-  ) {
-    return;
-  }
+ // =================================================
+ // JUMP
+ // =================================================
+ if (
+ spacePressed &&
+ grounded
+ ) {
+ velocity.y =
+ JUMP_SPEED;
 
-  // Ground
-  if (
-    grounded &&
-    !leftAnchor.connected &&
-    !rightAnchor.connected
-  ) {
-    updateGround(
-      delta
-    );
-  }
+ grounded =
+ false;
 
-  // Jump
-  if (
-    spacePressed &&
-    grounded
-  ) {
-    velocity.y =
-      JUMP_SPEED;
+ groundedRoof =
+ null;
+ }
 
-    grounded =
-      false;
-  }
+ // =================================================
+ // GRAVITY
+ // =================================================
+ /*
+  * 比較対象へ寄せた
+  * 21m/s²の重力を使用。
+  */
+ velocity.y -=
+ MANEUVER_GRAVITY *
+ delta;
 
-  // Gravity
-  velocity.y -=
-    GRAVITY *
-    delta;
+ // -------------------------------------------------
+ // TERMINAL FALL SPEED
+ // -------------------------------------------------
+ velocity.y =
+ Math.max(
+ velocity.y,
+ -TERMINAL_FALL_SPEED
+ );
 
-  // 落下終端速度
-  velocity.y =
-    Math.max(
-      velocity.y,
-      -TERMINAL_FALL_SPEED
-    );
+ // =================================================
+ // ANCHOR PROJECTILES
+ // =================================================
+ updateAnchorProjectile(
+ leftAnchor,
+ delta
+ );
 
-  // Anchor projectiles
-  updateAnchorProjectile(
-    leftAnchor,
-    delta
-  );
+ updateAnchorProjectile(
+ rightAnchor,
+ delta
+ );
 
-  updateAnchorProjectile(
-    rightAnchor,
-    delta
-  );
+ // =================================================
+ // WIRE GAS
+ // =================================================
+ const gasAvailable =
+ updateWireGas(
+ delta
+ );
 
-  // Wire gas
-  const gasAvailable =
-    updateWireGas(
-      delta
-    );
+ // =================================================
+ // WIRE REEL
+ // =================================================
+ updateWire(
+ leftAnchor,
+ delta,
+ gasAvailable
+ );
 
-  // Wire acceleration
-  updateWire(
-    leftAnchor,
-    delta,
-    gasAvailable
-  );
+ updateWire(
+ rightAnchor,
+ delta,
+ gasAvailable
+ );
 
-  updateWire(
-    rightAnchor,
-    delta,
-    gasAvailable
-  );
+ // =================================================
+ // GAS DASH
+ // =================================================
+ /*
+  * gasDashTimerを減らすのは
+  * updateGasFlight()だけ。
+  *
+  * ここではTimerへ直接触らない。
+  */
+ updateGasFlight(
+ delta
+ );
 
-  // Normal gas
-  updateGasFlight(
-    delta
-  );
+ // =================================================
+ // AIR DRAG
+ // =================================================
+ updateAirDrag(
+ delta
+ );
 
-  // Drag
-  updateAirDrag(
-    delta
-  );
+ // =================================================
+ // HORIZONTAL MOVEMENT
+ // =================================================
+ moveHorizontal(
+ delta
+ );
 
-  // Movement
-  moveHorizontal(
-    delta
-  );
+ if (
+ dead
+ ) {
+ return;
+ }
 
-  if (dead) {
-    return;
-  }
+ // =================================================
+ // VERTICAL MOVEMENT
+ // =================================================
+ moveVertical(
+ delta
+ );
 
-  moveVertical(
-    delta
-  );
+ if (
+ dead
+ ) {
+ return;
+ }
 
-  if (dead) {
-    return;
-  }
+ // =================================================
+ // ROPE CONSTRAINT
+ // =================================================
+ constrainRope(
+ leftAnchor
+ );
 
-  constrainRope(
-    leftAnchor
-  );
+ constrainRope(
+ rightAnchor
+ );
 
-  constrainRope(
-    rightAnchor
-  );
-
-  spacePressed =
-    false;
+ // =================================================
+ // FRAME INPUT RESET
+ // =================================================
+ spacePressed =
+ false;
 }
 
 // ==================================================
