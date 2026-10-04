@@ -588,54 +588,78 @@ const AIR_CONTROL_ACCEL =
  19.2;
 
 // ==================================================
-// GAS BURST
+// GAS DASH
 // ==================================================
 /*
- * SPACE DOUBLE TAP
+ * SPACE GAS DASH
  *
- * 基本:
- * 上方向へ+10m/s。
+ * SPACEを押した瞬間に開始。
  *
- * 落下速度が速いほど、
+ * 噴射時間:
+ * 0.10秒
  *
- * ・GAS消費
- * ・上方向Impulse
+ * 長押ししても
+ * 0.10秒経過後に自動終了。
  *
- * の両方が増える。
+ * 再使用にはSPACEを
+ * 一度離して押し直す必要がある。
  *
- * 300km/h落下時:
- * 3倍
+ * 旧仕様:
  *
- * X/Z慣性は維持。
+ * ・SPACE長押し上昇
+ * ・SPACE DOUBLE TAP BURST
+ *
+ * は使用しない。
  */
 
 // --------------------------------------------------
-// BASE COST
+// DURATION
 // --------------------------------------------------
-const GAS_BURST_COST =
- 10;
+const GAS_DASH_DURATION =
+ 0.10;
 
 // --------------------------------------------------
-// DOUBLE TAP
+// GAS COST
 // --------------------------------------------------
-const GAS_DOUBLE_TAP_WINDOW =
- 0.5;
+/*
+ * 1回の噴射コスト。
+ */
+const GAS_DASH_COST =
+ 5;
 
 // --------------------------------------------------
-// BASE UPWARD IMPULSE
+// UPWARD ACCELERATION
 // --------------------------------------------------
-const GAS_BURST_IMPULSE_MPS =
- 10;
+/*
+ * 噴射中の上向き加速度。
+ *
+ * m/s²指定。
+ */
+const GAS_DASH_UP_ACCEL_MPS2 =
+ 100;
 
-const GAS_BURST_IMPULSE =
- GAS_BURST_IMPULSE_MPS /
+const GAS_DASH_UP_ACCEL =
+ GAS_DASH_UP_ACCEL_MPS2 /
  METERS_PER_UNIT;
 
 // --------------------------------------------------
-// COOLDOWN
+// SIDE ACCELERATION
 // --------------------------------------------------
-const GAS_BURST_COOLDOWN =
- 0.5;
+/*
+ * WASD方向への加速度。
+ *
+ * W/S:
+ * 前後
+ *
+ * A/D:
+ * 左右
+ */
+const GAS_DASH_SIDE_ACCEL_MPS2 =
+ 80;
+
+const GAS_DASH_SIDE_ACCEL =
+ GAS_DASH_SIDE_ACCEL_MPS2 /
+ METERS_PER_UNIT;
 
 // ==================================================
 // WIRE
@@ -7278,12 +7302,10 @@ let wallStunTimer =
  0;
 
 // ==================================================
-// GAS BURST STATE
+// GAS DASH STATE
 // ==================================================
-let lastSpaceTapTime =
-  -Infinity;
-
-let gasBurstCooldown = 0;
+let gasDashTimer =
+ 0;
 
 // ==================================================
 // CAMERA EQUIPMENT
@@ -11914,33 +11936,30 @@ function constrainRope(
 }
 
 // ==================================================
-// NORMAL GAS FLIGHT
+// GAS DASH
 // ==================================================
-function updateGasFlight(
- delta
-) {
- const usingGas =
- !grounded &&
- keys["Space"] &&
- gas >
- 0;
-
+function startGasDash() {
+ // --------------------------------------------------
+ // CHECK
+ // --------------------------------------------------
  if (
- !usingGas
+ dead ||
+ grounded ||
+ wallStunTimer >
+ 0 ||
+ gasDashTimer >
+ 0 ||
+ gas <
+ GAS_DASH_COST
  ) {
- return;
+ return false;
  }
 
- // =================================================
- // GAS CONSUMPTION
- // =================================================
- /*
-  * GAS残量システム自体は
-  * 現在のゲーム仕様を維持。
-  */
+ // --------------------------------------------------
+ // COST
+ // --------------------------------------------------
  gas -=
- FLIGHT_GAS_USE_RATE *
- delta;
+ GAS_DASH_COST;
 
  gas =
  Math.max(
@@ -11948,19 +11967,53 @@ function updateGasFlight(
  0
  );
 
+ // --------------------------------------------------
+ // START
+ // --------------------------------------------------
+ gasDashTimer =
+ GAS_DASH_DURATION;
+
+ return true;
+}
+
+// ==================================================
+// UPDATE GAS DASH
+// ==================================================
+function updateGasFlight(
+ delta
+) {
+ // --------------------------------------------------
+ // NOT ACTIVE
+ // --------------------------------------------------
+ if (
+ gasDashTimer <=
+ 0
+ ) {
+ return;
+ }
+
+ // --------------------------------------------------
+ // TIMER
+ // --------------------------------------------------
+ gasDashTimer =
+ Math.max(
+ 0,
+ gasDashTimer -
+ delta
+ );
+
  // =================================================
  // UPWARD THRUST
  // =================================================
  /*
-  * 速度を目標値へ近づけるのではなく、
-  * World +Yへ48m/s²の力を加える。
+  * 噴射中は必ず上方向へ加速。
   */
  velocity.y +=
- MANEUVER_GAS_THRUST_ACCEL *
+ GAS_DASH_UP_ACCEL *
  delta;
 
  // =================================================
- // AIR CONTROL
+ // HORIZONTAL DIRECTION
  // =================================================
  input.set(
  0,
@@ -11968,6 +12021,9 @@ function updateGasFlight(
  0
  );
 
+ // -------------------------------------------------
+ // FORWARD
+ // -------------------------------------------------
  if (
  keys["KeyW"]
  ) {
@@ -11976,6 +12032,9 @@ function updateGasFlight(
  );
  }
 
+ // -------------------------------------------------
+ // BACK
+ // -------------------------------------------------
  if (
  keys["KeyS"]
  ) {
@@ -11984,6 +12043,9 @@ function updateGasFlight(
  );
  }
 
+ // -------------------------------------------------
+ // RIGHT
+ // -------------------------------------------------
  if (
  keys["KeyD"]
  ) {
@@ -11992,6 +12054,9 @@ function updateGasFlight(
  );
  }
 
+ // -------------------------------------------------
+ // LEFT
+ // -------------------------------------------------
  if (
  keys["KeyA"]
  ) {
@@ -12000,18 +12065,18 @@ function updateGasFlight(
  );
  }
 
+ // =================================================
+ // HORIZONTAL THRUST
+ // =================================================
  if (
  input.lengthSq() >
  0
  ) {
  input.normalize();
 
- /*
-  * 20m/s²。
-  */
  velocity.addScaledVector(
  input,
- MANEUVER_AIR_CONTROL_ACCEL *
+ GAS_DASH_SIDE_ACCEL *
  delta
  );
  }
@@ -26340,43 +26405,29 @@ window.addEventListener(
  ) {
  event.preventDefault();
 
+ /*
+  * 押した瞬間だけ判定。
+  *
+  * OSのKey Repeatでは
+  * 再噴射しない。
+  */
  if (
- !keys["Space"]
+ !keys["Space"] &&
+ !event.repeat
  ) {
  spacePressed =
  true;
 
- const now =
- performance.now() /
- 1000;
-
- const doubleTap =
- now -
- lastSpaceTapTime <
- GAS_DOUBLE_TAP_WINDOW;
-
+ /*
+  * 空中なら0.1秒GAS DASH開始。
+  *
+  * 地上では従来通り
+  * updatePlayer()側のJumpに使う。
+  */
  if (
- doubleTap &&
- !grounded &&
- !dead &&
- wallStunTimer <=
- 0
+ !grounded
  ) {
- const fired =
- gasBurst();
-
- if (
- fired
- ) {
- lastSpaceTapTime =
- -Infinity;
- } else {
- lastSpaceTapTime =
- now;
- }
- } else {
- lastSpaceTapTime =
- now;
+ startGasDash();
  }
  }
  }
