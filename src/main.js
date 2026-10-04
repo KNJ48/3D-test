@@ -4099,18 +4099,39 @@ function updateRoadStreaming() {
 // ==================================================
 // TEMPLATE DEFINITIONS
 // ==================================================
+/*
+ * BUILDING HEIGHT TEST
+ *
+ * 街全体を立体機動向けに
+ * 高層化する。
+ *
+ * 幅・奥行きは従来通り。
+ *
+ * 階数を約2倍にして、
+ * 建物本体の高さを2倍にする。
+ */
 const HOUSE_TEMPLATES = {
  // --------------------------------------------------
  // TEMPLATE 01
  // --------------------------------------------------
+ /*
+  * OLD:
+  * 3F
+  *
+  * NEW:
+  * 6F
+  *
+  * 壁高:
+  * 9m → 18m
+  */
  1: {
  id: 1,
- name: "STANDARD_3F",
+ name: "STANDARD_6F",
 
  widthMeters: 9,
  depthMeters: 11,
 
- floorCount: 3,
+ floorCount: 6,
  floorHeightMeters: 3,
 
  roofHeightMeters: 4,
@@ -4129,24 +4150,23 @@ const HOUSE_TEMPLATES = {
  // TEMPLATE 02
  // --------------------------------------------------
  /*
-  * 横長の2階住宅。
+  * OLD:
+  * 2F
   *
-  * Template 01より
+  * NEW:
+  * 4F
   *
-  * ・広い
-  * ・奥行きがある
-  * ・低い
-  * ・屋根勾配が緩い
-  * ・窓が多い
+  * 壁高:
+  * 6.4m → 12.8m
   */
  2: {
  id: 2,
- name: "WIDE_2F",
+ name: "WIDE_4F",
 
  widthMeters: 13,
  depthMeters: 16,
 
- floorCount: 2,
+ floorCount: 4,
  floorHeightMeters: 3.2,
 
  roofHeightMeters: 3.1,
@@ -4165,35 +4185,26 @@ const HOUSE_TEMPLATES = {
  // TEMPLATE 03
  // --------------------------------------------------
  /*
-  * 高層タイプの4階建て。
+  * OLD:
+  * 4F
   *
-  * Template 01より
+  * NEW:
+  * 8F
   *
-  * ・高い
-  * ・少し幅広
-  * ・奥行きも大きい
-  * ・縦方向の存在感が強い
-  * ・立体機動のアンカー地点として使いやすい
+  * 壁高:
+  * 13.2m → 26.4m
   *
-  * 壁部分:
-  *
-  * 3.3m × 4階
-  * = 13.2m
-  *
-  * 屋根:
-  * 4.8m
-  *
-  * 最大高:
-  * 約18m
+  * 屋根込み:
+  * 約31.2m
   */
  3: {
  id: 3,
- name: "TALL_4F",
+ name: "TALL_8F",
 
  widthMeters: 11,
  depthMeters: 14,
 
- floorCount: 4,
+ floorCount: 8,
  floorHeightMeters: 3.3,
 
  roofHeightMeters: 4.8,
@@ -8733,7 +8744,7 @@ function gasBurst() {
  // =================================================
  // COOLDOWN
  // =================================================
- gasBurstCooldown =
+ gasDashTimer =
  GAS_BURST_COOLDOWN;
 
  // =================================================
@@ -14356,11 +14367,8 @@ function respawn() {
  wallStunTimer =
   0;
 
- gasBurstCooldown =
+ gasDashTimer =
   0;
-
- lastSpaceTapTime =
-  -Infinity;
 
  // =================================================
  // TUTORIAL RESPAWN
@@ -16158,11 +16166,8 @@ function resetPlayerForTutorial(
  wallStunTimer =
   0;
 
- gasBurstCooldown =
+ gasDashTimer =
   0;
-
- lastSpaceTapTime =
-  -Infinity;
 
  // ------------------------------------------------
  // SPAWN
@@ -19284,11 +19289,8 @@ function resetPlayerForRiseGuys() {
  wallStunTimer =
  0;
 
- gasBurstCooldown =
+ gasDashTimer =
  0;
-
- lastSpaceTapTime =
- -Infinity;
 
  camera.position.set(
  0,
@@ -21658,7 +21660,7 @@ function resetPlayerForTimeAttack() {
  wallStunTimer =
   0;
 
- gasBurstCooldown =
+ gasDashTimer =
   0;
 
  camera.position.set(
@@ -26915,7 +26917,7 @@ function updatePlayer(
     return;
   }
 
-  gasBurstCooldown =
+  gasDashTimer =
     Math.max(
       0,
       gasBurstCooldown -
@@ -27424,7 +27426,7 @@ async function startOpenWorld() {
   wallStunTimer =
    0;
 
-  gasBurstCooldown =
+  gasDashTimer =
    0;
 
   camera.position.copy(
