@@ -11546,209 +11546,6 @@ const WIRE_UPWARD_FORCE_MULTIPLIER =
 const wireForceDirection =
  new THREE.Vector3();
 
-// --------------------------------------------------
-// UPDATE WIRE
-// --------------------------------------------------
-function updateWire(
- anchor,
- delta,
- gasAvailable
-) {
- // --------------------------------------------------
- // NOT CONNECTED
- // --------------------------------------------------
- if (
-  !anchor.connected
- ) {
-  anchor.pulling =
-   false;
-
-  anchor.impulseApplied =
-   false;
-
-  anchor.ropeLocked =
-   false;
-
-  return;
- }
-
- // --------------------------------------------------
- // SHIFT = ROPE LOCK
- // --------------------------------------------------
- const shiftHeld =
-  keys["ShiftLeft"] ||
-  keys["ShiftRight"];
-
- if (
-  shiftHeld
- ) {
-  /*
-   * SHIFTを押した瞬間の
-   * ロープ長を保存。
-   */
-  if (
-   !anchor.ropeLocked
-  ) {
-   anchor.length =
-    camera.position.distanceTo(
-     anchor.point
-    );
-
-   anchor.ropeLocked =
-    true;
-  }
-
-  /*
-   * Rope Lock中は
-   * ガス牽引しない。
-   */
-  anchor.pulling =
-   false;
-
-  anchor.impulseApplied =
-   false;
-
-  return;
- }
-
- // --------------------------------------------------
- // RELEASE ROPE LOCK
- // --------------------------------------------------
- if (
-  anchor.ropeLocked
- ) {
-  anchor.ropeLocked =
-   false;
-
-  anchor.impulseApplied =
-   false;
- }
-
- // --------------------------------------------------
- // NO PULL
- // --------------------------------------------------
- if (
-  !keys["KeyW"] ||
-  !gasAvailable
- ) {
-  anchor.pulling =
-   false;
-
-  anchor.impulseApplied =
-   false;
-
-  return;
- }
-
- // --------------------------------------------------
- // NORMAL WIRE DIRECTION
- // --------------------------------------------------
- wireDirection.subVectors(
-  anchor.point,
-  camera.position
- );
-
- if (
-  wireDirection.lengthSq() <
-   0.001
- ) {
-  anchor.pulling =
-   false;
-
-  return;
- }
-
- wireDirection.normalize();
-
- // --------------------------------------------------
- // FORCE DIRECTION
- // --------------------------------------------------
- /*
-  * 元のwireDirectionは
-  * Rope Constraint等でも使用するため
-  * 変更しない。
-  *
-  * Force専用Vectorを作る。
-  */
- wireForceDirection.copy(
-  wireDirection
- );
-
- // --------------------------------------------------
- // UPWARD FORCE × 3
- // --------------------------------------------------
- /*
-  * アンカーがPlayerより上にある場合のみ
-  * Y成分を3倍。
-  *
-  * 下向きアンカーのYまで3倍にすると
-  * 地面方向へ異常に叩きつけられるため、
-  * 負のYは従来通り。
-  */
- if (
-  wireForceDirection.y >
-   0
- ) {
-  wireForceDirection.y *=
-   WIRE_UPWARD_FORCE_MULTIPLIER;
- }
-
- /*
-  * ここではnormalizeしない。
-  *
-  * normalizeすると
-  * 「Yだけ3倍」ではなく
-  * X/Z成分まで弱くなるため。
-  */
-
- // --------------------------------------------------
- // DISTANCE BOOST
- // --------------------------------------------------
- const boost =
-  getWireDistanceBoost(
-   anchor
-  );
-
- // --------------------------------------------------
- // INITIAL IMPULSE
- // --------------------------------------------------
- if (
-  !anchor.impulseApplied
- ) {
-  velocity.addScaledVector(
-   wireForceDirection,
-   WIRE_INITIAL_IMPULSE *
-   boost.initialMultiplier
-  );
-
-  anchor.impulseApplied =
-   true;
-
-  anchor.length =
-   camera.position.distanceTo(
-    anchor.point
-   );
- }
-
- // --------------------------------------------------
- // SUSTAINED PULL
- // --------------------------------------------------
- anchor.pulling =
-  true;
-
- velocity.addScaledVector(
-  wireForceDirection,
-  WIRE_SUSTAIN_ACCEL *
-  boost.accelerationMultiplier *
-  delta
- );
-
- // --------------------------------------------------
- // SAFETY
- // --------------------------------------------------
- limitWireSafetySpeed();
-}
-
 // ==================================================
 // ROPE CONSTRAINT
 // ==================================================
@@ -26341,10 +26138,6 @@ window.addEventListener(
  // --------------------------------------------------
  // SETTINGS OPEN
  // --------------------------------------------------
- /*
-  * 設定画面を開いているときのESCは
-  * 設定を閉じる。
-  */
  if (
  settingsOpen
  ) {
@@ -26353,23 +26146,14 @@ window.addEventListener(
  "Escape"
  ) {
  event.preventDefault();
-
  closeSettings();
  }
-
  return;
  }
 
  // --------------------------------------------------
  // MAIN MENU
  // --------------------------------------------------
- /*
-  * メインメニューでは
-  *
-  * ESC = SETTINGS
-  *
-  * とする。
-  */
  if (
  mainMenuOpen
  ) {
@@ -26378,12 +26162,10 @@ window.addEventListener(
  "Escape"
  ) {
  event.preventDefault();
-
  openSettings(
  "main-menu"
  );
  }
-
  return;
  }
 
@@ -26398,10 +26180,8 @@ window.addEventListener(
  "Escape"
  ) {
  event.preventDefault();
-
  closeWorldMap();
  }
-
  return;
  }
 
@@ -26416,29 +26196,22 @@ window.addEventListener(
  "Escape"
  ) {
  event.preventDefault();
-
  closeTeleportMenu();
  }
-
  return;
  }
 
  // --------------------------------------------------
  // ESC = SETTINGS
  // --------------------------------------------------
- /*
-  * ゲームプレイ中。
-  */
  if (
  event.code ===
  "Escape"
  ) {
  event.preventDefault();
-
  openSettings(
  "game"
  );
-
  return;
  }
 
@@ -26451,9 +26224,7 @@ window.addEventListener(
  !event.repeat
  ) {
  event.preventDefault();
-
  toggleWorldMap();
-
  return;
  }
 
@@ -26466,9 +26237,7 @@ window.addEventListener(
  !event.repeat
  ) {
  event.preventDefault();
-
  toggleTeleportMenu();
-
  return;
  }
 
@@ -26500,7 +26269,8 @@ window.addEventListener(
  doubleTap &&
  !grounded &&
  !dead &&
- wallStunTimer <= 0
+ wallStunTimer <=
+ 0
  ) {
  const fired =
  gasBurst();
@@ -26521,31 +26291,42 @@ window.addEventListener(
  }
  }
 
- // --------------------------------------------------
- // Q = LEFT MANUAL
- // --------------------------------------------------
+ // ==================================================
+ // SHIFT = LEFT ANCHOR
+ // ==================================================
+ /*
+  * 新操作:
+  *
+  * Shift
+  * =
+  * LEFT ANCHOR
+  *
+  * 1回目:
+  * 射出
+  *
+  * 2回目:
+  * 解除
+  *
+  * ROPE LOCKとしては使用しない。
+  */
  if (
+ (
  event.code ===
- "KeyQ" &&
- !keys["KeyQ"] &&
- wallStunTimer <= 0
+ "ShiftLeft" ||
+ event.code ===
+ "ShiftRight"
+ ) &&
+ !event.repeat &&
+ !keys[
+ event.code
+ ] &&
+ wallStunTimer <=
+ 0
  ) {
+ event.preventDefault();
+
  toggleManualAnchor(
  leftAnchor
- );
- }
-
- // --------------------------------------------------
- // R = RIGHT MANUAL
- // --------------------------------------------------
- if (
- event.code ===
- "KeyR" &&
- !keys["KeyR"] &&
- wallStunTimer <= 0
- ) {
- toggleManualAnchor(
- rightAnchor
  );
  }
 
@@ -26557,9 +26338,9 @@ window.addEventListener(
  }
 );
 
-// --------------------------------------------------
+// ==================================================
 // KEY UP
-// --------------------------------------------------
+// ==================================================
 window.addEventListener(
  "keyup",
  event => {
@@ -26609,77 +26390,97 @@ document.addEventListener(
 renderer.domElement.addEventListener(
  "mousedown",
  event => {
-  // --------------------------------------------------
-  // UI OPEN
-  // --------------------------------------------------
-  if (
-   worldMapOpen ||
-   teleportMenuOpen ||
-   (
-    typeof settingsOpen !==
-    "undefined" &&
-    settingsOpen
-   )
-  ) {
-   return;
-  }
+ // --------------------------------------------------
+ // UI OPEN
+ // --------------------------------------------------
+ if (
+ worldMapOpen ||
+ teleportMenuOpen ||
+ (
+ typeof settingsOpen !==
+ "undefined" &&
+ settingsOpen
+ )
+ ) {
+ return;
+ }
 
-  // --------------------------------------------------
-  // POINTER LOCK
-  // --------------------------------------------------
-  if (
-   document.pointerLockElement !==
-   renderer.domElement
-  ) {
-   if (
-    event.button ===
-    0
-   ) {
-    renderer.domElement
-    .requestPointerLock();
-   }
+ // --------------------------------------------------
+ // POINTER LOCK
+ // --------------------------------------------------
+ if (
+ document.pointerLockElement !==
+ renderer.domElement
+ ) {
+ /*
+  * 左クリックでPointer Lock開始。
+  *
+  * 右クリックでは
+  * Pointer Lock開始だけのために
+  * アンカーを誤射しない。
+  */
+ if (
+ event.button ===
+ 0
+ ) {
+ renderer.domElement
+ .requestPointerLock();
+ }
 
-   return;
-  }
+ return;
+ }
 
-  // --------------------------------------------------
-  // DISABLED
-  // --------------------------------------------------
-  if (
-   dead ||
-   wallStunTimer > 0
-  ) {
-   return;
-  }
+ // --------------------------------------------------
+ // DISABLED
+ // --------------------------------------------------
+ if (
+ dead ||
+ wallStunTimer >
+ 0
+ ) {
+ return;
+ }
 
-  // --------------------------------------------------
-  // LEFT CLICK = BLADE
-  // --------------------------------------------------
-  if (
-   event.button ===
-   0
-  ) {
-   bladeAttackHeld =
-    true;
+ // ==================================================
+ // LEFT CLICK = BLADE
+ // ==================================================
+ if (
+ event.button ===
+ 0
+ ) {
+ bladeAttackHeld =
+ true;
 
-   bladeAttackReleased =
-    false;
+ bladeAttackReleased =
+ false;
 
-   /*
-    * 攻撃開始。
-    */
-   bladeAttack();
-  }
+ bladeAttack();
+ }
 
-  // --------------------------------------------------
-  // RIGHT CLICK = AUTO DUAL
-  // --------------------------------------------------
-  if (
-   event.button ===
-   2
-  ) {
-   fireAutoDualAnchors();
-  }
+ // ==================================================
+ // RIGHT CLICK = RIGHT ANCHOR
+ // ==================================================
+ /*
+  * AUTO DUALは使用しない。
+  *
+  * 右クリック:
+  *
+  * OFF
+  * ↓
+  * 画面中央へ右アンカー射出
+  *
+  * FIRING / CONNECTED
+  * ↓
+  * 右アンカー解除
+  */
+ if (
+ event.button ===
+ 2
+ ) {
+ toggleManualAnchor(
+ rightAnchor
+ );
+ }
  }
 );
 
@@ -26689,18 +26490,18 @@ renderer.domElement.addEventListener(
 renderer.domElement.addEventListener(
  "mouseup",
  event => {
-  if (
-   event.button !==
-   0
-  ) {
-   return;
-  }
+ if (
+ event.button !==
+ 0
+ ) {
+ return;
+ }
 
-  bladeAttackHeld =
-   false;
+ bladeAttackHeld =
+ false;
 
-  bladeAttackReleased =
-   true;
+ bladeAttackReleased =
+ true;
  }
 );
 
@@ -26710,7 +26511,7 @@ renderer.domElement.addEventListener(
 renderer.domElement.addEventListener(
  "contextmenu",
  event => {
-  event.preventDefault();
+ event.preventDefault();
  }
 );
 
@@ -26720,45 +26521,43 @@ renderer.domElement.addEventListener(
 document.addEventListener(
  "mousemove",
  event => {
-  if (
-   worldMapOpen ||
-   teleportMenuOpen ||
-   (
-    typeof settingsOpen !==
-    "undefined" &&
-    settingsOpen
-   )
-  ) {
-   return;
-  }
+ if (
+ worldMapOpen ||
+ teleportMenuOpen ||
+ (
+ typeof settingsOpen !==
+ "undefined" &&
+ settingsOpen
+ )
+ ) {
+ return;
+ }
 
-  if (
-   document.pointerLockElement !==
-   renderer.domElement
-  ) {
-   return;
-  }
+ if (
+ document.pointerLockElement !==
+ renderer.domElement
+ ) {
+ return;
+ }
 
-  yaw -=
-   event.movementX *
-   MOUSE_SENSITIVITY;
+ yaw -=
+ event.movementX *
+ MOUSE_SENSITIVITY;
 
-  pitch -=
-   event.movementY *
-   MOUSE_SENSITIVITY;
+ pitch -=
+ event.movementY *
+ MOUSE_SENSITIVITY;
 
-  pitch =
-   THREE.MathUtils.clamp(
-    pitch,
-
-    -Math.PI /
-    2 +
-    0.01,
-
-    Math.PI /
-    2 -
-    0.01
-   );
+ pitch =
+ THREE.MathUtils.clamp(
+ pitch,
+ -Math.PI /
+ 2 +
+ 0.01,
+ Math.PI /
+ 2 -
+ 0.01
+ );
  }
 );
 
