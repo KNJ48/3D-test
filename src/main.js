@@ -11524,9 +11524,8 @@ function getWireDistanceBoost(
 // ==================================================
 // WIRE PHYSICS
 // ==================================================
-
 /*
- * ワイヤー上方向強化テスト。
+ * ワイヤー上方向強化。
  *
  * 水平方向:
  * 100%
@@ -11545,6 +11544,171 @@ const WIRE_UPWARD_FORCE_MULTIPLIER =
 // --------------------------------------------------
 const wireForceDirection =
  new THREE.Vector3();
+
+// --------------------------------------------------
+// UPDATE WIRE
+// --------------------------------------------------
+function updateWire(
+ anchor,
+ delta,
+ gasAvailable
+) {
+ // --------------------------------------------------
+ // NOT CONNECTED
+ // --------------------------------------------------
+ if (
+ !anchor.connected
+ ) {
+ anchor.pulling =
+ false;
+
+ anchor.impulseApplied =
+ false;
+
+ anchor.ropeLocked =
+ false;
+
+ return;
+ }
+
+ // --------------------------------------------------
+ // ROPE LOCK DISABLED
+ // --------------------------------------------------
+ /*
+  * Shiftは現在、
+  *
+  * LEFT ANCHOR
+  *
+  * に使用する。
+  *
+  * そのため旧Shift Rope Lockは
+  * 完全に無効化する。
+  */
+ anchor.ropeLocked =
+ false;
+
+ // --------------------------------------------------
+ // NO PULL
+ // --------------------------------------------------
+ if (
+ !keys["KeyW"] ||
+ !gasAvailable
+ ) {
+ anchor.pulling =
+ false;
+
+ anchor.impulseApplied =
+ false;
+
+ return;
+ }
+
+ // --------------------------------------------------
+ // NORMAL WIRE DIRECTION
+ // --------------------------------------------------
+ wireDirection.subVectors(
+ anchor.point,
+ camera.position
+ );
+
+ if (
+ wireDirection.lengthSq() <
+ 0.001
+ ) {
+ anchor.pulling =
+ false;
+
+ return;
+ }
+
+ wireDirection.normalize();
+
+ // --------------------------------------------------
+ // FORCE DIRECTION
+ // --------------------------------------------------
+ /*
+  * wireDirection自体は変更せず、
+  * Force専用Vectorを使用する。
+  */
+ wireForceDirection.copy(
+ wireDirection
+ );
+
+ // --------------------------------------------------
+ // UPWARD FORCE × 3
+ // --------------------------------------------------
+ /*
+  * アンカーがPlayerより
+  * 上にある場合のみ
+  * Y成分を3倍。
+  *
+  * 下方向へのY成分は
+  * 従来通り。
+  */
+ if (
+ wireForceDirection.y >
+ 0
+ ) {
+ wireForceDirection.y *=
+ WIRE_UPWARD_FORCE_MULTIPLIER;
+ }
+
+ /*
+  * normalizeしない。
+  *
+  * Yだけを強化するため。
+  */
+
+ // --------------------------------------------------
+ // DISTANCE BOOST
+ // --------------------------------------------------
+ const boost =
+ getWireDistanceBoost(
+ anchor
+ );
+
+ // --------------------------------------------------
+ // INITIAL IMPULSE
+ // --------------------------------------------------
+ if (
+ !anchor.impulseApplied
+ ) {
+ velocity.addScaledVector(
+ wireForceDirection,
+ WIRE_INITIAL_IMPULSE *
+ boost.initialMultiplier
+ );
+
+ anchor.impulseApplied =
+ true;
+
+ /*
+  * 牽引開始時点のロープ長。
+  */
+ anchor.length =
+ camera.position.distanceTo(
+ anchor.point
+ );
+ }
+
+ // --------------------------------------------------
+ // SUSTAINED PULL
+ // --------------------------------------------------
+ anchor.pulling =
+ true;
+
+ velocity.addScaledVector(
+ wireForceDirection,
+ WIRE_SUSTAIN_ACCEL *
+ boost.accelerationMultiplier *
+ delta
+ );
+
+ // --------------------------------------------------
+ // SAFETY
+ // --------------------------------------------------
+ limitWireSafetySpeed();
+}
 
 // ==================================================
 // ROPE CONSTRAINT
